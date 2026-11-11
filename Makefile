@@ -20,6 +20,10 @@ lint: ## Lint Go code (all modules)
 test: ## Run Go unit tests with race detector (all modules)
 	@for m in $(GO_MODULES); do echo "==> $$m"; (cd $$m && go test -race -cover ./...) || exit 1; done
 
+.PHONY: test-integration
+test-integration: ## Integration tests with Testcontainers (needs Docker)
+	cd api && go test -tags integration -race -count=1 ./internal/...
+
 .PHONY: run-api
 run-api: ## Run the API locally
 	cd api && go run ./cmd/api
@@ -27,6 +31,38 @@ run-api: ## Run the API locally
 .PHONY: image
 image: ## Build the API container image
 	docker build -t codearena-api:local api
+
+# --- Database (ADR-0004) -----------------------------------------------------
+
+ATLAS_IMAGE := arigaio/atlas:1.3.0
+SQLC_IMAGE := sqlc/sqlc:1.31.1
+# From inside a container, the compose Postgres is reachable on the host.
+DOCKER_DB_HOST := host.docker.internal:5432
+
+.PHONY: db-up
+db-up: ## Start Postgres (with the atlas_dev database for diffs)
+	docker compose up -d --wait postgres
+
+.PHONY: ent
+ent: ## Regenerate the Ent client after a schema change
+	cd api && go generate ./internal/store/ent
+
+# Usage: make migration NAME=add_contests
+.PHONY: migration
+migration: ## Generate a versioned migration from the Ent schema (NAME=...)
+	cd api && go run ./cmd/migratediff $(NAME)
+
+.PHONY: sqlc
+sqlc: ## Regenerate sqlc code from api/internal/store/queries
+	docker run --rm -v "$(CURDIR)/api":/src -w /src $(SQLC_IMAGE) generate
+
+.PHONY: migrate-apply
+migrate-apply: ## Apply migrations to the local codearena database
+	docker run --rm -v "$(CURDIR)/api/migrations":/migrations $(ATLAS_IMAGE) migrate apply 		--dir file:///migrations 		--url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/codearena?sslmode=disable"
+
+.PHONY: migrate-validate
+migrate-validate: ## Check migration files against atlas.sum
+	docker run --rm -v "$(CURDIR)/api/migrations":/migrations $(ATLAS_IMAGE) migrate validate 		--dir file:///migrations 		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable"
 
 # --- Runner -------------------------------------------------------------------
 

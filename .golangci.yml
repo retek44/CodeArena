@@ -2,6 +2,9 @@ version: "2"
 
 run:
   timeout: 5m
+  # Lint the integration tests too.
+  build-tags:
+    - integration
 
 linters:
   default: standard

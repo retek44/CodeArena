@@ -14,10 +14,10 @@ import (
 func TestRoutes(t *testing.T) {
 	t.Parallel()
 
-	handler := httpapi.NewHandler(
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		httpapi.BuildInfo{Version: "1.2.3", Commit: "abc123"},
-	)
+	handler := httpapi.NewHandler(httpapi.Deps{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Build:  httpapi.BuildInfo{Version: "1.2.3", Commit: "abc123"},
+	})
 
 	tests := []struct {
 		name       string

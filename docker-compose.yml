@@ -10,6 +10,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
+      # Creates the atlas_dev database for migration diffs (runs only on a new volume).
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U codearena -d codearena"]
       interval: 5s
@@ -31,6 +33,10 @@ services:
       context: api
     environment:
       PORT: "8080"
+      # Apply migrations first: make migrate-apply
+      DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
+      # Local only: trusts the X-Dev-User header instead of a Cognito token.
+      AUTH_MODE: dev
     ports:
       - "8080:8080"
     depends_on:

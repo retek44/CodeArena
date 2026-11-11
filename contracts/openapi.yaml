@@ -1,0 +1,496 @@
+openapi: 3.1.0
+info:
+  title: CodeArena API
+  version: 0.1.0
+  description: |
+    Public HTTP API of CodeArena, an online judge.
+
+    - Authentication: Cognito access token as `Authorization: Bearer <token>`.
+    - Errors use RFC 9457 problem details (`application/problem+json`).
+    - Lists use cursor pagination: pass `next_cursor` from the previous page as `cursor`.
+  contact:
+    name: CodeArena
+    url: https://github.com/retek44/CodeArena
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+tags:
+  - name: health
+    description: Liveness and build information
+  - name: problems
+    description: Problem catalogue
+  - name: submissions
+    description: Submitting code and reading verdicts
+
+security:
+  - bearerAuth: []
+
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Liveness check
+      security: []
+      responses:
+        "200":
+          description: The service is running.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+
+  /version:
+    get:
+      tags: [health]
+      operationId: getVersion
+      summary: Build information
+      security: []
+      responses:
+        "200":
+          description: Version and commit of the running binary.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [version, commit]
+                properties:
+                  version:
+                    type: string
+                  commit:
+                    type: string
+
+  /api/problems:
+    get:
+      tags: [problems]
+      operationId: listProblems
+      summary: List published problems
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: difficulty
+          in: query
+          required: false
+          description: Only problems of this difficulty.
+          schema:
+            $ref: "#/components/schemas/Difficulty"
+      responses:
+        "200":
+          description: One page of problems.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProblemSummary"
+                  next_cursor:
+                    $ref: "#/components/schemas/NextCursor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/problems/{slug}:
+    get:
+      tags: [problems]
+      operationId: getProblem
+      summary: Get one problem with its statement and sample test cases
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: URL-friendly problem identifier.
+          schema:
+            $ref: "#/components/schemas/Slug"
+      responses:
+        "200":
+          description: The problem.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/submissions:
+    post:
+      tags: [submissions]
+      operationId: createSubmission
+      summary: Submit a solution
+      description: |
+        Queues the submission for judging and returns immediately.
+        Retrying with the same `Idempotency-Key` returns the original submission
+        instead of creating a new one.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Client-generated unique key (UUID recommended) for safe retries.
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 128
+            pattern: "^[A-Za-z0-9_-]+$"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSubmission"
+      responses:
+        "202":
+          description: Accepted for judging.
+          headers:
+            Location:
+              description: URL of the new submission.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The `Idempotency-Key` was already used with a different request body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Too many submissions.
+          headers:
+            Retry-After:
+              description: Seconds to wait before the next submission.
+              schema:
+                type: integer
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/submissions/{id}:
+    get:
+      tags: [submissions]
+      operationId: getSubmission
+      summary: Get a submission and its verdict
+      description: Users can read only their own submissions.
+      parameters:
+        - $ref: "#/components/parameters/SubmissionId"
+      responses:
+        "200":
+          description: The submission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Submission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/me/submissions:
+    get:
+      tags: [submissions]
+      operationId: listMySubmissions
+      summary: List the caller's submissions, newest first
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: problem
+          in: query
+          required: false
+          description: Only submissions for this problem.
+          schema:
+            $ref: "#/components/schemas/Slug"
+      responses:
+        "200":
+          description: One page of submissions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Submission"
+                  next_cursor:
+                    $ref: "#/components/schemas/NextCursor"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Cognito access token.
+
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor from the previous page.
+      schema:
+        type: string
+        maxLength: 256
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    SubmissionId:
+      name: id
+      in: path
+      required: true
+      description: Submission ID.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: The request is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    Unauthorized:
+      description: Missing or invalid access token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    NotFound:
+      description: The resource does not exist or is not visible to the caller.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+  schemas:
+    Slug:
+      type: string
+      minLength: 1
+      maxLength: 64
+      pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+      examples: [a-plus-b]
+
+    Difficulty:
+      type: string
+      enum: [easy, medium, hard]
+
+    Language:
+      type: string
+      enum: [python]
+
+    Verdict:
+      type: string
+      description: |
+        AC accepted, WA wrong answer, TLE time limit, MLE memory limit, OLE output limit,
+        RE runtime error, CE compile error, IE internal error.
+      enum: [AC, WA, TLE, MLE, OLE, RE, CE, IE]
+
+    SubmissionStatus:
+      type: string
+      enum: [queued, running, done, failed]
+
+    NextCursor:
+      description: Cursor for the next page; null on the last page.
+      oneOf:
+        - type: string
+        - type: "null"
+
+    ProblemSummary:
+      type: object
+      additionalProperties: false
+      required: [slug, title, difficulty]
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        title:
+          type: string
+          maxLength: 200
+        difficulty:
+          $ref: "#/components/schemas/Difficulty"
+        tags:
+          type: array
+          items:
+            type: string
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [slug, title, difficulty, statement_md, time_limit_ms, memory_limit_mb, samples]
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        title:
+          type: string
+          maxLength: 200
+        difficulty:
+          $ref: "#/components/schemas/Difficulty"
+        tags:
+          type: array
+          items:
+            type: string
+        statement_md:
+          type: string
+          description: Problem statement in Markdown.
+        time_limit_ms:
+          type: integer
+          minimum: 100
+          maximum: 10000
+        memory_limit_mb:
+          type: integer
+          minimum: 16
+          maximum: 512
+        samples:
+          type: array
+          description: Sample test cases shown to users. Hidden test cases are never returned.
+          items:
+            $ref: "#/components/schemas/SampleCase"
+
+    SampleCase:
+      type: object
+      additionalProperties: false
+      required: [input, output]
+      properties:
+        input:
+          type: string
+        output:
+          type: string
+
+    CreateSubmission:
+      type: object
+      additionalProperties: false
+      required: [problem, language, source]
+      properties:
+        problem:
+          $ref: "#/components/schemas/Slug"
+        language:
+          $ref: "#/components/schemas/Language"
+        source:
+          type: string
+          minLength: 1
+          maxLength: 65536
+
+    Submission:
+      type: object
+      additionalProperties: false
+      required: [id, problem, language, status, verdict, created_at, cases]
+      properties:
+        id:
+          type: string
+          format: uuid
+        problem:
+          $ref: "#/components/schemas/Slug"
+        language:
+          $ref: "#/components/schemas/Language"
+        status:
+          $ref: "#/components/schemas/SubmissionStatus"
+        verdict:
+          description: Null until judging is finished.
+          oneOf:
+            - $ref: "#/components/schemas/Verdict"
+            - type: "null"
+        runtime_ms:
+          description: Highest CPU time over all test cases.
+          oneOf:
+            - type: integer
+              minimum: 0
+            - type: "null"
+        memory_kb:
+          description: Highest peak memory over all test cases.
+          oneOf:
+            - type: integer
+              minimum: 0
+            - type: "null"
+        compile_output:
+          description: Compiler diagnostics for CE.
+          oneOf:
+            - type: string
+            - type: "null"
+        created_at:
+          type: string
+          format: date-time
+        judged_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: "null"
+        cases:
+          type: array
+          description: Per-test-case results in order. Inputs and outputs of hidden cases are not exposed.
+          items:
+            $ref: "#/components/schemas/CaseResult"
+
+    CaseResult:
+      type: object
+      additionalProperties: false
+      required: [index, verdict]
+      properties:
+        index:
+          type: integer
+          minimum: 1
+        verdict:
+          oneOf:
+            - $ref: "#/components/schemas/Verdict"
+            - type: string
+              const: SKIPPED
+        runtime_ms:
+          type: integer
+          minimum: 0
+        memory_kb:
+          type: integer
+          minimum: 0
+
+    ProblemDetails:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string

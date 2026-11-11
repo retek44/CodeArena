@@ -68,12 +68,29 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 
 ## Phase 2 – API + DB
 
-- [ ] `contracts/openapi.yaml`, spectral lint, `oasdiff` breaking-change check
-- [ ] Ent schema, Atlas migrations, `atlas migrate lint` in CI
-- [ ] sqlc queries for hot paths
-- [ ] Cognito user pool, JWT middleware
-- [ ] Problem and submission endpoints, `Idempotency-Key`
-- [ ] Testcontainers integration tests, N+1 query guard
+- [x] `contracts/openapi.yaml` (OpenAPI 3.1): problems, submissions with `Idempotency-Key`, RFC 9457 errors,
+      cursor pagination
+- [x] CI job "OpenAPI contract": Spectral with custom rules (problem+json errors, closed objects, summaries),
+      `oasdiff` breaking-change check against the base branch (spec upload disabled)
+- [x] Ent schema (users, problems, tags, test_cases, submissions, submission_results), ADR-0008
+- [x] sqlc hot-path queries (claim, complete, requeue, fail, bulk results, stuck list)
+- [x] Migration diff tool (Ent `NamedDiff` + Atlas dir format), dev database in docker compose, Makefile targets
+- [x] Code generation run: Ent client, `20261111183343_initial.sql` + `atlas.sum`, sqlc package `internal/store/db`
+      (Ent generator as a Go tool dependency; `golang.org/x/tools` v0.52 needed for Go 1.27)
+- [x] `internal/store`: one pgx pool shared by Ent (`stdlib.OpenDBFromPool`) and sqlc
+- [x] Integration tests with Testcontainers (`-tags integration`): concurrent claim wins once, complete only
+      from running, idempotent result insert, idempotency key unique per user, stuck list + requeue
+- [x] CI job "Database": generated-code drift check, `atlas migrate validate`, integration tests
+- [ ] Migration lint (destructive-change check): `atlas migrate lint` or an open-source alternative
+- [x] Problem and submission endpoints (`internal/httpapi`): cursor pagination (keyset for submissions),
+      `Idempotency-Key` with request hash (replay 202, different body 409), private submissions (404 for others),
+      RFC 9457 errors, hidden test cases never returned
+- [x] Auth interface + `DevAuthenticator` (`AUTH_MODE=dev`, local only); no default mode (fails closed)
+- [x] API integration tests with Testcontainers (shared `storetest` helper, template database per test)
+- [x] N+1 query guard: pgx query tracer counts statements per request (problems page ≤ 2, submissions page ≤ 3)
+- [ ] Cognito user pool (Terraform) + JWT verification (`AUTH_MODE=cognito`)
+- [ ] Rate limit for submissions (429 + Retry-After)
+- [ ] Contract test: validate API responses against `contracts/openapi.yaml`
 - [ ] SonarCloud quality gate
 
 ## Phase 3 – Async judge

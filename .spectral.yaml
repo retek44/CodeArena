@@ -1,0 +1,34 @@
+# Spectral rules for contracts/openapi.yaml (CI job "OpenAPI contract").
+extends:
+  - spectral:oas
+
+rules:
+  # Every operation must be documented and addressable by generated clients.
+  operation-description: off
+  operation-operationId: error
+  operation-tags: error
+  codearena-operation-summary:
+    description: Every operation has a summary.
+    severity: error
+    given: "$.paths.*[get,put,post,patch,delete]"
+    then:
+      field: summary
+      function: truthy
+  # Errors must use RFC 9457 problem details.
+  codearena-error-media-type:
+    description: 4xx and 5xx responses use application/problem+json.
+    severity: error
+    given: "$.paths.*.*.responses[?(@property >= '400')].content"
+    then:
+      field: application/problem+json
+      function: truthy
+  # Request and response objects must not accept unknown fields.
+  codearena-closed-objects:
+    description: Component object schemas set additionalProperties to false (except ProblemDetails).
+    severity: warn
+    given: "$.components.schemas[?(@.type == 'object' && @property != 'ProblemDetails')]"
+    then:
+      - field: additionalProperties
+        function: defined
+      - field: additionalProperties
+        function: falsy

@@ -58,6 +58,8 @@ docker run --rm -v "$W":/src -w /src/api golang:1.26-alpine go test ./...      #
 docker run --rm -v "$W":/src -w /src/api golangci/golangci-lint:v2.14.0 golangci-lint run ./...   # same for worker
 docker run --rm -v "$W":/src -w /src python:3.13-slim sh -c 'pip install -q -r requirements-dev.txt && ruff check runners && mypy && pytest -q runners/core/tests'
 make runner-up && make golden   # golden verdict tests against the runner container
+TESTCONTAINERS_RYUK_DISABLED=true make test-integration   # Postgres integration tests (Ryuk fails on Docker Desktop)
+docker run --rm -v "$W":/tmp/repo -w /tmp/repo stoplight/spectral:6.17.1 lint --fail-severity=warn contracts/openapi.yaml
 docker run --rm -v "$W":/repo -w /repo rhysd/actionlint:1.7.12
 docker run --rm -v "$W":/src -w /src semgrep/semgrep:1.180.0 semgrep scan --error --metrics=off --config p/golang --config p/python --config p/dockerfile --config p/terraform --config p/github-actions --config p/secrets
 ```
