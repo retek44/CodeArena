@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: gomod
+    directories: ["/api", "/worker"]
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: docker
+    directories: ["/api", "/runners/python"]
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python-dev:
+        patterns: ["*"]
+    commit-message:
+      prefix: build
+
+  - package-ecosystem: terraform
+    directories:
+      - /infra/bootstrap
+      - /infra/shared
+      - /infra/envs/*
+      - /infra/modules/*
+    schedule:
+      interval: weekly
+    groups:
+      terraform:
+        patterns: ["*"]
+    commit-message:
+      prefix: build

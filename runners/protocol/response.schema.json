@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codearena.local/schemas/runner/response.schema.json",
+  "title": "RunnerResponse",
+  "description": "Result returned by a runner Lambda. The runner reports how the program ran; the worker decides the verdict (for example WA) by comparing stdout with the expected output.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "submission_id", "compile", "results", "truncated"],
+  "properties": {
+    "protocol_version": { "const": 1 },
+    "submission_id": { "type": "string" },
+    "compile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "output"],
+      "properties": {
+        "status": { "type": "string", "enum": ["ok", "error", "time_limit"] },
+        "output": { "type": "string", "description": "Compiler diagnostics, truncated." }
+      }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "cpu_time_ms", "wall_time_ms", "memory_kb", "exit_code", "signal", "stdout", "stderr"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["ok", "time_limit", "memory_limit", "output_limit", "runtime_error", "skipped"]
+          },
+          "cpu_time_ms": { "type": "integer", "minimum": 0 },
+          "wall_time_ms": { "type": "integer", "minimum": 0 },
+          "memory_kb": { "type": "integer", "minimum": 0 },
+          "exit_code": { "type": ["integer", "null"] },
+          "signal": { "type": ["integer", "null"] },
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string", "description": "Last bytes of stderr, truncated." }
+        }
+      }
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "True if the runner skipped test cases because the invocation was about to time out."
+    }
+  }
+}

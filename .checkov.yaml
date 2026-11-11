@@ -1,0 +1,7 @@
+# Checkov settings for CI and `make tf-lint`.
+# Skips live next to the resource as `#checkov:skip=<id>:<reason>`, so every exception has a reason.
+compact: true
+framework:
+  - terraform
+quiet: true
+download-external-modules: false

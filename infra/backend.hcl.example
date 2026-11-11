@@ -1,0 +1,4 @@
+# Copy to infra/backend.hcl (gitignored), fill in from `terraform output backend_hcl` in infra/bootstrap,
+# then run in an env directory:  terraform init -backend-config=../../backend.hcl
+bucket = "codearena-tfstate-<account-id>-eu-central-1"
+region = "eu-central-1"

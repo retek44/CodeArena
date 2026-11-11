@@ -1,0 +1,7 @@
+{
+  "slug": "a-plus-b",
+  "title": "A + B",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

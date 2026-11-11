@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codearena.local/schemas/runner/request.schema.json",
+  "title": "RunnerRequest",
+  "description": "Event sent by the judge worker to a runner Lambda. Expected outputs are never sent to the runner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["protocol_version", "submission_id", "language", "source", "limits", "test_cases"],
+  "properties": {
+    "protocol_version": { "const": 1 },
+    "submission_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+    "language": { "type": "string", "enum": ["python"] },
+    "source": { "type": "string", "minLength": 1, "maxLength": 65536 },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["time_ms", "memory_mb"],
+      "properties": {
+        "time_ms": { "type": "integer", "minimum": 100, "maximum": 10000, "description": "CPU time limit per test case." },
+        "memory_mb": { "type": "integer", "minimum": 16, "maximum": 512, "description": "Peak resident memory limit per test case." },
+        "output_kb": { "type": "integer", "minimum": 1, "maximum": 4096, "default": 1024 },
+        "compile_time_ms": { "type": "integer", "minimum": 1000, "maximum": 30000, "default": 10000 }
+      }
+    },
+    "test_cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "input"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
+          "input": { "type": "string" }
+        }
+      }
+    },
+    "stop_on_failure": {
+      "type": "boolean",
+      "default": true,
+      "description": "Skip the remaining test cases after the first case whose status is not ok."
+    }
+  }
+}

@@ -1,0 +1,34 @@
+# Tooling configuration for the Python parts of the repository (runners, test suites).
+# Not a package; dependencies for development are in requirements-dev.txt.
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+extend-exclude = ["tests/sandbox-security/programs", "tests/golden/*/solutions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "PL"]
+ignore = [
+  "PLR0913", # many keyword arguments are clearer than an options object here
+  "PLR2004", # magic values in comparisons are fine for status codes and limits
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["codearena_runner"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S603", "S607", "PLR0915"]
+"runners/core/codearena_runner/sandbox.py" = ["S606"] # os.execve is the whole point
+"runners/core/codearena_runner/handler.py" = ["S108"] # /tmp is the only writable path in Lambda
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+mypy_path = "runners/core"
+packages = ["codearena_runner"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+pythonpath = ["runners/core"]
+markers = ["sandbox: needs a running runner container (RUNNER_URL)"]

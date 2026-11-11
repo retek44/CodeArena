@@ -1,0 +1,350 @@
+name: PR
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: 1.16.5
+  TFLINT_VERSION: v0.64.0
+  GOLANGCI_LINT_VERSION: v2.14.0
+  GITLEAKS_VERSION: 8.30.1
+  SEMGREP_VERSION: 1.180.0
+  ACTIONLINT_VERSION: 1.7.12
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      runner: ${{ steps.filter.outputs.runner }}
+      terraform: ${{ steps.filter.outputs.terraform }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        id: filter
+        with:
+          filters: |
+            go:
+              - 'api/**'
+              - 'worker/**'
+              - 'go.work'
+              - '.golangci.yml'
+              - '.github/workflows/pr.yml'
+            runner:
+              - 'runners/**'
+              - 'worker/**'
+              - 'tests/golden/**'
+              - 'pyproject.toml'
+              - 'requirements-dev.txt'
+              - '.github/workflows/pr.yml'
+            terraform:
+              - 'infra/**'
+              - '.tflint.hcl'
+              - '.checkov.yaml'
+              - '.github/workflows/pr.yml'
+
+  actionlint:
+    name: Lint workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install actionlint
+        run: bash <(curl -sSfL "https://raw.githubusercontent.com/rhysd/actionlint/v${ACTIONLINT_VERSION}/scripts/download-actionlint.bash") "${ACTIONLINT_VERSION}"
+      - name: Run actionlint
+        run: ./actionlint -color
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+      - name: Scan git history
+        run: ./gitleaks git --redact --verbose .
+
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+      - name: Install Semgrep
+        run: pip install "semgrep==${SEMGREP_VERSION}"
+      - name: Scan
+        run: >-
+          semgrep scan --error --metrics=off
+          --config p/golang
+          --config p/python
+          --config p/dockerfile
+          --config p/terraform
+          --config p/github-actions
+          --config p/secrets
+
+  go:
+    name: Go lint and test (${{ matrix.module }})
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [api, worker]
+    defaults:
+      run:
+        working-directory: ${{ matrix.module }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: ${{ matrix.module }}/go.mod
+          cache-dependency-path: ${{ matrix.module }}/go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: ${{ matrix.module }}
+      - name: Test
+        run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Coverage summary
+        env:
+          MODULE: ${{ matrix.module }}
+        run: |
+          {
+            echo "### Go coverage (${MODULE})"
+            echo '```'
+            go tool cover -func=coverage.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: go-coverage-${{ matrix.module }}
+          path: ${{ matrix.module }}/coverage.out
+          retention-days: 7
+
+  api-image:
+    name: API image build and smoke test
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name != 'pull_request'
+    # Fargate runs on Graviton, so build and smoke test natively on arm64.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: api/Dockerfile
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: api
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: codearena-api:ci
+          build-args: |
+            VERSION=ci
+            COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - name: Smoke test container
+        run: |
+          docker run -d --name api -p 8080:8080 codearena-api:ci
+          for _ in $(seq 1 20); do
+            if curl -fsS http://localhost:8080/healthz; then
+              curl -fsS http://localhost:8080/version | grep -q "\"commit\":\"${GITHUB_SHA}\""
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs api
+          exit 1
+
+  runner-python:
+    name: Python runner (lint, unit, image, golden)
+    needs: changes
+    if: needs.changes.outputs.runner == 'true' || github.event_name != 'pull_request'
+    # Runner Lambdas run on arm64.
+    runs-on: ubuntu-24.04-arm
+    env:
+      CODEARENA_RUNNER_URL: http://localhost:9000/2015-03-31/functions/function/invocations
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install dev tools
+        run: pip install -r requirements-dev.txt
+      - name: ruff
+        run: |
+          ruff check --output-format=github runners
+          ruff format --check runners
+      - name: mypy
+        run: mypy
+      - name: Unit and contract tests
+        run: pytest -q runners/core/tests
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: runners/python/Dockerfile
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: runners
+          file: runners/python/Dockerfile
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: codearena-runner-python:ci
+          cache-from: type=gha,scope=runner-python
+          cache-to: type=gha,scope=runner-python,mode=max
+      # Like Lambda: read-only root file system, writable /tmp only, non-root user (set in the image).
+      - name: Start runner container
+        run: |
+          docker run -d --name runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g \
+            -p 9000:8080 codearena-runner-python:ci
+          probe='{"protocol_version":1,"submission_id":"probe","language":"python","source":"print(1)","limits":{"time_ms":1000,"memory_mb":64},"test_cases":[{"id":"1","input":""}]}'
+          for _ in $(seq 1 30); do
+            if curl -fsS -X POST "${CODEARENA_RUNNER_URL}" -d "${probe}" | grep -q '"status": "ok"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs runner
+          exit 1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: worker/go.mod
+          cache-dependency-path: worker/go.mod
+      - name: Golden tests
+        working-directory: worker
+        run: go test -count=1 -run TestGolden -v ./internal/judge/
+      - name: Runner logs
+        if: failure()
+        run: docker logs runner
+
+  terraform:
+    name: Terraform static checks
+    needs: changes
+    if: needs.changes.outputs.terraform == 'true' || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff infra
+      - name: terraform validate
+        run: |
+          for dir in infra/bootstrap infra/shared infra/envs/*/ infra/modules/*/; do
+            echo "::group::validate ${dir}"
+            terraform -chdir="${dir}" init -backend=false -input=false
+            terraform -chdir="${dir}" validate
+            echo "::endgroup::"
+          done
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('.tflint.hcl') }}
+      - uses: terraform-linters/setup-tflint@6ffdbaa3be476b3431f7275c26966ef32ff60337 # v6.3.2
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init --config "${GITHUB_WORKSPACE}/.tflint.hcl"
+          tflint --recursive --config "${GITHUB_WORKSPACE}/.tflint.hcl" --format compact
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@29be5868bfa968f099ae80169f61f42887494b8f # v12.3133.0
+        with:
+          directory: infra
+          config_file: .checkov.yaml
+
+  terraform-plan:
+    name: Terraform plan (${{ matrix.env }})
+    needs: [changes, terraform]
+    # Runs only after AWS is bootstrapped (repo variables set) and never for fork PRs,
+    # because forks get no OIDC token.
+    if: >-
+      vars.AWS_ACCOUNT_ID != ''
+      && (needs.changes.outputs.terraform == 'true' || github.event_name != 'pull_request')
+      && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - env: shared
+            dir: infra/shared
+          - env: dev
+            dir: infra/envs/dev
+          - env: staging
+            dir: infra/envs/staging
+          - env: prod
+            dir: infra/envs/prod
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-plan
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: terraform init
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+      - name: terraform plan
+        run: terraform plan -input=false -no-color -lock-timeout=60s -out=tfplan
+      - name: Plan summary
+        env:
+          ENV_NAME: ${{ matrix.env }}
+        run: |
+          {
+            echo "### Terraform plan: ${ENV_NAME}"
+            echo '```'
+            terraform show -no-color tfplan | tail -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Single required status check for branch protection.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [actionlint, secrets, sast, go, api-image, runner-python, terraform, terraform-plan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All jobs passed or were skipped
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "${NEEDS}" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "${NEEDS}" | jq -e 'to_entries | all(.value.result == "success" or .value.result == "skipped")' > /dev/null

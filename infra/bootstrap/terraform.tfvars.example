@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+github_owner               = "your-github-username"
+github_repo                = "CodeArena"
+budget_notification_emails = ["you@example.com"]
+
+# Optional overrides
+# region                      = "eu-central-1"
+# budget_limit_usd            = 50
+# create_github_oidc_provider = false # if the account already has the GitHub OIDC provider
