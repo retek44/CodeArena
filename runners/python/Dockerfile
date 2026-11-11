@@ -2,7 +2,7 @@
 # Build context: runners/
 # The AWS base image contains the Lambda Runtime Interface Emulator, so the same
 # image runs locally (port 8080) and in Lambda.
-FROM public.ecr.aws/lambda/python:3.13
+FROM public.ecr.aws/lambda/python:3.15
 
 COPY core/codearena_runner ${LAMBDA_TASK_ROOT}/codearena_runner
 
