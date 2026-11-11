@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/retek44/CodeArena/api/internal/auth"
 	"github.com/retek44/CodeArena/api/internal/httpapi"
 	"github.com/retek44/CodeArena/api/internal/store"
 )
@@ -50,7 +51,7 @@ func run(logger *slog.Logger) error {
 		defer st.Close()
 		deps.Store = st
 
-		auth, err := authenticator(logger)
+		auth, err := authenticator(ctx, logger)
 		if err != nil {
 			return err
 		}
@@ -96,13 +97,17 @@ func run(logger *slog.Logger) error {
 
 // authenticator selects the authentication mode. There is no default: a deployment
 // must choose explicitly, so a missing variable cannot turn on the dev mode.
-func authenticator(logger *slog.Logger) (httpapi.Authenticator, error) {
+func authenticator(ctx context.Context, logger *slog.Logger) (httpapi.Authenticator, error) {
 	switch mode := os.Getenv("AUTH_MODE"); mode {
 	case "dev":
 		logger.Warn("AUTH_MODE=dev: the X-Dev-User header is trusted; never use this outside local development")
 		return httpapi.DevAuthenticator{}, nil
 	case "cognito":
-		return nil, errors.New("AUTH_MODE=cognito is not implemented yet")
+		// Values come from the Terraform outputs cognito_issuer and cognito_client_id.
+		return auth.NewCognito(ctx, auth.Config{
+			Issuer:   os.Getenv("COGNITO_ISSUER"),
+			ClientID: os.Getenv("COGNITO_CLIENT_ID"),
+		})
 	default:
 		return nil, fmt.Errorf("AUTH_MODE must be dev or cognito, got %q", mode)
 	}

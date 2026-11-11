@@ -88,7 +88,11 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 - [x] Auth interface + `DevAuthenticator` (`AUTH_MODE=dev`, local only); no default mode (fails closed)
 - [x] API integration tests with Testcontainers (shared `storetest` helper, template database per test)
 - [x] N+1 query guard: pgx query tracer counts statements per request (problems page ≤ 2, submissions page ≤ 3)
-- [ ] Cognito user pool (Terraform) + JWT verification (`AUTH_MODE=cognito`)
+- [x] Cognito user pool module (Essentials tier, email sign-in, optional TOTP MFA, SPA client with PKCE,
+      managed login), wired into dev; ADR-0009
+- [x] JWT verification (`internal/auth`, `AUTH_MODE=cognito`): RS256 only, JWKS cache, iss/exp/iat,
+      `token_use=access`, `client_id`; 15 rejection cases tested (alg none, HS256 confusion, unknown kid, ...)
+- [ ] Apply dev stack with Cognito in AWS and sign in end to end (with the frontend, phase 4)
 - [ ] Rate limit for submissions (429 + Retry-After)
 - [ ] Contract test: validate API responses against `contracts/openapi.yaml`
 - [ ] SonarCloud quality gate

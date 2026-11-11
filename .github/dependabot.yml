@@ -22,6 +22,10 @@ updates:
     directories: ["/api", "/runners/python"]
     schedule:
       interval: weekly
+    ignore:
+      # Python version changes for the runner are deliberate: CI, mypy and ruff target 3.13.
+      - dependency-name: "*lambda/python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
     commit-message:
       prefix: build
 

@@ -27,6 +27,16 @@ module "network" {
   availability_zones = ["${var.region}a", "${var.region}b"]
 }
 
+module "cognito" {
+  source = "../../modules/cognito"
+
+  name_prefix = local.name_prefix
+  # Globally unique: the account ID keeps it free of collisions.
+  domain_prefix = "${local.name_prefix}-${data.aws_caller_identity.current.account_id}"
+  callback_urls = ["http://localhost:5173/auth/callback"]
+  logout_urls   = ["http://localhost:5173/"]
+}
+
 # The function needs an image in ECR, so it is created only after CI pushed one
 # and the tag is passed in (-var runner_python_image_tag=<git sha>).
 data "aws_ecr_repository" "runner_python" {
