@@ -121,9 +121,18 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 
 ## Phase 4 – Frontend + realtime
 
-- [ ] React + Vite + Monaco, Cognito login
-- [ ] WebSocket API, push Lambda, `ws_connections` table
-- [ ] Playwright with Page Object Model, Pact consumer tests
+- [x] React 19 + Vite + TypeScript SPA (`frontend/`): problems, problem page with Monaco (lazy-loaded,
+      bundled, no CDN), submissions with polling, my submissions, dev and Cognito (PKCE) sign-in
+- [x] Typed API client generated from `contracts/openapi.yaml` (openapi-typescript + openapi-fetch);
+      CI fails when the generated types drift from the contract
+- [x] Vitest + Testing Library component tests (19), fetch stubbed per route
+- [x] Playwright E2E against the compose stack with Page Object Model: AC, WA, CE, my submissions;
+      axe WCAG 2.1 AA scan on three pages (no serious or critical violations); traces/videos on failure
+- [x] CI: frontend job (types drift, ESLint, tsc, Vitest, build); Playwright in the E2E job; Semgrep TS/React rules;
+      PR workflow also runs on pushes to main
+- [ ] Live updates over WebSocket API instead of polling (push Lambda, `ws_connections`)
+- [ ] Pact consumer tests (the OpenAPI-generated client and response validation cover most of it today)
+- [ ] Firefox and WebKit projects in the main pipeline (`PW_ALL_BROWSERS=1`)
 
 ## Phase 5 – CD
 

@@ -110,6 +110,24 @@ PROBLEM ?= tests/golden/a-plus-b
 judge: ## Judge one solution locally (SRC=..., PROBLEM=...)
 	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
 
+# --- Frontend -----------------------------------------------------------------
+
+.PHONY: fe-install
+fe-install: ## Install frontend dependencies
+	cd frontend && npm ci
+
+.PHONY: fe-dev
+fe-dev: ## Vite dev server on :5173 (proxies /api to the local stack)
+	cd frontend && npm run dev
+
+.PHONY: fe-check
+fe-check: ## Frontend: API types, lint, type check, unit tests, build
+	cd frontend && npm run api:types && npm run lint && npm run typecheck && npm test && npm run build
+
+.PHONY: fe-e2e
+fe-e2e: ## Playwright browser tests against the local stack (make local-up first)
+	cd frontend && npx playwright test
+
 # --- Local stack --------------------------------------------------------------
 
 .PHONY: local-up

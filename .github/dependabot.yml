@@ -39,6 +39,17 @@ updates:
     commit-message:
       prefix: build
 
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      frontend:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: build
+
   - package-ecosystem: terraform
     directories:
       - /infra/bootstrap

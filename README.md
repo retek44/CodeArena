@@ -27,7 +27,8 @@ See [docs/PLAN.md](docs/PLAN.md#2-architecture) and the decision records in [doc
 ## Repository layout
 
 ```
-backend/            Go module: cmd/api (HTTP API), cmd/judge (local judge CLI), worker (phase 3)
+backend/            Go module: cmd/api, cmd/worker, cmd/judge, cmd/seed, cmd/migratediff
+frontend/           React + Vite + TypeScript SPA (Monaco editor, typed API client, Playwright tests)
 runners/            runner protocol (JSON Schema), Python runner Lambda image
 tests/golden/       problems with one solution per expected verdict
 infra/bootstrap/    one-time account foundation: state bucket, GitHub OIDC roles, budget
@@ -44,11 +45,14 @@ Prerequisites and the one-time AWS and GitHub setup: [docs/SETUP.md](docs/SETUP.
 
 ```bash
 make help        # list targets
+make local-up    # full stack in Docker: Postgres, ElasticMQ, runner, API, worker (+ migrations, seed)
+make fe-dev      # SPA on http://localhost:5173 (sign in with any lowercase name)
+make e2e         # golden solutions through the whole chain
+make fe-e2e      # Playwright browser tests + accessibility scan
 make test        # Go unit tests (api, worker)
 make runner-up   # build and start the Python runner on :9000
 make golden      # every golden solution must get its expected verdict
 make judge SRC=tests/golden/a-plus-b/solutions/ac.py
-make local-up    # Postgres, Valkey and the API in Docker
 make tf-validate # validate all Terraform stacks
 ```
 
