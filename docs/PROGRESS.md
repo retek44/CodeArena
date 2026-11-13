@@ -101,6 +101,8 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 
 ## Phase 3 – Async judge
 
+- [x] One `backend` Go module (`cmd/api`, `cmd/judge`, `cmd/migratediff`; worker next), no `go.work` (ADR-0010)
+
 - [ ] SQS queue + DLQ, worker on Fargate, claim with conditional update
 - [ ] Lambda invoker in the worker (AWS SDK), replacing the HTTP invoker in AWS
 - [ ] Checkers: float tolerance, custom

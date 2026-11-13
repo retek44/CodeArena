@@ -138,8 +138,8 @@ Observability: OpenTelemetry (ADOT sidecar) ──▶ X-Ray + CloudWatch; alarms
 ## 6. Repository layout (target)
 
 ```
-api/            Go HTTP API (Ent + sqlc, Atlas migrations)
-worker/         Go judge worker, verdict logic, checkers, local `judge` CLI
+backend/        One Go module (ADR-0010): cmd/api, cmd/worker, cmd/judge, cmd/migratediff;
+                internal/ httpapi, auth, store (Ent + sqlc), judge, checker, runner, protocol
 runners/        protocol/ (JSON Schemas), core/ (shared Python runner), one image dir per language
 lambdas/        ws-push, hint, contest-steps (Python)
 frontend/       React + Vite + TypeScript

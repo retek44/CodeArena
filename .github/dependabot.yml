@@ -12,14 +12,14 @@ updates:
       prefix: ci
 
   - package-ecosystem: gomod
-    directories: ["/api", "/worker"]
+    directories: ["/backend"]
     schedule:
       interval: weekly
     commit-message:
       prefix: build
 
   - package-ecosystem: docker
-    directories: ["/api", "/runners/python"]
+    directories: ["/backend", "/runners/python"]
     schedule:
       interval: weekly
     ignore:

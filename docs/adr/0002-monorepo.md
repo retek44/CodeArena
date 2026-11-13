@@ -20,8 +20,7 @@ one PR.
 - Atomic cross-component changes and one place for CI configuration.
 - Path filters must be kept up to date, otherwise a job is skipped when it should run.
   The `CI OK` job treats skipped jobs as passing, so wrong filters hide problems.
-- Each Go component is its own module (`api/`, later `worker/`), joined with `go.work`
-  when the second module arrives.
+- Go code: superseded by ADR-0010 (one `backend` module with several commands).
 
 ## Alternatives
 

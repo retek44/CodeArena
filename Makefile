@@ -2,7 +2,6 @@
 SHELL := bash
 
 TF_DIRS := infra/bootstrap infra/shared $(wildcard infra/envs/*) $(wildcard infra/modules/*)
-GO_MODULES := api worker
 RUNNER_IMAGE := codearena-runner-python:local
 RUNNER_URL ?= http://localhost:9000/2015-03-31/functions/function/invocations
 
@@ -13,24 +12,24 @@ help: ## List targets
 # --- Go -----------------------------------------------------------------------
 
 .PHONY: lint
-lint: ## Lint Go code (all modules)
-	@for m in $(GO_MODULES); do echo "==> $$m"; (cd $$m && golangci-lint run ./...) || exit 1; done
+lint: ## Lint Go code
+	cd backend && golangci-lint run ./...
 
 .PHONY: test
-test: ## Run Go unit tests with race detector (all modules)
-	@for m in $(GO_MODULES); do echo "==> $$m"; (cd $$m && go test -race -cover ./...) || exit 1; done
+test: ## Run Go unit tests with race detector
+	cd backend && go test -race -cover ./...
 
 .PHONY: test-integration
 test-integration: ## Integration tests with Testcontainers (needs Docker)
-	cd api && go test -tags integration -race -count=1 ./internal/...
+	cd backend && go test -tags integration -race -count=1 ./internal/...
 
 .PHONY: run-api
 run-api: ## Run the API locally
-	cd api && go run ./cmd/api
+	cd backend && go run ./cmd/api
 
 .PHONY: image
 image: ## Build the API container image
-	docker build -t codearena-api:local api
+	docker build -t codearena-api:local backend
 
 # --- Database (ADR-0004) -----------------------------------------------------
 
@@ -45,24 +44,28 @@ db-up: ## Start Postgres (with the atlas_dev database for diffs)
 
 .PHONY: ent
 ent: ## Regenerate the Ent client after a schema change
-	cd api && go generate ./internal/store/ent
+	cd backend && go generate ./internal/store/ent
 
 # Usage: make migration NAME=add_contests
 .PHONY: migration
 migration: ## Generate a versioned migration from the Ent schema (NAME=...)
-	cd api && go run ./cmd/migratediff $(NAME)
+	cd backend && go run ./cmd/migratediff $(NAME)
 
 .PHONY: sqlc
-sqlc: ## Regenerate sqlc code from api/internal/store/queries
-	docker run --rm -v "$(CURDIR)/api":/src -w /src $(SQLC_IMAGE) generate
+sqlc: ## Regenerate sqlc code from backend/internal/store/queries
+	docker run --rm -v "$(CURDIR)/backend":/src -w /src $(SQLC_IMAGE) generate
 
 .PHONY: migrate-apply
 migrate-apply: ## Apply migrations to the local codearena database
-	docker run --rm -v "$(CURDIR)/api/migrations":/migrations $(ATLAS_IMAGE) migrate apply 		--dir file:///migrations 		--url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/codearena?sslmode=disable"
+	docker run --rm -v "$(CURDIR)/backend/migrations":/migrations $(ATLAS_IMAGE) migrate apply \
+		--dir file:///migrations \
+		--url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/codearena?sslmode=disable"
 
 .PHONY: migrate-validate
 migrate-validate: ## Check migration files against atlas.sum
-	docker run --rm -v "$(CURDIR)/api/migrations":/migrations $(ATLAS_IMAGE) migrate validate 		--dir file:///migrations 		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable"
+	docker run --rm -v "$(CURDIR)/backend/migrations":/migrations $(ATLAS_IMAGE) migrate validate \
+		--dir file:///migrations \
+		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable"
 
 # --- Runner -------------------------------------------------------------------
 
@@ -78,7 +81,8 @@ py-test: ## Runner unit and contract tests (Linux; on Windows use py-test-docker
 
 .PHONY: py-test-docker
 py-test-docker: ## Runner lint and tests inside a Linux container
-	docker run --rm -v "$(CURDIR)":/src -w /src python:3.13-slim sh -c 		'pip install -q -r requirements-dev.txt && ruff check runners && mypy && pytest -q runners/core/tests'
+	docker run --rm -v "$(CURDIR)":/src -w /src python:3.13-slim sh -c \
+		'pip install -q -r requirements-dev.txt && ruff check runners && mypy && pytest -q runners/core/tests'
 
 .PHONY: runner-image
 runner-image: ## Build the Python runner image
@@ -87,7 +91,8 @@ runner-image: ## Build the Python runner image
 .PHONY: runner-up
 runner-up: runner-image ## Start the runner on :9000, restricted like Lambda
 	-docker rm -f codearena-runner >/dev/null 2>&1
-	docker run -d --name codearena-runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g 		-p 9000:8080 $(RUNNER_IMAGE)
+	docker run -d --name codearena-runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g \
+		-p 9000:8080 $(RUNNER_IMAGE)
 
 .PHONY: runner-down
 runner-down: ## Stop the runner container
@@ -95,14 +100,14 @@ runner-down: ## Stop the runner container
 
 .PHONY: golden
 golden: ## Golden verdict tests against the running runner (make runner-up first)
-	cd worker && CODEARENA_RUNNER_URL=$(RUNNER_URL) go test -count=1 -run TestGolden -v ./internal/judge/
+	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) go test -count=1 -run TestGolden -v ./internal/judge/
 
 # Usage: make judge SRC=tests/golden/a-plus-b/solutions/ac.py [PROBLEM=tests/golden/a-plus-b]
 PROBLEM ?= tests/golden/a-plus-b
 
 .PHONY: judge
 judge: ## Judge one solution locally (SRC=..., PROBLEM=...)
-	cd worker && CODEARENA_RUNNER_URL=$(RUNNER_URL) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
+	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
 
 # --- Local stack --------------------------------------------------------------
 

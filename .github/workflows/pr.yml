@@ -41,9 +41,7 @@ jobs:
         with:
           filters: |
             go:
-              - 'api/**'
-              - 'worker/**'
-              - 'go.work'
+              - 'backend/**'
               # API integration tests validate responses against the contract.
               - 'contracts/**'
               - '.golangci.yml'
@@ -54,7 +52,7 @@ jobs:
               - '.github/workflows/pr.yml'
             runner:
               - 'runners/**'
-              - 'worker/**'
+              - 'backend/**'
               - 'tests/golden/**'
               - 'pyproject.toml'
               - 'requirements-dev.txt'
@@ -140,44 +138,38 @@ jobs:
           review: false
 
   go:
-    name: Go lint and test (${{ matrix.module }})
+    name: Go lint and test
     needs: changes
     if: needs.changes.outputs.go == 'true' || github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        module: [api, worker]
     defaults:
       run:
-        working-directory: ${{ matrix.module }}
+        working-directory: backend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: ${{ matrix.module }}/go.mod
-          cache-dependency-path: ${{ matrix.module }}/go.mod
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          working-directory: ${{ matrix.module }}
+          working-directory: backend
       - name: Test
         run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
       - name: Coverage summary
-        env:
-          MODULE: ${{ matrix.module }}
         run: |
           {
-            echo "### Go coverage (${MODULE})"
+            echo "### Go coverage"
             echo '```'
             go tool cover -func=coverage.out
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: go-coverage-${{ matrix.module }}
-          path: ${{ matrix.module }}/coverage.out
+          name: go-coverage
+          path: backend/coverage.out
           retention-days: 7
 
   database:
@@ -202,13 +194,13 @@ jobs:
           --health-retries 10
     defaults:
       run:
-        working-directory: api
+        working-directory: backend
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: api/go.mod
-          cache-dependency-path: api/go.sum
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
       - name: Regenerate Ent and sqlc code
         run: |
           go generate ./internal/store/ent
@@ -239,11 +231,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
-          dockerfile: api/Dockerfile
+          dockerfile: backend/Dockerfile
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: api
+          context: backend
           platforms: linux/arm64
           load: true
           push: false
@@ -321,10 +313,10 @@ jobs:
           exit 1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: worker/go.mod
-          cache-dependency-path: worker/go.mod
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
       - name: Golden tests
-        working-directory: worker
+        working-directory: backend
         run: go test -count=1 -run TestGolden -v ./internal/judge/
       - name: Runner logs
         if: failure()

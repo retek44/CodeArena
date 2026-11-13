@@ -40,7 +40,7 @@ application code.
   pass `${{ }}` values into `run:` through `env:`, not inline.
 - Cost: no NAT Gateway, no EKS by default, arm64 everywhere, everything destroyable.
 - Runner protocol changes: update `runners/protocol/*.schema.json`, `runners/core/codearena_runner/protocol.py`
-  and `worker/internal/protocol` together; the pytest contract tests compare parser and schema.
+  and `backend/internal/protocol` together; the pytest contract tests compare parser and schema.
 - Golden tests: a solution file name starts with its expected verdict (`ac`, `wa`, `tle`, `mle`, `re`, `ce`).
 - AWS: account `379269296137`, CLI profile `CodeArena`, region `eu-central-1`. Do not use the
   "Fresh Deploy" account (207871833442, profile `codearena`): its SCPs block almost every service.
@@ -54,8 +54,8 @@ Go, Terraform and the linters may not be installed on the host. Docker works for
 docker run --rm -v "$W":/work -w /work --entrypoint sh hashicorp/terraform:1.16.5 -c 'terraform fmt -check -recursive infra'
 docker run --rm -v "$W":/data -w /data --entrypoint sh ghcr.io/terraform-linters/tflint:v0.64.0 -c 'tflint --init --config /data/.tflint.hcl && tflint --recursive --config /data/.tflint.hcl'
 docker run --rm -v "$W":/tf -w /tf bridgecrew/checkov:latest -d infra --config-file .checkov.yaml
-docker run --rm -v "$W":/src -w /src/api golang:1.26-alpine go test ./...      # same for /src/worker
-docker run --rm -v "$W":/src -w /src/api golangci/golangci-lint:v2.14.0 golangci-lint run ./...   # same for worker
+docker run --rm -v "$W":/src -w /src/backend golang:1.26-alpine go test ./...
+docker run --rm -v "$W":/src -w /src/backend golangci/golangci-lint:v2.14.0 golangci-lint run ./...
 docker run --rm -v "$W":/src -w /src python:3.13-slim sh -c 'pip install -q -r requirements-dev.txt && ruff check runners && mypy && pytest -q runners/core/tests'
 make runner-up && make golden   # golden verdict tests against the runner container
 TESTCONTAINERS_RYUK_DISABLED=true make test-integration   # Postgres integration tests (Ryuk fails on Docker Desktop)

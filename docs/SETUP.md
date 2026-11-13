@@ -100,7 +100,7 @@ in `infra/envs/<env>` (the Makefile does this for you).
 1. Create the repository `<owner>/CodeArena` (public, so Actions minutes are free and the
    project is visible). The name must match `github_owner` / `github_repo` exactly,
    because the OIDC trust policy compares the `sub` claim case-sensitively.
-2. Rename the Go module in `api/go.mod` and the imports to `github.com/<owner>/CodeArena/api`.
+2. The Go module path is `github.com/retek44/CodeArena/backend`; a fork renames it in `backend/go.mod` and the imports.
 3. Push `main`.
 4. **Settings → Secrets and variables → Actions → Variables:**
    - `AWS_ACCOUNT_ID` = `terraform output -raw account_id`

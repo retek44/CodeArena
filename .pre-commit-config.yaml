@@ -33,15 +33,15 @@ repos:
   # Go hooks need Go and golangci-lint on PATH.
   - repo: local
     hooks:
-      - id: golangci-lint-api
-        name: golangci-lint (api)
-        entry: bash -c 'cd api && golangci-lint run ./...'
+      - id: golangci-lint-backend
+        name: golangci-lint (backend)
+        entry: bash -c 'cd backend && golangci-lint run ./...'
         language: system
-        files: ^api/.*\.go$
+        files: ^backend/.*\.go$
         pass_filenames: false
-      - id: go-test-api
-        name: go test (api)
-        entry: bash -c 'cd api && go test ./...'
+      - id: go-test-backend
+        name: go test (backend)
+        entry: bash -c 'cd backend && go test ./...'
         language: system
-        files: ^api/.*\.go$
+        files: ^backend/.*\.go$
         pass_filenames: false

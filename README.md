@@ -27,8 +27,7 @@ See [docs/PLAN.md](docs/PLAN.md#2-architecture) and the decision records in [doc
 ## Repository layout
 
 ```
-api/                Go HTTP API
-worker/             Go judge worker and local `judge` CLI
+backend/            Go module: cmd/api (HTTP API), cmd/judge (local judge CLI), worker (phase 3)
 runners/            runner protocol (JSON Schema), Python runner Lambda image
 tests/golden/       problems with one solution per expected verdict
 infra/bootstrap/    one-time account foundation: state bucket, GitHub OIDC roles, budget
