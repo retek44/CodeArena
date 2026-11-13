@@ -44,6 +44,8 @@ jobs:
               - 'api/**'
               - 'worker/**'
               - 'go.work'
+              # API integration tests validate responses against the contract.
+              - 'contracts/**'
               - '.golangci.yml'
               - '.github/workflows/pr.yml'
             openapi:

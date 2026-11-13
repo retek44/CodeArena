@@ -1,13 +1,16 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -81,6 +84,31 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 	hash := requestHash(req)
 	ctx := r.Context()
 
+	// A retry of an earlier request is answered from the database and never rate limited.
+	replay, err := s.Store.Ent.Submission.Query().
+		Where(submission.UserID(principal.UserID), submission.IdempotencyKey(key)).
+		Exist(ctx)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if replay {
+		s.replaySubmission(w, r, principal.UserID, key, hash)
+		return
+	}
+
+	wait, err := s.submissionRetryAfter(ctx, principal.UserID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	if wait > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+		s.writeProblem(w, http.StatusTooManyRequests,
+			fmt.Sprintf("at most %d submissions per %s", s.SubmissionLimit.Max, s.SubmissionLimit.Window))
+		return
+	}
+
 	if err := s.Store.Ent.User.Create().
 		SetID(principal.UserID).
 		SetUsername(principal.Username).
@@ -111,6 +139,8 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		SetSource(req.Source).
 		SetIdempotencyKey(key).
 		SetRequestHash(hash).
+		// Same clock as the rate limit window, so Retry-After never exceeds the window.
+		SetCreatedAt(s.Now()).
 		Save(ctx)
 	if ent.IsConstraintError(err) {
 		s.replaySubmission(w, r, principal.UserID, key, hash)
@@ -125,6 +155,29 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 	created.Edges.Problem = p
 	w.Header().Set("Location", "/api/submissions/"+created.ID.String())
 	s.writeJSON(w, http.StatusAccepted, toSubmissionJSON(created))
+}
+
+// submissionRetryAfter applies a sliding-window limit per user, counted from the
+// submissions table (shared by all API tasks, no extra infrastructure). Two requests
+// racing at the limit can both pass; the limit protects capacity, not money.
+func (s *server) submissionRetryAfter(ctx context.Context, userID string) (time.Duration, error) {
+	limit := s.SubmissionLimit
+	now := s.Now()
+	recent, err := s.Store.Ent.Submission.Query().
+		Where(submission.UserID(userID), submission.CreatedAtGT(now.Add(-limit.Window))).
+		Order(ent.Asc(submission.FieldCreatedAt)).
+		Limit(limit.Max).
+		Select(submission.FieldCreatedAt).
+		All(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("count recent submissions: %w", err)
+	}
+	if len(recent) < limit.Max {
+		return 0, nil
+	}
+	// The oldest submission in the window leaves it first.
+	wait := recent[0].CreatedAt.Add(limit.Window).Sub(now)
+	return min(max(wait, time.Second), limit.Window), nil
 }
 
 // replaySubmission answers a request whose Idempotency-Key already exists.

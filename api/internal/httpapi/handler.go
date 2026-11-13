@@ -24,12 +24,26 @@ type Deps struct {
 	Store  *store.Store
 	Auth   Authenticator
 	Now    func() time.Time
+	// SubmissionLimit caps submissions per user; zero means DefaultSubmissionLimit.
+	SubmissionLimit RateLimit
 }
+
+// RateLimit allows Max events per sliding Window.
+type RateLimit struct {
+	Max    int
+	Window time.Duration
+}
+
+// DefaultSubmissionLimit protects the judge from bursts: 10 submissions per minute per user.
+var DefaultSubmissionLimit = RateLimit{Max: 10, Window: time.Minute}
 
 // NewHandler returns the root handler with all routes registered.
 func NewHandler(d Deps) http.Handler {
 	if d.Now == nil {
 		d.Now = time.Now
+	}
+	if d.SubmissionLimit.Max <= 0 || d.SubmissionLimit.Window <= 0 {
+		d.SubmissionLimit = DefaultSubmissionLimit
 	}
 	s := &server{Deps: d}
 	mux := http.NewServeMux()

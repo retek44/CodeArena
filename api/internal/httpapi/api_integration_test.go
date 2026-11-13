@@ -5,14 +5,22 @@ package httpapi_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/pb33f/libopenapi"
+	validator "github.com/pb33f/libopenapi-validator"
 
 	"github.com/retek44/CodeArena/api/internal/httpapi"
 	"github.com/retek44/CodeArena/api/internal/store"
@@ -23,7 +31,24 @@ import (
 	"github.com/retek44/CodeArena/api/internal/store/storetest"
 )
 
+// contract validates every response of every integration test against
+// contracts/openapi.yaml: the tests double as contract tests for the API.
+var contract validator.Validator
+
 func TestMain(m *testing.M) {
+	spec, err := os.ReadFile(filepath.Join("..", "..", "..", "contracts", "openapi.yaml"))
+	if err != nil {
+		log.Fatalf("read OpenAPI spec: %v", err)
+	}
+	doc, err := libopenapi.NewDocument(spec)
+	if err != nil {
+		log.Fatalf("parse OpenAPI spec: %v", err)
+	}
+	v, errs := validator.NewValidator(doc)
+	if len(errs) > 0 {
+		log.Fatalf("build OpenAPI validator: %v", errors.Join(errs...))
+	}
+	contract = v
 	os.Exit(storetest.Main(m))
 }
 
@@ -36,17 +61,22 @@ type api struct {
 
 func newAPI(t *testing.T) *api {
 	t.Helper()
+	return newAPIWith(t, nil)
+}
+
+// newAPIWith lets a test adjust the dependencies (clock, limits) before the handler is built.
+func newAPIWith(t *testing.T, adjust func(*httpapi.Deps)) *api {
+	t.Helper()
 	st, counter := storetest.New(t)
-	return &api{
-		t: t,
-		handler: httpapi.NewHandler(httpapi.Deps{
-			Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-			Store:  st,
-			Auth:   httpapi.DevAuthenticator{},
-		}),
-		store:   st,
-		queries: counter,
+	deps := httpapi.Deps{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Store:  st,
+		Auth:   httpapi.DevAuthenticator{},
 	}
+	if adjust != nil {
+		adjust(&deps)
+	}
+	return &api{t: t, handler: httpapi.NewHandler(deps), store: st, queries: counter}
 }
 
 type request struct {
@@ -76,7 +106,30 @@ func (a *api) do(req request) *httptest.ResponseRecorder {
 	}
 	rec := httptest.NewRecorder()
 	a.handler.ServeHTTP(rec, r)
+	a.checkContract(req, rec)
 	return rec
+}
+
+// checkContract fails the test if the response does not match the OpenAPI document
+// (status code declared, content type, body schema with additionalProperties: false).
+// Only responses are checked: some tests send invalid requests on purpose.
+func (a *api) checkContract(req request, rec *httptest.ResponseRecorder) {
+	a.t.Helper()
+	vr := httptest.NewRequestWithContext(a.t.Context(), req.method, req.path, nil)
+	resp := rec.Result()
+	defer resp.Body.Close()
+	ok, verrs := contract.ValidateHttpResponse(vr, resp)
+	if ok {
+		return
+	}
+	for _, e := range verrs {
+		details := ""
+		for _, se := range e.SchemaValidationErrors {
+			details += "\n    " + se.Error()
+		}
+		a.t.Errorf("contract violation: %s %s -> %d: %s: %s%s",
+			req.method, req.path, rec.Code, e.Message, e.Reason, details)
+	}
 }
 
 func decode[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
@@ -429,5 +482,74 @@ func TestListMySubmissionsNewestFirst(t *testing.T) {
 	expectStatus(t, rec, http.StatusOK)
 	if body := decode[page[submissionBody]](t, rec); len(body.Items) != 1 || body.Items[0].ID != created[2] {
 		t.Errorf("filtered items = %+v, want only the 'other' submission", body.Items)
+	}
+}
+
+func TestSubmissionRateLimit(t *testing.T) {
+	now := time.Now()
+	a := newAPIWith(t, func(d *httpapi.Deps) {
+		d.SubmissionLimit = httpapi.RateLimit{Max: 2, Window: time.Minute}
+		d.Now = func() time.Time { return now }
+	})
+	a.problem("a-plus-b", problem.DifficultyEasy, true)
+	post := func(user, key string) *httptest.ResponseRecorder {
+		return a.do(request{method: http.MethodPost, path: "/api/submissions", user: user, key: key, body: validSubmission()})
+	}
+
+	expectStatus(t, post("alice", "limit-key-1"), http.StatusAccepted)
+	expectStatus(t, post("alice", "limit-key-2"), http.StatusAccepted)
+
+	limited := post("alice", "limit-key-3")
+	expectStatus(t, limited, http.StatusTooManyRequests)
+	retry, err := strconv.Atoi(limited.Header().Get("Retry-After"))
+	if err != nil || retry < 1 || retry > 60 {
+		t.Errorf("Retry-After = %q, want 1..60 seconds", limited.Header().Get("Retry-After"))
+	}
+
+	// Retries of accepted requests are not new submissions and stay allowed.
+	expectStatus(t, post("alice", "limit-key-1"), http.StatusAccepted)
+	// The limit is per user.
+	expectStatus(t, post("bob", "limit-key-1"), http.StatusAccepted)
+
+	// After the window has passed, alice can submit again.
+	now = now.Add(61 * time.Second)
+	expectStatus(t, post("alice", "limit-key-3"), http.StatusAccepted)
+
+	if n := a.store.Ent.Submission.Query().CountX(t.Context()); n != 4 {
+		t.Errorf("%d submissions stored, want 4 (alice 3, bob 1)", n)
+	}
+}
+
+// TestContractValidatorCatchesViolations makes sure the contract check is not silently
+// passing everything: hand-made responses that break the spec must be rejected.
+func TestContractValidatorCatchesViolations(t *testing.T) {
+	get := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/problems", nil)
+
+	tests := map[string]struct {
+		status      int
+		contentType string
+		body        string
+	}{
+		"undeclared field": {http.StatusOK, "application/json",
+			`{"items":[],"next_cursor":null,"total":3}`},
+		"wrong type": {http.StatusOK, "application/json",
+			`{"items":[{"slug":"a-plus-b","title":"A","difficulty":"impossible"}],"next_cursor":null}`},
+		"undeclared status": {http.StatusTeapot, "application/json", `{}`},
+		"error not problem+json": {http.StatusBadRequest, "application/json",
+			`{"type":"about:blank","title":"Bad Request","status":400}`},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			rec.Header().Set("Content-Type", tc.contentType)
+			rec.WriteHeader(tc.status)
+			_, _ = rec.WriteString(tc.body)
+			resp := rec.Result()
+			defer resp.Body.Close()
+
+			if ok, _ := contract.ValidateHttpResponse(get, resp); ok {
+				t.Error("contract check accepted a response that breaks the spec")
+			}
+		})
 	}
 }

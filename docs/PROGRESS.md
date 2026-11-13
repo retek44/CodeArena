@@ -93,8 +93,10 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 - [x] JWT verification (`internal/auth`, `AUTH_MODE=cognito`): RS256 only, JWKS cache, iss/exp/iat,
       `token_use=access`, `client_id`; 15 rejection cases tested (alg none, HS256 confusion, unknown kid, ...)
 - [ ] Apply dev stack with Cognito in AWS and sign in end to end (with the frontend, phase 4)
-- [ ] Rate limit for submissions (429 + Retry-After)
-- [ ] Contract test: validate API responses against `contracts/openapi.yaml`
+- [x] Rate limit for submissions: sliding window per user counted in Postgres (default 10/min),
+      429 + `Retry-After`, idempotent retries not counted
+- [x] Contract test: every API integration test response is validated against `contracts/openapi.yaml`
+      (libopenapi-validator, OpenAPI 3.1); a meta-test proves violations are caught
 - [ ] SonarCloud quality gate
 
 ## Phase 3 – Async judge
