@@ -42,3 +42,8 @@ output "security_group_ids" {
     job    = aws_security_group.job.id
   }
 }
+
+output "job_security_group_id" {
+  description = "Security group of the one-off job tasks (run-task)."
+  value       = aws_security_group.job.id
+}

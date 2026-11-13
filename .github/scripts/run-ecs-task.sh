@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs a one-off ECS task (migrate, seed) and fails unless its container exits with 0.
-#   DEPLOY='<terraform output -json deploy>' run-ecs-task.sh migrate
+#   DEPLOY='<terraform output -json jobs>' run-ecs-task.sh migrate
 set -euo pipefail
 
 job="$1"

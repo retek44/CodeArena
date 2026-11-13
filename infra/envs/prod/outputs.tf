@@ -12,3 +12,8 @@ output "deploy" {
   description = "Values the pipeline needs after apply."
   value       = module.app.deploy
 }
+
+output "jobs" {
+  description = "Values for the migrate and seed tasks (available after the targeted apply)."
+  value       = module.app.jobs
+}

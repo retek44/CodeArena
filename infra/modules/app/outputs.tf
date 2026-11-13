@@ -37,3 +37,16 @@ output "deploy" {
     runner_function_name  = module.runner_python[0].function_name
   } : null
 }
+
+# Separate from deploy: a targeted apply only writes an output whose references all
+# exist. This one needs only the cluster, the job tasks and their security group,
+# so the migrate and seed step can read it before the services exist.
+output "jobs" {
+  description = "Values for the one-off migrate and seed ECS tasks (null without image_tag)."
+  value = local.deploy ? {
+    cluster               = module.backend[0].cluster_name
+    job_task_definitions  = module.backend[0].job_task_definition_arns
+    task_subnet_ids       = module.backend[0].task_subnet_ids
+    job_security_group_id = module.backend[0].job_security_group_id
+  } : null
+}

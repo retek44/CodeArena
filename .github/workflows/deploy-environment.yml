@@ -65,9 +65,10 @@ jobs:
           -target=module.app.module.postgres
           -target=module.app.module.backend[0].aws_ecs_task_definition.job
           -target=module.app.module.backend[0].aws_security_group.job
+          -target=module.app.module.backend[0].aws_ecs_cluster.this
       - name: Migrate and seed
         run: |
-          DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)
+          DEPLOY=$(terraform -chdir="${TF_DIR}" output -json jobs)
           export DEPLOY
           .github/scripts/run-ecs-task.sh migrate
           .github/scripts/run-ecs-task.sh seed
