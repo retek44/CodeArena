@@ -1,0 +1,54 @@
+name: Release
+
+# Promotes one commit of main through every environment with the same images:
+# build once -> dev -> staging -> prod. Each stage deploys, migrates, seeds and runs
+# the post-deploy Playwright suite; a failed stage stops the promotion. prod waits
+# for a reviewer (protection rule of the "prod" GitHub environment).
+#
+# Cost: dev and staging are destroyed by the nightly run; prod is not. Destroy prod by
+# hand after a demo (Actions -> Destroy -> prod).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  images:
+    # Only main is promoted; feature branches use deploy.yml with dev.
+    if: github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/build-images.yml
+    permissions:
+      contents: read
+      id-token: write
+
+  dev:
+    needs: images
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: dev
+
+  staging:
+    needs: dev
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: staging
+
+  prod:
+    needs: staging
+    uses: ./.github/workflows/deploy-environment.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: prod

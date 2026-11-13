@@ -159,7 +159,14 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       `for_each` over unknown security group IDs that `validate` missed
 - [ ] Preview environments per PR (`infra/preview`) + cleanup workflow
 - [ ] ECS blue/green with test-listener hooks, Lambda canary (CodeDeploy)
-- [ ] staging → approval → prod promotion in one workflow; semantic-release
+- [x] Reusable workflows: `build-images.yml` (once per commit) and `deploy-environment.yml`;
+      `deploy.yml` deploys one environment, `release.yml` promotes main dev → staging → prod
+      (prod waits for the environment reviewer)
+- [x] Post-deploy Playwright suite (`frontend/e2e/deployed`, `E2E_BASE_URL`): seeded problem list +
+      axe, SPA deep link through the CloudFront function, security headers on SPA and API, no edge
+      caching of `/api/*`, HTTP → HTTPS redirect, ALB unreachable around CloudFront
+- [ ] Signed-in post-deploy test (Cognito test user, real judge run through the Lambda runner)
+- [ ] semantic-release / release-please (needs Conventional Commit squash titles)
 
 ## Phase 6 – Contests
 

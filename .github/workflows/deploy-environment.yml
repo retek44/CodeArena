@@ -1,0 +1,150 @@
+name: Deploy environment
+
+# Reusable: deploys the images of the calling commit to one environment, then
+# verifies it. Called by deploy.yml (one environment, manual) and release.yml
+# (dev -> staging -> prod). The images must exist (build-images.yml).
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: dev, staging or prod
+        type: string
+        required: true
+    outputs:
+      site_url:
+        description: Public URL of the environment.
+        value: ${{ jobs.deploy.outputs.site_url }}
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: 1.16.5
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.outputs.outputs.site_url }}
+    # Shared with destroy.yml: a deploy and a destroy of one environment never overlap.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    outputs:
+      site_url: ${{ steps.outputs.outputs.site_url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_DIR: infra/envs/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-${{ inputs.environment }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: terraform init
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+
+      # Expand/contract: the schema must be ready before the new code runs. Step 1
+      # applies the database and the job tasks only, step 2 migrates and seeds,
+      # step 3 rolls out everything else. A failed job leaves the services unchanged.
+      - name: Apply database and job tasks
+        run: >-
+          terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s
+          -var "image_tag=${GITHUB_SHA}"
+          -target=module.app.module.postgres
+          -target=module.app.module.backend[0].aws_ecs_task_definition.job
+          -target=module.app.module.backend[0].aws_security_group.job
+      - name: Migrate and seed
+        run: |
+          DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)
+          export DEPLOY
+          .github/scripts/run-ecs-task.sh migrate
+          .github/scripts/run-ecs-task.sh seed
+      - name: Apply everything
+        run: terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s -var "image_tag=${GITHUB_SHA}"
+      - name: Read outputs
+        id: outputs
+        run: |
+          echo "site_url=$(terraform -chdir="${TF_DIR}" output -raw site_url)" >> "$GITHUB_OUTPUT"
+          {
+            echo "COGNITO=$(terraform -chdir="${TF_DIR}" output -json cognito)"
+            echo "DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)"
+          } >> "$GITHUB_ENV"
+      - name: Wait for the API rollout (ECS rolls back by itself on failure)
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$(echo "${DEPLOY}" | jq -r .cluster)" \
+            --services "$(echo "${DEPLOY}" | jq -r .api_service)"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build and upload the SPA
+        working-directory: frontend
+        run: |
+          npm ci
+          VITE_AUTH_MODE=cognito \
+          VITE_COGNITO_AUTHORITY="$(echo "${COGNITO}" | jq -r .authority)" \
+          VITE_COGNITO_CLIENT_ID="$(echo "${COGNITO}" | jq -r .client_id)" \
+          VITE_COGNITO_DOMAIN="$(echo "${COGNITO}" | jq -r .domain)" \
+          npm run build
+          bucket=$(echo "${DEPLOY}" | jq -r .web_bucket)
+          # Hashed assets are immutable; index.html must always be revalidated.
+          aws s3 sync dist/ "s3://${bucket}/" --delete --exclude index.html --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp dist/index.html "s3://${bucket}/index.html" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "$(echo "${DEPLOY}" | jq -r .distribution_id)" --paths "/index.html" >/dev/null
+
+      - name: Smoke test
+        env:
+          SITE_URL: ${{ steps.outputs.outputs.site_url }}
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS "${SITE_URL}/api/problems" >/dev/null && curl -fsS "${SITE_URL}/" | grep -q '<div id="root">'; then
+              echo "Smoke test passed: ${SITE_URL}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${SITE_URL} did not answer"
+          exit 1
+      # Anonymous, read-only checks of the real edge: SPA, routing function, security
+      # headers, no API caching, HTTPS redirect, ALB not reachable around CloudFront.
+      - name: Post-deploy tests (Playwright against the environment)
+        working-directory: frontend
+        env:
+          E2E_BASE_URL: ${{ steps.outputs.outputs.site_url }}
+        run: |
+          npx playwright install --with-deps chromium
+          E2E_ALB_URL=$(jq -r .alb_url <<<"${DEPLOY}") npx playwright test
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-${{ inputs.environment }}
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 7
+      - name: Summary
+        env:
+          SITE_URL: ${{ steps.outputs.outputs.site_url }}
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          {
+            echo "### Deployed ${GITHUB_SHA::7} to ${TARGET_ENV}"
+            echo "${SITE_URL}"
+            echo
+            echo "Destroy it after the demo: Actions → Destroy → ${TARGET_ENV} (or wait for the nightly run)."
+          } >> "$GITHUB_STEP_SUMMARY"

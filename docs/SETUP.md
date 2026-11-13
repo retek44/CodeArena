@@ -120,6 +120,20 @@ in `infra/envs/<env>` (the Makefile does this for you).
 Open a PR (for example `docs: update progress`). Expected:
 
 - All jobs pass, `CI OK` is green.
-- `Terraform plan (dev|staging|prod)` runs and shows "No changes" in the job summary.
+- `Terraform plan (shared|dev|staging|prod)` runs and writes the plan to the job summary.
+  Environments that were never deployed show only additions.
 
 Then tick the manual items in [PROGRESS.md](PROGRESS.md).
+
+## 6. Deploy and destroy
+
+Every running environment costs money by the hour (RDS, ALB, Fargate, public IPv4), so
+nothing deploys on push.
+
+- **One environment:** Actions → Deploy → Run workflow → `dev`. Builds and signs the images
+  once per commit, migrates, seeds, rolls out, then runs the post-deploy Playwright suite.
+  The URL is in the run summary.
+- **Promotion:** Actions → Release (from `main`) → dev → staging → prod, same images; prod
+  waits for the reviewer of the `prod` environment.
+- **Destroy:** Actions → Destroy → environment. dev and staging are also destroyed every
+  night at 21:00 UTC; prod never automatically.

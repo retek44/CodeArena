@@ -1,0 +1,131 @@
+name: Build images
+
+# Reusable: builds the four images of the calling commit once (arm64), with SBOM,
+# provenance and a keyless cosign signature. Tags are the git SHA and immutable, so
+# every environment runs exactly the same bytes.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: 1.16.5
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  # ECR repositories are account-wide (infra/shared): images are built once and
+  # promoted through dev, staging and prod.
+  shared:
+    name: Shared infrastructure (ECR)
+    runs-on: ubuntu-latest
+    environment: shared
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/shared
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-shared
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: terraform apply
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          terraform apply -input=false -auto-approve -lock-timeout=120s
+
+  images:
+    name: Build, scan, sign and push images
+    needs: shared
+    # Native arm64 builds: Fargate and Lambda run on Graviton.
+    runs-on: ubuntu-24.04-arm
+    environment: shared
+    permissions:
+      contents: read
+      id-token: write # OIDC for AWS and for keyless cosign signatures
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: api
+            context: backend
+            file: backend/Dockerfile
+            args: CMD=api
+          - name: worker
+            context: backend
+            file: backend/Dockerfile
+            args: CMD=worker
+          - name: migrate
+            context: backend
+            file: backend/Dockerfile.migrate
+            args: ""
+          - name: seed
+            context: backend
+            file: backend/Dockerfile.seed
+            args: ""
+            contexts: problems=tests/golden
+          - name: runner-python
+            context: runners
+            file: runners/python/Dockerfile
+            args: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-shared
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - name: Image already pushed?
+        id: exists
+        env:
+          REPO: codearena-${{ matrix.name }}
+        run: |
+          # Tags are immutable: a commit is built once and promoted, never rebuilt.
+          if aws ecr describe-images --repository-name "${REPO}" --image-ids "imageTag=${GITHUB_SHA}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.exists.outputs.found == 'false'
+      - id: build
+        if: steps.exists.outputs.found == 'false'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-contexts: ${{ matrix.contexts }}
+          platforms: linux/arm64
+          push: true
+          provenance: mode=max
+          build-args: |
+            ${{ matrix.args }}
+            VERSION=${{ github.sha }}
+            COMMIT=${{ github.sha }}
+          tags: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=deploy-${{ matrix.name }}
+          cache-to: type=gha,scope=deploy-${{ matrix.name }},mode=max
+      - name: SBOM
+        if: steps.exists.outputs.found == 'false'
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.name }}.spdx.json
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        if: steps.exists.outputs.found == 'false'
+      - name: Sign image (keyless, GitHub OIDC identity)
+        if: steps.exists.outputs.found == 'false'
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}"

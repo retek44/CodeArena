@@ -31,6 +31,7 @@ output "deploy" {
     job_task_definitions  = module.backend[0].job_task_definition_arns
     task_subnet_ids       = module.backend[0].task_subnet_ids
     job_security_group_id = module.backend[0].security_group_ids["job"]
+    alb_url               = "http://${module.backend[0].alb_dns_name}"
     web_bucket            = module.web[0].bucket
     distribution_id       = module.web[0].distribution_id
     runner_function_name  = module.runner_python[0].function_name
