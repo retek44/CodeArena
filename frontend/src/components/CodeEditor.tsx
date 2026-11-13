@@ -11,14 +11,16 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   label: string;
+  /** Monaco language id, for example python or cpp. */
+  language: string;
 }
 
-export function CodeEditor({ value, onChange, label }: Props) {
+export function CodeEditor({ value, onChange, label, language }: Props) {
   return (
     <div className="editor" data-testid="code-editor">
       <Editor
         height="320px"
-        language="python"
+        language={language}
         theme="vs-dark"
         value={value}
         onChange={(v) => onChange(v ?? "")}

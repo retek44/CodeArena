@@ -12,7 +12,7 @@ SET status = 'running',
 WHERE id = sqlc.arg(id)
   AND (status = 'queued'
        OR (status = 'running' AND updated_at < now() - sqlc.arg(lease)::interval))
-RETURNING id, user_id, problem_id, problem_version, language, source, attempt;
+RETURNING id, user_id, problem_id, problem_version, language, source, attempt, contest_id;
 
 -- name: CompleteSubmission :execrows
 UPDATE submissions
@@ -63,3 +63,53 @@ WHERE status = 'running'
   AND updated_at < now() - sqlc.arg(older_than)::interval
 ORDER BY updated_at
 LIMIT sqlc.arg(max_rows)::int;
+
+-- name: FailExhaustedSubmissions :many
+-- Sweeper: a running submission whose worker went silent after its last allowed
+-- attempt gets IE instead of another try (a poison submission must not loop).
+UPDATE submissions
+SET status = 'failed',
+    verdict = 'IE',
+    judged_at = now(),
+    updated_at = now()
+WHERE id IN (
+    SELECT s.id
+    FROM submissions s
+    WHERE s.status = 'running'
+      AND s.updated_at < now() - sqlc.arg(running_after)::interval
+      AND s.attempt >= sqlc.arg(max_attempts)::bigint
+    ORDER BY s.updated_at
+    LIMIT sqlc.arg(max_rows)::int
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, attempt;
+
+-- name: RequeueStuckSubmissions :many
+-- Sweeper: submissions whose queue message is gone (moved to the DLQ, or lost)
+-- would wait forever. Running ones whose worker went silent and queued ones that
+-- nobody claimed go back to queued, and a new outbox message announces each one in
+-- the same statement. A duplicate message is harmless: the claim is idempotent.
+-- SKIP LOCKED lets several sweepers (one per API task) run at once.
+WITH stuck AS (
+    SELECT s.id
+    FROM submissions s
+    WHERE (s.status = 'running' AND s.updated_at < now() - sqlc.arg(running_after)::interval
+           AND s.attempt < sqlc.arg(max_attempts)::bigint)
+       OR (s.status = 'queued' AND s.updated_at < now() - sqlc.arg(queued_after)::interval)
+    ORDER BY s.updated_at
+    LIMIT sqlc.arg(max_rows)::int
+    FOR UPDATE SKIP LOCKED
+), requeued AS (
+    UPDATE submissions s
+    SET status = 'queued',
+        updated_at = now()
+    FROM stuck
+    WHERE s.id = stuck.id
+    RETURNING s.id, s.attempt
+), announced AS (
+    -- Same payload as outbox.SubmissionCreated (version 1).
+    INSERT INTO outbox_messages (topic, payload, created_at, available_at)
+    SELECT sqlc.arg(topic)::text, jsonb_build_object('v', 1, 'submission_id', r.id), now(), now()
+    FROM requeued r
+)
+SELECT id, attempt FROM requeued;

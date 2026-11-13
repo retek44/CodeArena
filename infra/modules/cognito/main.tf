@@ -60,7 +60,10 @@ resource "aws_cognito_user_pool_client" "spa" {
   callback_urls                        = var.callback_urls
   logout_urls                          = var.logout_urls
 
-  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH"]
+  # ADMIN_USER_PASSWORD_AUTH needs IAM credentials (cognito-idp:AdminInitiateAuth), so a
+  # browser cannot use it. The deploy pipeline signs in a temporary test user with it
+  # for the signed-in post-deploy tests.
+  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH", "ALLOW_USER_SRP_AUTH", "ALLOW_ADMIN_USER_PASSWORD_AUTH"]
 
   access_token_validity  = 60
   id_token_validity      = 60

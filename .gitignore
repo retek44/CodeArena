@@ -18,6 +18,9 @@ backend.hcl
 # Go
 /api/bin/
 coverage.out
+coverage.xml
+.coverage
+frontend/coverage/
 *.test
 
 # Node
@@ -45,3 +48,5 @@ Thumbs.db
 
 # Reusable modules are not root stacks; their lock files come from terraform test runs.
 infra/modules/**/.terraform.lock.hcl
+frontend/reports/
+frontend/.stryker-tmp/

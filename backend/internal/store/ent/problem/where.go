@@ -80,6 +80,16 @@ func MemoryLimitMB(v int) predicate.Problem {
 	return predicate.Problem(sql.FieldEQ(FieldMemoryLimitMB, v))
 }
 
+// CheckerTolerance applies equality check predicate on the "checker_tolerance" field. It's identical to CheckerToleranceEQ.
+func CheckerTolerance(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldEQ(FieldCheckerTolerance, v))
+}
+
+// CheckerSource applies equality check predicate on the "checker_source" field. It's identical to CheckerSourceEQ.
+func CheckerSource(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldEQ(FieldCheckerSource, v))
+}
+
 // Version applies equality check predicate on the "version" field. It's identical to VersionEQ.
 func Version(v int) predicate.Problem {
 	return predicate.Problem(sql.FieldEQ(FieldVersion, v))
@@ -415,6 +425,131 @@ func CheckerNotIn(vs ...Checker) predicate.Problem {
 	return predicate.Problem(sql.FieldNotIn(FieldChecker, vs...))
 }
 
+// CheckerToleranceEQ applies the EQ predicate on the "checker_tolerance" field.
+func CheckerToleranceEQ(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldEQ(FieldCheckerTolerance, v))
+}
+
+// CheckerToleranceNEQ applies the NEQ predicate on the "checker_tolerance" field.
+func CheckerToleranceNEQ(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldNEQ(FieldCheckerTolerance, v))
+}
+
+// CheckerToleranceIn applies the In predicate on the "checker_tolerance" field.
+func CheckerToleranceIn(vs ...float64) predicate.Problem {
+	return predicate.Problem(sql.FieldIn(FieldCheckerTolerance, vs...))
+}
+
+// CheckerToleranceNotIn applies the NotIn predicate on the "checker_tolerance" field.
+func CheckerToleranceNotIn(vs ...float64) predicate.Problem {
+	return predicate.Problem(sql.FieldNotIn(FieldCheckerTolerance, vs...))
+}
+
+// CheckerToleranceGT applies the GT predicate on the "checker_tolerance" field.
+func CheckerToleranceGT(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldGT(FieldCheckerTolerance, v))
+}
+
+// CheckerToleranceGTE applies the GTE predicate on the "checker_tolerance" field.
+func CheckerToleranceGTE(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldGTE(FieldCheckerTolerance, v))
+}
+
+// CheckerToleranceLT applies the LT predicate on the "checker_tolerance" field.
+func CheckerToleranceLT(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldLT(FieldCheckerTolerance, v))
+}
+
+// CheckerToleranceLTE applies the LTE predicate on the "checker_tolerance" field.
+func CheckerToleranceLTE(v float64) predicate.Problem {
+	return predicate.Problem(sql.FieldLTE(FieldCheckerTolerance, v))
+}
+
+// CheckerToleranceIsNil applies the IsNil predicate on the "checker_tolerance" field.
+func CheckerToleranceIsNil() predicate.Problem {
+	return predicate.Problem(sql.FieldIsNull(FieldCheckerTolerance))
+}
+
+// CheckerToleranceNotNil applies the NotNil predicate on the "checker_tolerance" field.
+func CheckerToleranceNotNil() predicate.Problem {
+	return predicate.Problem(sql.FieldNotNull(FieldCheckerTolerance))
+}
+
+// CheckerSourceEQ applies the EQ predicate on the "checker_source" field.
+func CheckerSourceEQ(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldEQ(FieldCheckerSource, v))
+}
+
+// CheckerSourceNEQ applies the NEQ predicate on the "checker_source" field.
+func CheckerSourceNEQ(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldNEQ(FieldCheckerSource, v))
+}
+
+// CheckerSourceIn applies the In predicate on the "checker_source" field.
+func CheckerSourceIn(vs ...string) predicate.Problem {
+	return predicate.Problem(sql.FieldIn(FieldCheckerSource, vs...))
+}
+
+// CheckerSourceNotIn applies the NotIn predicate on the "checker_source" field.
+func CheckerSourceNotIn(vs ...string) predicate.Problem {
+	return predicate.Problem(sql.FieldNotIn(FieldCheckerSource, vs...))
+}
+
+// CheckerSourceGT applies the GT predicate on the "checker_source" field.
+func CheckerSourceGT(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldGT(FieldCheckerSource, v))
+}
+
+// CheckerSourceGTE applies the GTE predicate on the "checker_source" field.
+func CheckerSourceGTE(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldGTE(FieldCheckerSource, v))
+}
+
+// CheckerSourceLT applies the LT predicate on the "checker_source" field.
+func CheckerSourceLT(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldLT(FieldCheckerSource, v))
+}
+
+// CheckerSourceLTE applies the LTE predicate on the "checker_source" field.
+func CheckerSourceLTE(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldLTE(FieldCheckerSource, v))
+}
+
+// CheckerSourceContains applies the Contains predicate on the "checker_source" field.
+func CheckerSourceContains(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldContains(FieldCheckerSource, v))
+}
+
+// CheckerSourceHasPrefix applies the HasPrefix predicate on the "checker_source" field.
+func CheckerSourceHasPrefix(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldHasPrefix(FieldCheckerSource, v))
+}
+
+// CheckerSourceHasSuffix applies the HasSuffix predicate on the "checker_source" field.
+func CheckerSourceHasSuffix(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldHasSuffix(FieldCheckerSource, v))
+}
+
+// CheckerSourceIsNil applies the IsNil predicate on the "checker_source" field.
+func CheckerSourceIsNil() predicate.Problem {
+	return predicate.Problem(sql.FieldIsNull(FieldCheckerSource))
+}
+
+// CheckerSourceNotNil applies the NotNil predicate on the "checker_source" field.
+func CheckerSourceNotNil() predicate.Problem {
+	return predicate.Problem(sql.FieldNotNull(FieldCheckerSource))
+}
+
+// CheckerSourceEqualFold applies the EqualFold predicate on the "checker_source" field.
+func CheckerSourceEqualFold(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldEqualFold(FieldCheckerSource, v))
+}
+
+// CheckerSourceContainsFold applies the ContainsFold predicate on the "checker_source" field.
+func CheckerSourceContainsFold(v string) predicate.Problem {
+	return predicate.Problem(sql.FieldContainsFold(FieldCheckerSource, v))
+}
+
 // VersionEQ applies the EQ predicate on the "version" field.
 func VersionEQ(v int) predicate.Problem {
 	return predicate.Problem(sql.FieldEQ(FieldVersion, v))
@@ -606,6 +741,29 @@ func HasSubmissions() predicate.Problem {
 func HasSubmissionsWith(preds ...predicate.Submission) predicate.Problem {
 	return predicate.Problem(func(s *sql.Selector) {
 		step := newSubmissionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasContestEntries applies the HasEdge predicate on the "contest_entries" edge.
+func HasContestEntries() predicate.Problem {
+	return predicate.Problem(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, ContestEntriesTable, ContestEntriesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasContestEntriesWith applies the HasEdge predicate on the "contest_entries" edge with a given conditions (other predicates).
+func HasContestEntriesWith(preds ...predicate.ContestProblem) predicate.Problem {
+	return predicate.Problem(func(s *sql.Selector) {
+		step := newContestEntriesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

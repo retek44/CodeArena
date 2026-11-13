@@ -37,6 +37,28 @@ long-lived AWS keys.
    export AWS_PROFILE=CodeArena
    ```
 
+5. Enable Bedrock model access for the AI hint (once per account, free until used):
+   AWS console → Amazon Bedrock (eu-central-1) → Model access → Anthropic **Claude Haiku 5.5**
+   and **Claude Sonnet 5.5** (the nightly hint evaluation uses it as judge). Anthropic models
+   ask for a short use-case form the first time. Check:
+
+   ```bash
+   aws bedrock get-inference-profile --inference-profile-identifier eu.anthropic.claude-haiku-5-5 --query status
+   ```
+
+   Without access everything works except hints: the endpoint answers 503.
+
+6. Optional: a sender for contest result e-mails. AWS console → Amazon SES (eu-central-1) →
+   Identities → Create identity → e-mail address (or a domain you own), then confirm the
+   mail. While the account is in the SES sandbox, recipients must be verified identities too
+   (request production access in SES to mail every participant). Set the address as the
+   `CONTEST_EMAIL_FROM` repository variable (section 4). Without it contests work, only the
+   e-mails are skipped.
+
+   Note: each deployed environment runs an ElastiCache Serverless (Valkey) cache for the
+   contest leaderboards. It has a minimum hourly charge while it exists, so destroy idle
+   environments.
+
 ## 2. Tools
 
 | Tool | Version | Windows install |
@@ -111,6 +133,20 @@ in `infra/envs/<env>` (the Makefile does this for you).
    - `AWS_ACCOUNT_ID` = `terraform output -raw account_id`
    - `AWS_REGION` = `eu-central-1`
    - `TF_STATE_BUCKET` = `terraform output -raw state_bucket`
+   - optional `ALERT_EMAIL`: alarm notifications (DLQ) of every deployed environment. AWS sends
+     a confirmation mail after each deploy that creates the topic; until it is confirmed,
+     alarms only show in CloudWatch.
+   - optional `CONTEST_EMAIL_FROM`: verified SES sender of the contest result e-mails (step 6
+     of section 1).
+
+   **Secrets** (optional):
+   - `RELEASE_PLEASE_TOKEN`: fine-grained token for this repository with *Contents* and
+     *Pull requests* read/write. release-please opens the release PR with it, so CI runs on
+     that PR (PRs opened with `GITHUB_TOKEN` start no workflows).
+   - `SONAR_TOKEN`: sign in to [sonarcloud.io](https://sonarcloud.io) with GitHub, import the
+     repository (organization `retek44`, project key `retek44_CodeArena`, see
+     `sonar-project.properties`), switch the analysis method to *GitHub Actions* (turn off
+     automatic analysis), and create a token. Without the secret the SonarCloud job skips.
 5. **Settings → Environments:** create `shared`, `preview`, `dev`, `staging`, `prod`.
    For `prod`, add yourself as required reviewer and allow only the `main` branch.
 6. **Settings → General → Pull Requests:** allow squash merge only,
@@ -142,3 +178,6 @@ nothing deploys on push.
   waits for the reviewer of the `prod` environment.
 - **Destroy:** Actions → Destroy → environment. dev and staging are also destroyed every
   night at 21:00 UTC; prod never automatically.
+- **Release notes:** every merge to `main` updates the release PR of release-please
+  (version + `CHANGELOG.md` from the Conventional Commit titles). Merging it tags `vX.Y.Z` and
+  publishes a GitHub Release with an SPDX SBOM.

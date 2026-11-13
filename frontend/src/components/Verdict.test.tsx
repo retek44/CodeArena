@@ -24,7 +24,8 @@ describe("VerdictBadge", () => {
 
 describe("errorText", () => {
   it.each([
-    [new ApiError(429, "limited", 30), "Too many submissions. Try again in 30 seconds."],
+    [new ApiError(429, "limited", 30), "Too many requests. Try again in 30 seconds."],
+    [new ApiError(429, "limited", 3001), "Too many requests. Try again in 51 minutes."],
     [new ApiError(401, "unauthenticated"), "Please sign in again."],
     [new ApiError(404, "problem not found"), "problem not found"],
     [new Error("network down"), "network down"],

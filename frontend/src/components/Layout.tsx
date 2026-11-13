@@ -14,6 +14,7 @@ export function Layout() {
         </Link>
         <nav aria-label="Main">
           <NavLink to="/">Problems</NavLink>
+          <NavLink to="/contests">Contests</NavLink>
           {auth.user && <NavLink to="/submissions">My submissions</NavLink>}
         </nav>
         <div className="user">

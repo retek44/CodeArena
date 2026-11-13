@@ -1,0 +1,197 @@
+name: Non-functional tests
+
+# Load, resilience and security checks against a deployed environment (staging in the
+# release pipeline, any environment by hand). The environment must be deployed.
+#
+#   1. k6: submissions from several signed-in users through the whole judge chain;
+#      thresholds on p95 judge latency, lost submissions and wrong verdicts.
+#   2. Autoscaling: the worker service must have scaled out during the load.
+#   3. AWS FIS: all worker tasks are stopped mid-judge; every submission must still
+#      get its verdict (leases, SQS redelivery, sweeper).
+#   4. OWASP ZAP: API scan from contracts/openapi.yaml through CloudFront.
+#
+# Cost: a few cents (Lambda, Fargate minutes, one FIS action).
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployed environment to test
+        type: choice
+        options: [staging, dev]
+        default: staging
+      duration:
+        description: k6 load duration
+        type: string
+        default: 5m
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: 1.16.5
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  K6_IMAGE: grafana/k6:2.3.0
+  ZAP_IMAGE: ghcr.io/zaproxy/zaproxy:2.17.0
+  # One Cognito user per virtual user: the API allows 10 submissions per user and minute.
+  VUS: 10
+
+jobs:
+  nonfunctional:
+    name: Load, chaos and ZAP (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    # Never together with a deploy or destroy of the same environment.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_DIR: infra/envs/${{ inputs.environment }}
+      DURATION: ${{ inputs.duration || '5m' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-${{ inputs.environment }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-duration-seconds: 3600
+      - name: Read the environment
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          site_url=$(terraform -chdir="${TF_DIR}" output -raw site_url)
+          if [ -z "${site_url}" ] || [ "${site_url}" = "null" ]; then
+            echo "::error::${TF_DIR} is not deployed (no site_url). Deploy it first."
+            exit 1
+          fi
+          {
+            echo "SITE_URL=${site_url}"
+            echo "COGNITO=$(terraform -chdir="${TF_DIR}" output -json cognito)"
+            echo "DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)"
+          } >> "$GITHUB_ENV"
+
+      - name: Sign in temporary load-test users
+        id: users
+        run: |
+          pool_id=$(jq -r '.authority | split("/") | last' <<<"${COGNITO}")
+          client_id=$(jq -r .client_id <<<"${COGNITO}")
+          echo "pool_id=${pool_id}" >> "$GITHUB_OUTPUT"
+          tokens=()
+          for i in $(seq 1 "${VUS}"); do
+            username="load-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${i}@example.invalid"
+            password="Ci$(openssl rand -hex 16)Aa1"
+            echo "::add-mask::${password}"
+            aws cognito-idp admin-create-user --user-pool-id "${pool_id}" --username "${username}" \
+              --user-attributes Name=email,Value="${username}" Name=email_verified,Value=true \
+              --message-action SUPPRESS >/dev/null
+            aws cognito-idp admin-set-user-password --user-pool-id "${pool_id}" --username "${username}" \
+              --password "${password}" --permanent
+            token=$(aws cognito-idp admin-initiate-auth --user-pool-id "${pool_id}" --client-id "${client_id}" \
+              --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters "USERNAME=${username},PASSWORD=${password}" \
+              --query AuthenticationResult.AccessToken --output text)
+            echo "::add-mask::${token}"
+            tokens+=("${token}")
+          done
+          echo "users_created=true" >> "$GITHUB_OUTPUT"
+          echo "TOKENS=$(IFS=,; echo "${tokens[*]}")" >> "$GITHUB_ENV"
+
+      # The worker runs 0 tasks when idle. One submission scales it out first, so the
+      # latency threshold measures the warm system, not the scale-out from zero.
+      - name: Warm up (scale the worker out from zero)
+        run: |
+          echo "LOAD_STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          docker run --rm -e BASE_URL="${SITE_URL}" -e TOKENS -e VUS=1 -e DURATION=1s \
+            -e LATENCY_P95_MS=600000 -e VERDICT_TIMEOUT_S=600 -v "${PWD}/tests:/tests:ro" \
+            "${K6_IMAGE}" run --quiet /tests/performance/submissions.js
+      - name: Load test (k6)
+        run: |
+          mkdir -p results
+          docker run --rm -e BASE_URL="${SITE_URL}" -e TOKENS -e VUS -e DURATION \
+            -e LATENCY_P95_MS=10000 -v "${PWD}/tests:/tests:ro" -v "${PWD}/results:/results" \
+            "${K6_IMAGE}" run --quiet --summary-export /results/k6-load.json /tests/performance/submissions.js
+
+      - name: The worker scaled out during the load
+        run: |
+          resource_id=$(jq -r .worker_autoscaling_resource_id <<<"${DEPLOY}")
+          activities=$(aws application-autoscaling describe-scaling-activities --service-namespace ecs \
+            --resource-id "${resource_id}" --scalable-dimension ecs:service:DesiredCount \
+            --query "ScalingActivities[?StartTime>=\`${LOAD_STARTED}\`].[StartTime,Description,StatusCode]" --output text)
+          echo "${activities}"
+          if ! grep -qi "increase" <<<"${activities}"; then
+            echo "::error::No worker scale-out activity since ${LOAD_STARTED}"
+            exit 1
+          fi
+
+      # Chaos: stop every worker task while submissions are in flight. Latency may grow
+      # (lease expiry, new tasks), but nothing may be lost or judged wrong.
+      - name: Chaos experiment (AWS FIS stops the worker tasks under load)
+        run: |
+          docker run --rm -d --name k6-chaos -e BASE_URL="${SITE_URL}" -e TOKENS -e VUS -e DURATION=4m \
+            -e LATENCY_P95_MS=600000 -e VERDICT_TIMEOUT_S=600 -v "${PWD}/tests:/tests:ro" -v "${PWD}/results:/results" \
+            "${K6_IMAGE}" run --quiet --summary-export /results/k6-chaos.json /tests/performance/submissions.js
+          sleep 60
+          template=$(jq -r .fis_stop_worker_template_id <<<"${DEPLOY}")
+          experiment=$(aws fis start-experiment --experiment-template-id "${template}" --query experiment.id --output text)
+          echo "FIS experiment ${experiment}"
+          for _ in $(seq 1 60); do
+            state=$(aws fis get-experiment --id "${experiment}" --query experiment.state.status --output text)
+            case "${state}" in
+              completed) break ;;
+              failed|stopped) echo "::error::FIS experiment ${state}"; aws fis get-experiment --id "${experiment}"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Experiment ${state}; waiting for every submission to get its verdict"
+          exit_code=$(docker wait k6-chaos)
+          docker logs k6-chaos | tail -40
+          exit "${exit_code}"
+
+      - name: Security scan (OWASP ZAP, OpenAPI)
+        run: |
+          mkdir -p zap && cp contracts/openapi.yaml tests/security/zap-rules.tsv zap/ && chmod -R 777 zap
+          # Exit code 1: FAIL rules, 2: warnings only. Both fail the job.
+          docker run --rm -v "${PWD}/zap:/zap/wrk:rw" "${ZAP_IMAGE}" zap-api-scan.py \
+            -t openapi.yaml -f openapi -O "${SITE_URL}" -c zap-rules.tsv -r zap-report.html -J zap-report.json
+      - name: Report summary
+        if: always()
+        run: |
+          {
+            echo "### Non-functional tests: ${SITE_URL}"
+            for f in results/k6-load.json results/k6-chaos.json; do
+              [ -f "$f" ] || continue
+              echo "**$(basename "$f" .json)**: p95 judge latency $(jq -r '.metrics.judge_latency_ms["p(95)"] // "n/a"' "$f") ms," \
+                "lost $(jq -r '.metrics.lost_submissions.count // 0' "$f")," \
+                "wrong $(jq -r '.metrics.wrong_verdicts.count // 0' "$f")," \
+                "submissions $(jq -r '.metrics.iterations.count // 0' "$f")"
+              echo
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: nonfunctional-${{ inputs.environment }}
+          path: |
+            results
+            zap/zap-report.*
+          retention-days: 14
+      - name: Delete the load-test users
+        if: always() && steps.users.outputs.pool_id != ''
+        env:
+          POOL_ID: ${{ steps.users.outputs.pool_id }}
+        run: |
+          for user in $(aws cognito-idp list-users --user-pool-id "${POOL_ID}" \
+            --filter "email ^= \"load-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-\"" --query 'Users[].Username' --output text); do
+            aws cognito-idp admin-delete-user --user-pool-id "${POOL_ID}" --username "${user}"
+          done

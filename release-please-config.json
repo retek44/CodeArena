@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "simple",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "changelog-sections": [
+    { "type": "feat", "section": "Features" },
+    { "type": "fix", "section": "Bug fixes" },
+    { "type": "perf", "section": "Performance" },
+    { "type": "refactor", "section": "Refactoring", "hidden": false },
+    { "type": "test", "section": "Tests", "hidden": false },
+    { "type": "ci", "section": "CI/CD", "hidden": false },
+    { "type": "build", "section": "Build and dependencies", "hidden": false },
+    { "type": "docs", "section": "Documentation", "hidden": false },
+    { "type": "chore", "section": "Chores", "hidden": true },
+    { "type": "style", "section": "Style", "hidden": true }
+  ],
+  "packages": {
+    ".": {
+      "package-name": "codearena"
+    }
+  }
+}

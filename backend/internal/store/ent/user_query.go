@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/predicate"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/user"
@@ -25,6 +26,7 @@ type UserQuery struct {
 	inters          []Interceptor
 	predicates      []predicate.User
 	withSubmissions *SubmissionQuery
+	withContests    *ContestParticipantQuery
 	modifiers       []func(*sql.Selector)
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
@@ -77,6 +79,28 @@ func (_q *UserQuery) QuerySubmissions() *SubmissionQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(submission.Table, submission.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, user.SubmissionsTable, user.SubmissionsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryContests chains the current query on the "contests" edge.
+func (_q *UserQuery) QueryContests() *ContestParticipantQuery {
+	query := (&ContestParticipantClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(contestparticipant.Table, contestparticipant.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.ContestsTable, user.ContestsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -277,6 +301,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		inters:          append([]Interceptor{}, _q.inters...),
 		predicates:      append([]predicate.User{}, _q.predicates...),
 		withSubmissions: _q.withSubmissions.Clone(),
+		withContests:    _q.withContests.Clone(),
 		// clone intermediate query.
 		sql:       _q.sql.Clone(),
 		path:      _q.path,
@@ -292,6 +317,17 @@ func (_q *UserQuery) WithSubmissions(opts ...func(*SubmissionQuery)) *UserQuery 
 		opt(query)
 	}
 	_q.withSubmissions = query
+	return _q
+}
+
+// WithContests tells the query-builder to eager-load the nodes that are connected to
+// the "contests" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithContests(opts ...func(*ContestParticipantQuery)) *UserQuery {
+	query := (&ContestParticipantClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withContests = query
 	return _q
 }
 
@@ -373,8 +409,9 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [1]bool{
+		loadedTypes = [2]bool{
 			_q.withSubmissions != nil,
+			_q.withContests != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -405,6 +442,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			return nil, err
 		}
 	}
+	if query := _q.withContests; query != nil {
+		if err := _q.loadContests(ctx, query, nodes,
+			func(n *User) { n.Edges.Contests = []*ContestParticipant{} },
+			func(n *User, e *ContestParticipant) { n.Edges.Contests = append(n.Edges.Contests, e) }); err != nil {
+			return nil, err
+		}
+	}
 	return nodes, nil
 }
 
@@ -423,6 +467,36 @@ func (_q *UserQuery) loadSubmissions(ctx context.Context, query *SubmissionQuery
 	}
 	query.Where(predicate.Submission(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(user.SubmissionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadContests(ctx context.Context, query *ContestParticipantQuery, nodes []*User, init func(*User), assign func(*User, *ContestParticipant)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[string]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(contestparticipant.FieldUserID)
+	}
+	query.Where(predicate.ContestParticipant(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.ContestsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

@@ -12,6 +12,10 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
@@ -79,13 +83,17 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			outboxmessage.Table:    outboxmessage.ValidColumn,
-			problem.Table:          problem.ValidColumn,
-			submission.Table:       submission.ValidColumn,
-			submissionresult.Table: submissionresult.ValidColumn,
-			tag.Table:              tag.ValidColumn,
-			testcase.Table:         testcase.ValidColumn,
-			user.Table:             user.ValidColumn,
+			contest.Table:            contest.ValidColumn,
+			contestparticipant.Table: contestparticipant.ValidColumn,
+			contestproblem.Table:     contestproblem.ValidColumn,
+			hint.Table:               hint.ValidColumn,
+			outboxmessage.Table:      outboxmessage.ValidColumn,
+			problem.Table:            problem.ValidColumn,
+			submission.Table:         submission.ValidColumn,
+			submissionresult.Table:   submissionresult.ValidColumn,
+			tag.Table:                tag.ValidColumn,
+			testcase.Table:           testcase.ValidColumn,
+			user.Table:               user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

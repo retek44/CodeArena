@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from . import cleanup, linux
-from .languages import LANGUAGES, Language
+from .languages import Language, enabled_languages
 from .protocol import (
     CaseResult,
     CompileResult,
@@ -41,13 +41,16 @@ _SAFETY_MARGIN_MS = 2000
 _RUN_EXTRA_TASKS = 16
 _COMPILE_EXTRA_TASKS = 64
 _COMPILE_MEMORY_MB = 512
-_COMPILE_OUTPUT_BYTES = 64 * 1024
+# RLIMIT_FSIZE of the compile step: it covers the binary the compiler writes, not only
+# the diagnostics (a statically linked C++ program is a few MB).
+_COMPILE_FILE_BYTES = 64 * _MB
 _COMPILE_DIAGNOSTICS_CHARS = 8192
 
 Artifacts = dict[str, tuple[bytes, int]]
 
 linux.harden_current_process()
 _UID = os.getuid()
+LANGUAGES = enabled_languages()
 
 
 def handler(event: Any, context: Any) -> dict[str, Any]:
@@ -162,7 +165,7 @@ def _compile_limits(limits: Limits) -> ExecLimits:
         wall_time_ms=limits.compile_time_ms * 2,
         memory_kb=_COMPILE_MEMORY_MB * 1024,
         address_space_bytes=2 * _COMPILE_MEMORY_MB * _MB,
-        output_bytes=_COMPILE_OUTPUT_BYTES,
+        output_bytes=_COMPILE_FILE_BYTES,
         extra_tasks=_COMPILE_EXTRA_TASKS,
     )
 

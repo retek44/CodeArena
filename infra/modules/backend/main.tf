@@ -13,6 +13,16 @@ locals {
   database_secret = [
     { name = "DB_PASSWORD", valueFrom = "${var.database.password_secret_arn}:password::" },
   ]
+
+  # Leaderboard cache for the API, the worker and the contest lifecycle.
+  valkey_env = var.valkey_url == null ? [] : [{ name = "VALKEY_URL", value = var.valkey_url }]
+
+  # The seed schedules the lifecycle of new contests (cmd/seed).
+  seed_env = var.contests == null ? [] : [
+    { name = "CONTEST_STATE_MACHINE_ARN", value = var.contests.state_machine_arn },
+    { name = "CONTEST_SCHEDULE_GROUP", value = var.contests.scheduler_group },
+    { name = "CONTEST_SCHEDULER_ROLE_ARN", value = var.contests.scheduler_role_arn },
+  ]
 }
 
 resource "aws_ecs_cluster" "this" {
@@ -37,7 +47,7 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 resource "aws_cloudwatch_log_group" "service" {
   #checkov:skip=CKV_AWS_158:Application logs hold no secrets; the AWS owned key is enough.
   #checkov:skip=CKV_AWS_338:Short retention keeps cost near zero for a demo project.
-  for_each = toset(["api", "worker", "migrate", "seed"])
+  for_each = toset(["api", "worker", "migrate", "seed", "contest"])
 
   name              = "/ecs/${var.name_prefix}/${each.key}"
   retention_in_days = var.log_retention_days
@@ -96,6 +106,21 @@ data "aws_vpc" "this" {
   id = var.vpc_id
 }
 
+resource "aws_vpc_security_group_egress_rule" "valkey" {
+  for_each = {
+    api    = aws_security_group.api.id
+    worker = aws_security_group.worker.id
+    job    = aws_security_group.job.id
+  }
+
+  security_group_id = each.value
+  ip_protocol       = "tcp"
+  from_port         = 6379
+  to_port           = 6380
+  cidr_ipv4         = data.aws_vpc.this.cidr_block
+  description       = "Valkey (leaderboard cache) inside the VPC"
+}
+
 resource "aws_vpc_security_group_egress_rule" "postgres" {
   for_each = {
     api    = aws_security_group.api.id
@@ -140,7 +165,15 @@ resource "aws_ecs_task_definition" "api" {
       { name = "COGNITO_ISSUER", value = var.cognito.issuer },
       { name = "COGNITO_CLIENT_ID", value = var.cognito.client_id },
       { name = "SUBMISSIONS_QUEUE_URL", value = var.queue.url },
-    ])
+      # Stuck-submission sweeper: well above the worker lease (= visibility timeout),
+      # so SQS redelivery gets the first chance after a worker crash.
+      { name = "SWEEP_RUNNING_AFTER", value = "${var.queue.visibility_timeout_seconds * 5}s" },
+      ], var.hint_function_arn == null ? [] : [
+      { name = "HINT_FUNCTION", value = var.hint_function_arn },
+      ], var.realtime == null ? [] : [
+      { name = "WS_URL", value = var.realtime.ws_url },
+      { name = "WS_TABLE", value = var.realtime.table },
+    ], local.valkey_env)
     secrets = local.database_secret
     logConfiguration = {
       logDriver = "awslogs"
@@ -235,10 +268,13 @@ resource "aws_ecs_task_definition" "worker" {
     environment = concat(local.database_env, [
       { name = "SUBMISSIONS_QUEUE_URL", value = var.queue.url },
       { name = "RUNNER_MODE", value = "lambda" },
-      { name = "RUNNER_FUNCTION_PYTHON", value = var.runner_function_arn },
+      { name = "RUNNER_FUNCTION_PYTHON", value = var.runner_function_arns["python"] },
+      { name = "RUNNER_FUNCTION_CPP", value = lookup(var.runner_function_arns, "cpp", "") },
       { name = "WORKER_LEASE", value = "${var.queue.visibility_timeout_seconds}s" },
       { name = "WORKER_CONCURRENCY", value = "4" },
-    ])
+      ], var.realtime == null ? [] : [
+      { name = "EVENT_BUS_NAME", value = var.realtime.bus },
+    ], local.valkey_env)
     secrets = local.database_secret
     logConfiguration = {
       logDriver = "awslogs"
@@ -323,7 +359,7 @@ resource "aws_ecs_task_definition" "job" {
     essential              = true
     readonlyRootFilesystem = true
     mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
-    environment            = local.database_env
+    environment            = each.key == "seed" ? concat(local.database_env, local.seed_env) : local.database_env
     secrets                = local.database_secret
     logConfiguration = {
       logDriver = "awslogs"

@@ -20,6 +20,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldProblemID holds the string denoting the problem_id field in the database.
 	FieldProblemID = "problem_id"
+	// FieldContestID holds the string denoting the contest_id field in the database.
+	FieldContestID = "contest_id"
 	// FieldProblemVersion holds the string denoting the problem_version field in the database.
 	FieldProblemVersion = "problem_version"
 	// FieldLanguage holds the string denoting the language field in the database.
@@ -52,8 +54,12 @@ const (
 	EdgeUser = "user"
 	// EdgeProblem holds the string denoting the problem edge name in mutations.
 	EdgeProblem = "problem"
+	// EdgeContest holds the string denoting the contest edge name in mutations.
+	EdgeContest = "contest"
 	// EdgeResults holds the string denoting the results edge name in mutations.
 	EdgeResults = "results"
+	// EdgeHint holds the string denoting the hint edge name in mutations.
+	EdgeHint = "hint"
 	// Table holds the table name of the submission in the database.
 	Table = "submissions"
 	// UserTable is the table that holds the user relation/edge.
@@ -70,6 +76,13 @@ const (
 	ProblemInverseTable = "problems"
 	// ProblemColumn is the table column denoting the problem relation/edge.
 	ProblemColumn = "problem_id"
+	// ContestTable is the table that holds the contest relation/edge.
+	ContestTable = "submissions"
+	// ContestInverseTable is the table name for the Contest entity.
+	// It exists in this package in order to avoid circular dependency with the "contest" package.
+	ContestInverseTable = "contests"
+	// ContestColumn is the table column denoting the contest relation/edge.
+	ContestColumn = "contest_id"
 	// ResultsTable is the table that holds the results relation/edge.
 	ResultsTable = "submission_results"
 	// ResultsInverseTable is the table name for the SubmissionResult entity.
@@ -77,6 +90,13 @@ const (
 	ResultsInverseTable = "submission_results"
 	// ResultsColumn is the table column denoting the results relation/edge.
 	ResultsColumn = "submission_id"
+	// HintTable is the table that holds the hint relation/edge.
+	HintTable = "hints"
+	// HintInverseTable is the table name for the Hint entity.
+	// It exists in this package in order to avoid circular dependency with the "hint" package.
+	HintInverseTable = "hints"
+	// HintColumn is the table column denoting the hint relation/edge.
+	HintColumn = "submission_id"
 )
 
 // Columns holds all SQL columns for submission fields.
@@ -84,6 +104,7 @@ var Columns = []string{
 	FieldID,
 	FieldUserID,
 	FieldProblemID,
+	FieldContestID,
 	FieldProblemVersion,
 	FieldLanguage,
 	FieldSource,
@@ -143,6 +164,7 @@ type Language string
 // Language values.
 const (
 	LanguagePython Language = "python"
+	LanguageCpp    Language = "cpp"
 )
 
 func (l Language) String() string {
@@ -152,7 +174,7 @@ func (l Language) String() string {
 // LanguageValidator is a validator for the "language" field enum values. It is called by the builders before save.
 func LanguageValidator(l Language) error {
 	switch l {
-	case LanguagePython:
+	case LanguagePython, LanguageCpp:
 		return nil
 	default:
 		return fmt.Errorf("submission: invalid enum value for language field: %q", l)
@@ -232,6 +254,11 @@ func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByProblemID orders the results by the problem_id field.
 func ByProblemID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProblemID, opts...).ToFunc()
+}
+
+// ByContestID orders the results by the contest_id field.
+func ByContestID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldContestID, opts...).ToFunc()
 }
 
 // ByProblemVersion orders the results by the problem_version field.
@@ -318,6 +345,13 @@ func ByProblemField(field string, opts ...sql.OrderTermOption) OrderOption {
 	}
 }
 
+// ByContestField orders the results by contest field.
+func ByContestField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newContestStep(), sql.OrderByField(field, opts...))
+	}
+}
+
 // ByResultsCount orders the results by results count.
 func ByResultsCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -329,6 +363,13 @@ func ByResultsCount(opts ...sql.OrderTermOption) OrderOption {
 func ByResults(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newResultsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByHintField orders the results by hint field.
+func ByHintField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newHintStep(), sql.OrderByField(field, opts...))
 	}
 }
 func newUserStep() *sqlgraph.Step {
@@ -345,10 +386,24 @@ func newProblemStep() *sqlgraph.Step {
 		sqlgraph.Edge(sqlgraph.M2O, true, ProblemTable, ProblemColumn),
 	)
 }
+func newContestStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ContestInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, true, ContestTable, ContestColumn),
+	)
+}
 func newResultsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ResultsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, ResultsTable, ResultsColumn),
+	)
+}
+func newHintStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(HintInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2O, false, HintTable, HintColumn),
 	)
 }

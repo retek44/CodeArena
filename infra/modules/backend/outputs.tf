@@ -43,7 +43,44 @@ output "security_group_ids" {
   }
 }
 
+output "contest" {
+  description = "Contest lifecycle task (Step Functions runs it); null without contests."
+  value = var.contests == null ? null : {
+    task_definition_arn = aws_ecs_task_definition.contest[0].arn
+    task_family         = aws_ecs_task_definition.contest[0].family
+    pass_role_arns      = [aws_iam_role.execution.arn, aws_iam_role.contest[0].arn]
+    cluster_arn         = aws_ecs_cluster.this.arn
+    subnet_ids          = var.public_subnet_ids
+    security_group_id   = aws_security_group.job.id
+  }
+}
+
 output "job_security_group_id" {
   description = "Security group of the one-off job tasks (run-task)."
   value       = aws_security_group.job.id
+}
+
+output "fis_stop_worker_template_id" {
+  description = "FIS experiment template that stops the worker tasks (non-functional workflow)."
+  value       = aws_fis_experiment_template.stop_worker_tasks.id
+}
+
+output "worker_autoscaling_resource_id" {
+  description = "Application Auto Scaling resource of the worker service (scaling checks)."
+  value       = aws_appautoscaling_target.worker.resource_id
+}
+
+output "alb_arn_suffix" {
+  description = "ALB ARN suffix (CloudWatch dimension LoadBalancer)."
+  value       = aws_lb.this.arn_suffix
+}
+
+output "api_target_group_arn_suffix" {
+  description = "API target group ARN suffix (CloudWatch dimension TargetGroup)."
+  value       = aws_lb_target_group.api.arn_suffix
+}
+
+output "log_group_names" {
+  description = "CloudWatch log groups by component (api, worker, migrate, seed)."
+  value       = { for name, group in aws_cloudwatch_log_group.service : name => group.name }
 }

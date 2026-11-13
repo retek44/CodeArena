@@ -40,5 +40,6 @@ func (User) Fields() []ent.Field {
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("submissions", Submission.Type),
+		edge.To("contests", ContestParticipant.Type),
 	}
 }

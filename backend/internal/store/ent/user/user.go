@@ -23,6 +23,8 @@ const (
 	FieldCreatedAt = "created_at"
 	// EdgeSubmissions holds the string denoting the submissions edge name in mutations.
 	EdgeSubmissions = "submissions"
+	// EdgeContests holds the string denoting the contests edge name in mutations.
+	EdgeContests = "contests"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// SubmissionsTable is the table that holds the submissions relation/edge.
@@ -32,6 +34,13 @@ const (
 	SubmissionsInverseTable = "submissions"
 	// SubmissionsColumn is the table column denoting the submissions relation/edge.
 	SubmissionsColumn = "user_id"
+	// ContestsTable is the table that holds the contests relation/edge.
+	ContestsTable = "contest_participants"
+	// ContestsInverseTable is the table name for the ContestParticipant entity.
+	// It exists in this package in order to avoid circular dependency with the "contestparticipant" package.
+	ContestsInverseTable = "contest_participants"
+	// ContestsColumn is the table column denoting the contests relation/edge.
+	ContestsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -123,10 +132,31 @@ func BySubmissions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSubmissionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByContestsCount orders the results by contests count.
+func ByContestsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newContestsStep(), opts...)
+	}
+}
+
+// ByContests orders the results by contests terms.
+func ByContests(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newContestsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newSubmissionsStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SubmissionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SubmissionsTable, SubmissionsColumn),
+	)
+}
+func newContestsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ContestsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ContestsTable, ContestsColumn),
 	)
 }

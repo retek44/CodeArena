@@ -9,13 +9,16 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/retek44/CodeArena/backend/internal/events"
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/protocol"
 	"github.com/retek44/CodeArena/backend/internal/queue"
@@ -63,10 +66,42 @@ func (f *fakeRunner) Invoke(_ context.Context, req protocol.Request) (protocol.R
 	return resp, nil
 }
 
+// recordedEvents keeps the published events in order.
+type recordedEvents struct {
+	mu       sync.Mutex
+	list     []events.SubmissionUpdated
+	contests []string
+}
+
+func (r *recordedEvents) SubmissionUpdated(_ context.Context, e events.SubmissionUpdated) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.list = append(r.list, e)
+	return nil
+}
+
+func (r *recordedEvents) ContestUpdated(_ context.Context, detailType string, e events.ContestUpdated) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.contests = append(r.contests, detailType+"/"+e.Contest)
+	return nil
+}
+
+func (r *recordedEvents) statuses() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]string, 0, len(r.list))
+	for _, e := range r.list {
+		out = append(out, e.Status+"/"+e.Verdict)
+	}
+	return out
+}
+
 type env struct {
 	t      *testing.T
 	store  *store.Store
 	runner *fakeRunner
+	events *recordedEvents
 	proc   *worker.Processor
 	prob   *ent.Problem
 }
@@ -87,10 +122,12 @@ func newEnv(t *testing.T) *env {
 	}
 
 	fr := &fakeRunner{}
+	ev := &recordedEvents{}
 	return &env{
 		t:      t,
 		store:  st,
 		runner: fr,
+		events: ev,
 		prob:   p,
 		proc: &worker.Processor{
 			Store:       st,
@@ -98,6 +135,7 @@ func newEnv(t *testing.T) *env {
 			Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
 			Lease:       time.Minute,
 			MaxAttempts: 3,
+			Events:      ev,
 		},
 	}
 }
@@ -259,5 +297,67 @@ func TestInvalidMessagesAreDropped(t *testing.T) {
 	}
 	if n := e.runner.calls.Load(); n != 0 {
 		t.Errorf("runner called %d times for invalid messages", n)
+	}
+}
+
+func TestEventsFollowTheStatus(t *testing.T) {
+	e := newEnv(t)
+	judged := e.submit("print(3)")
+	e.proc.Handle(t.Context(), message(t, judged))
+	// A duplicate delivery claims nothing and announces nothing.
+	e.proc.Handle(t.Context(), message(t, judged))
+
+	if got, want := e.events.statuses(), []string{"running/", "done/AC"}; !slices.Equal(got, want) {
+		t.Errorf("events = %v, want %v", got, want)
+	}
+	for _, ev := range e.events.list {
+		if ev.SubmissionID != judged || ev.UserID != "user-1" {
+			t.Errorf("event = %+v, want submission %s of user-1", ev, judged)
+		}
+	}
+
+	e.events.list = nil
+	failing := e.submit("print(3)")
+	e.runner.fail.Store(100)
+	for range 3 {
+		e.proc.Handle(t.Context(), message(t, failing))
+	}
+	want := []string{"running/", "running/", "running/", "failed/IE"}
+	if got := e.events.statuses(); !slices.Equal(got, want) {
+		t.Errorf("events = %v, want %v", got, want)
+	}
+}
+
+func TestContestSubmissionAnnouncesTheLeaderboard(t *testing.T) {
+	e := newEnv(t)
+	ctx := t.Context()
+	start := time.Now().Add(-10 * time.Minute)
+	c := e.store.Ent.Contest.Create().SetSlug("weekly-1").SetTitle("W").
+		SetStartsAt(start).SetFreezeAt(start.Add(time.Hour)).SetEndsAt(start.Add(2 * time.Hour)).SaveX(ctx)
+	e.store.Ent.ContestProblem.Create().SetContestID(c.ID).SetProblemID(e.prob.ID).SetLabel("A").ExecX(ctx)
+	e.store.Ent.ContestParticipant.Create().SetContestID(c.ID).SetUserID("user-1").ExecX(ctx)
+	id := e.store.Ent.Submission.Create().
+		SetUserID("user-1").SetProblem(e.prob).SetProblemVersion(1).SetContestID(c.ID).
+		SetLanguage(submission.LanguagePython).SetSource("print(3)").
+		SetIdempotencyKey(uuid.NewString()).SetRequestHash("h").
+		SaveX(ctx).ID
+
+	e.proc.Handle(ctx, message(t, id))
+
+	if got := e.events.contests; !slices.Equal(got, []string{"Leaderboard updated/weekly-1"}) {
+		t.Errorf("contest events = %v", got)
+	}
+
+	// During the freeze the board does not change publicly: no event.
+	e.events.contests = nil
+	e.proc.Now = func() time.Time { return start.Add(90 * time.Minute) }
+	late := e.store.Ent.Submission.Create().
+		SetUserID("user-1").SetProblem(e.prob).SetProblemVersion(1).SetContestID(c.ID).
+		SetLanguage(submission.LanguagePython).SetSource("print(3)").
+		SetIdempotencyKey(uuid.NewString()).SetRequestHash("h").
+		SaveX(ctx).ID
+	e.proc.Handle(ctx, message(t, late))
+	if len(e.events.contests) != 0 {
+		t.Errorf("events while frozen = %v, want none", e.events.contests)
 	}
 }

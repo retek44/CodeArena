@@ -26,6 +26,17 @@ test("a correct solution is accepted on every test case", async ({ page }) => {
   await expect(submission.cases.getByText("Wrong answer")).toHaveCount(0);
 });
 
+test("a C++ solution is compiled and accepted", async ({ page }) => {
+  const problem = new ProblemPage(page);
+  await problem.open("a-plus-b");
+  await problem.chooseLanguage("C++20 (GCC)");
+  await problem.setSource(golden("ac.cpp"));
+  const submission = await problem.submit();
+
+  await submission.expectVerdict("AC", "Accepted");
+  await expect(page.getByText("C++20 (GCC)")).toBeVisible();
+});
+
 test("a wrong answer shows which test cases failed", async ({ page }) => {
   const problem = new ProblemPage(page);
   await problem.open("a-plus-b");
@@ -34,6 +45,29 @@ test("a wrong answer shows which test cases failed", async ({ page }) => {
 
   await submission.expectVerdict("WA", "Wrong answer");
   await expect(submission.cases.getByText("Accepted").first()).toBeVisible();
+});
+
+test("a wrong answer gets an AI hint, an accepted one does not", async ({ page }) => {
+  const problem = new ProblemPage(page);
+  await problem.open("a-plus-b");
+  await problem.setSource(golden("wa.py"));
+  const submission = await problem.submit();
+
+  await submission.expectVerdict("WA", "Wrong answer");
+  const hint = await submission.askForHint();
+  expect(hint.length).toBeGreaterThan(20);
+  await expect(submission.hintButton).toHaveCount(0);
+
+  // The stored hint comes back after a reload, without a second button press.
+  await page.reload();
+  await submission.expectVerdict("WA", "Wrong answer");
+  expect(await submission.askForHint()).toBe(hint);
+
+  await problem.open("a-plus-b");
+  await problem.setSource(golden("ac.py"));
+  const accepted = await problem.submit();
+  await accepted.expectVerdict("AC", "Accepted");
+  await expect(accepted.hintButton).toHaveCount(0);
 });
 
 test("a syntax error shows the compiler output", async ({ page }) => {

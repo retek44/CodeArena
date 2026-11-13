@@ -21,6 +21,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/retek44/CodeArena/backend/internal/contest"
+	"github.com/retek44/CodeArena/backend/internal/events"
 	"github.com/retek44/CodeArena/backend/internal/judge"
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/problem"
@@ -63,6 +65,12 @@ type Processor struct {
 	Lease time.Duration
 	// MaxAttempts is the number of judging attempts before the verdict becomes IE.
 	MaxAttempts int
+	// Events announces status changes (WebSocket push); nil publishes nothing.
+	Events events.Publisher
+	// Leaderboard is updated after contest submissions; nil skips the cache update.
+	Leaderboard *contest.Leaderboard
+	// Now is the clock (tests); nil means time.Now.
+	Now func() time.Time
 }
 
 // Handle implements queue.Handler.
@@ -102,12 +110,13 @@ func (p *Processor) Process(ctx context.Context, id uuid.UUID) (Outcome, error) 
 	if err != nil {
 		return "", fmt.Errorf("claim: %w", err)
 	}
+	p.publish(ctx, events.SubmissionUpdated{SubmissionID: id, UserID: claimed.UserID, Status: "running"})
 
 	prob, err := p.loadProblem(ctx, int(claimed.ProblemID), int(claimed.ProblemVersion))
 	if err != nil {
 		// Broken problem data cannot be fixed by retrying.
 		p.Logger.Error("load problem", "submission_id", id, "error", err)
-		return p.fail(ctx, id)
+		return p.fail(ctx, id, claimed.UserID)
 	}
 
 	result, err := judge.Run(ctx, p.Invoker, prob, judge.Submission{
@@ -121,7 +130,7 @@ func (p *Processor) Process(ctx context.Context, id uuid.UUID) (Outcome, error) 
 	if err != nil {
 		p.Logger.Warn("judging attempt failed", "submission_id", id, "attempt", claimed.Attempt, "error", err)
 		if int(claimed.Attempt) >= p.MaxAttempts {
-			return p.fail(ctx, id)
+			return p.fail(ctx, id, claimed.UserID)
 		}
 		if _, err := q.RequeueSubmission(ctx, id); err != nil {
 			return "", fmt.Errorf("requeue: %w", err)
@@ -129,9 +138,19 @@ func (p *Processor) Process(ctx context.Context, id uuid.UUID) (Outcome, error) 
 		return Requeued, nil
 	}
 
-	if err := p.store(ctx, id, result); err != nil {
+	stored, err := p.store(ctx, id, result)
+	if err != nil {
 		return "", err
 	}
+	if stored {
+		p.publish(ctx, events.SubmissionUpdated{SubmissionID: id, UserID: claimed.UserID, Status: "done", Verdict: string(result.Verdict)})
+		if claimed.ContestID.Valid {
+			p.contestJudged(ctx, int(claimed.ContestID.Int64), claimed.UserID)
+		}
+	}
+	// One line per verdict: the dashboard counts verdicts by language from these logs.
+	p.Logger.Info("submission judged", "submission_id", id, "verdict", string(result.Verdict),
+		"language", claimed.Language, "problem", prob.Slug, "attempt", claimed.Attempt)
 	return Judged, nil
 }
 
@@ -152,11 +171,56 @@ func (p *Processor) notClaimed(ctx context.Context, id uuid.UUID) (Outcome, erro
 	return Finished, nil
 }
 
-func (p *Processor) fail(ctx context.Context, id uuid.UUID) (Outcome, error) {
-	if _, err := p.Store.Queries.FailSubmission(ctx, id); err != nil {
+func (p *Processor) fail(ctx context.Context, id uuid.UUID, userID string) (Outcome, error) {
+	rows, err := p.Store.Queries.FailSubmission(ctx, id)
+	if err != nil {
 		return "", fmt.Errorf("fail submission: %w", err)
 	}
+	if rows > 0 {
+		p.publish(ctx, events.SubmissionUpdated{SubmissionID: id, UserID: userID, Status: "failed", Verdict: string(judge.InternalError)})
+	}
 	return Failed, nil
+}
+
+// contestJudged updates the leaderboard cache and tells the contest's viewers. Best
+// effort like publish: the leaderboard is computed from Postgres when the cache misses.
+func (p *Processor) contestJudged(ctx context.Context, contestID int, userID string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	c, err := p.Store.Ent.Contest.Get(ctx, contestID)
+	if err != nil {
+		p.Logger.Warn("load contest", "contest_id", contestID, "error", err)
+		return
+	}
+	now := time.Now()
+	if p.Now != nil {
+		now = p.Now()
+	}
+	times := contest.Times{ID: c.ID, StartsAt: c.StartsAt, FreezeAt: c.FreezeAt, EndsAt: c.EndsAt}
+	if p.Leaderboard != nil {
+		if err := p.Leaderboard.Record(ctx, times, userID, now); err != nil {
+			p.Logger.Warn("record leaderboard", "contest", c.Slug, "error", err)
+		}
+	}
+	// While frozen the public board does not change: no update reveals late solves.
+	if p.Events != nil && times.PhaseAt(now) != contest.Frozen {
+		if err := p.Events.ContestUpdated(ctx, events.DetailTypeLeaderboard, events.ContestUpdated{Contest: c.Slug}); err != nil {
+			p.Logger.Warn("publish leaderboard event", "contest", c.Slug, "error", err)
+		}
+	}
+}
+
+// publish sends an event without failing the judge: the result is already stored and
+// the SPA still polls slowly, so a lost event only delays the update.
+func (p *Processor) publish(ctx context.Context, e events.SubmissionUpdated) {
+	if p.Events == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := p.Events.SubmissionUpdated(ctx, e); err != nil {
+		p.Logger.Warn("publish event", "submission_id", e.SubmissionID, "status", e.Status, "error", err)
+	}
 }
 
 func (p *Processor) loadProblem(ctx context.Context, problemID, version int) (*problem.Problem, error) {
@@ -176,6 +240,15 @@ func (p *Processor) loadProblem(ctx context.Context, problemID, version int) (*p
 	}
 
 	out := &problem.Problem{Slug: prob.Slug, TimeMS: prob.TimeLimitMs, MemoryMB: prob.MemoryLimitMB, Checker: string(prob.Checker)}
+	if prob.CheckerTolerance != nil {
+		out.Tolerance = *prob.CheckerTolerance
+	}
+	if prob.CheckerSource != nil {
+		out.CheckerSource = *prob.CheckerSource
+	}
+	if err := out.Validate(); err != nil {
+		return nil, fmt.Errorf("problem %s: %w", prob.Slug, err)
+	}
 	for _, tc := range cases {
 		out.Cases = append(out.Cases, problem.Case{Name: strconv.Itoa(tc.Ordinal), Input: tc.Input, Expected: tc.ExpectedOutput})
 	}
@@ -183,13 +256,14 @@ func (p *Processor) loadProblem(ctx context.Context, problemID, version int) (*p
 }
 
 // store writes the per-case results and the verdict atomically.
-func (p *Processor) store(ctx context.Context, id uuid.UUID, r judge.Result) error {
+// store saves the results; false means another worker finished first (nothing stored).
+func (p *Processor) store(ctx context.Context, id uuid.UUID, r judge.Result) (bool, error) {
 	params := db.InsertSubmissionResultsParams{SubmissionID: id}
 	var runtime, memory int64
 	for _, c := range r.Cases {
 		ordinal, err := strconv.ParseInt(c.Name, 10, 64)
 		if err != nil {
-			return fmt.Errorf("case name %q is not an ordinal: %w", c.Name, err)
+			return false, fmt.Errorf("case name %q is not an ordinal: %w", c.Name, err)
 		}
 		params.Ordinals = append(params.Ordinals, ordinal)
 		params.Verdicts = append(params.Verdicts, string(c.Verdict))
@@ -209,25 +283,28 @@ func (p *Processor) store(ctx context.Context, id uuid.UUID, r judge.Result) err
 
 	tx, err := p.Store.Pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin: %w", err)
+		return false, fmt.Errorf("begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
 
 	qtx := p.Store.Queries.WithTx(tx)
 	if len(params.Ordinals) > 0 {
 		if err := qtx.InsertSubmissionResults(ctx, params); err != nil {
-			return fmt.Errorf("insert results: %w", err)
+			return false, fmt.Errorf("insert results: %w", err)
 		}
 	}
 	rows, err := qtx.CompleteSubmission(ctx, complete)
 	if err != nil {
-		return fmt.Errorf("complete: %w", err)
+		return false, fmt.Errorf("complete: %w", err)
 	}
 	if rows == 0 {
 		// The lease expired and another worker finished first; keep its result.
-		return nil
+		return false, nil
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("commit: %w", err)
+	}
+	return true, nil
 }
 
 func interval(d time.Duration) pgtype.Interval {

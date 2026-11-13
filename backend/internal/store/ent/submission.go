@@ -10,6 +10,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/user"
@@ -24,6 +26,8 @@ type Submission struct {
 	UserID string `json:"user_id,omitempty"`
 	// ProblemID holds the value of the "problem_id" field.
 	ProblemID int `json:"problem_id,omitempty"`
+	// ContestID holds the value of the "contest_id" field.
+	ContestID *int `json:"contest_id,omitempty"`
 	// ProblemVersion holds the value of the "problem_version" field.
 	ProblemVersion int `json:"problem_version,omitempty"`
 	// Language holds the value of the "language" field.
@@ -64,11 +68,15 @@ type SubmissionEdges struct {
 	User *User `json:"user,omitempty"`
 	// Problem holds the value of the problem edge.
 	Problem *Problem `json:"problem,omitempty"`
+	// Contest holds the value of the contest edge.
+	Contest *Contest `json:"contest,omitempty"`
 	// Results holds the value of the results edge.
 	Results []*SubmissionResult `json:"results,omitempty"`
+	// Hint holds the value of the hint edge.
+	Hint *Hint `json:"hint,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [5]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -93,13 +101,35 @@ func (e SubmissionEdges) ProblemOrErr() (*Problem, error) {
 	return nil, &NotLoadedError{edge: "problem"}
 }
 
+// ContestOrErr returns the Contest value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e SubmissionEdges) ContestOrErr() (*Contest, error) {
+	if e.Contest != nil {
+		return e.Contest, nil
+	} else if e.loadedTypes[2] {
+		return nil, &NotFoundError{label: contest.Label}
+	}
+	return nil, &NotLoadedError{edge: "contest"}
+}
+
 // ResultsOrErr returns the Results value or an error if the edge
 // was not loaded in eager-loading.
 func (e SubmissionEdges) ResultsOrErr() ([]*SubmissionResult, error) {
-	if e.loadedTypes[2] {
+	if e.loadedTypes[3] {
 		return e.Results, nil
 	}
 	return nil, &NotLoadedError{edge: "results"}
+}
+
+// HintOrErr returns the Hint value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e SubmissionEdges) HintOrErr() (*Hint, error) {
+	if e.Hint != nil {
+		return e.Hint, nil
+	} else if e.loadedTypes[4] {
+		return nil, &NotFoundError{label: hint.Label}
+	}
+	return nil, &NotLoadedError{edge: "hint"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -107,7 +137,7 @@ func (*Submission) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case submission.FieldProblemID, submission.FieldProblemVersion, submission.FieldRuntimeMs, submission.FieldMemoryKB, submission.FieldAttempt:
+		case submission.FieldProblemID, submission.FieldContestID, submission.FieldProblemVersion, submission.FieldRuntimeMs, submission.FieldMemoryKB, submission.FieldAttempt:
 			values[i] = new(sql.NullInt64)
 		case submission.FieldUserID, submission.FieldLanguage, submission.FieldSource, submission.FieldIdempotencyKey, submission.FieldRequestHash, submission.FieldStatus, submission.FieldVerdict, submission.FieldCompileOutput:
 			values[i] = new(sql.NullString)
@@ -147,6 +177,13 @@ func (_m *Submission) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field problem_id", values[i])
 			} else if value.Valid {
 				_m.ProblemID = int(value.Int64)
+			}
+		case submission.FieldContestID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field contest_id", values[i])
+			} else if value.Valid {
+				_m.ContestID = new(int)
+				*_m.ContestID = int(value.Int64)
 			}
 		case submission.FieldProblemVersion:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -260,9 +297,19 @@ func (_m *Submission) QueryProblem() *ProblemQuery {
 	return NewSubmissionClient(_m.config).QueryProblem(_m)
 }
 
+// QueryContest queries the "contest" edge of the Submission entity.
+func (_m *Submission) QueryContest() *ContestQuery {
+	return NewSubmissionClient(_m.config).QueryContest(_m)
+}
+
 // QueryResults queries the "results" edge of the Submission entity.
 func (_m *Submission) QueryResults() *SubmissionResultQuery {
 	return NewSubmissionClient(_m.config).QueryResults(_m)
+}
+
+// QueryHint queries the "hint" edge of the Submission entity.
+func (_m *Submission) QueryHint() *HintQuery {
+	return NewSubmissionClient(_m.config).QueryHint(_m)
 }
 
 // Update returns a builder for updating this Submission.
@@ -293,6 +340,11 @@ func (_m *Submission) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("problem_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ProblemID))
+	builder.WriteString(", ")
+	if v := _m.ContestID; v != nil {
+		builder.WriteString("contest_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("problem_version=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ProblemVersion))

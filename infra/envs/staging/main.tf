@@ -13,8 +13,10 @@ provider "aws" {
 module "app" {
   source = "../../modules/app"
 
-  env        = "staging"
-  image_tag  = var.image_tag
-  cidr_block = "10.30.0.0/16"
+  env                = "staging"
+  image_tag          = var.image_tag
+  alert_email        = var.alert_email
+  contest_email_from = var.contest_email_from
+  cidr_block         = "10.30.0.0/16"
 
 }

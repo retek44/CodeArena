@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/predicate"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
@@ -145,6 +146,53 @@ func (_u *ProblemUpdate) SetNillableChecker(v *problem.Checker) *ProblemUpdate {
 	return _u
 }
 
+// SetCheckerTolerance sets the "checker_tolerance" field.
+func (_u *ProblemUpdate) SetCheckerTolerance(v float64) *ProblemUpdate {
+	_u.mutation.ResetCheckerTolerance()
+	_u.mutation.SetCheckerTolerance(v)
+	return _u
+}
+
+// SetNillableCheckerTolerance sets the "checker_tolerance" field if the given value is not nil.
+func (_u *ProblemUpdate) SetNillableCheckerTolerance(v *float64) *ProblemUpdate {
+	if v != nil {
+		_u.SetCheckerTolerance(*v)
+	}
+	return _u
+}
+
+// AddCheckerTolerance adds value to the "checker_tolerance" field.
+func (_u *ProblemUpdate) AddCheckerTolerance(v float64) *ProblemUpdate {
+	_u.mutation.AddCheckerTolerance(v)
+	return _u
+}
+
+// ClearCheckerTolerance clears the value of the "checker_tolerance" field.
+func (_u *ProblemUpdate) ClearCheckerTolerance() *ProblemUpdate {
+	_u.mutation.ClearCheckerTolerance()
+	return _u
+}
+
+// SetCheckerSource sets the "checker_source" field.
+func (_u *ProblemUpdate) SetCheckerSource(v string) *ProblemUpdate {
+	_u.mutation.SetCheckerSource(v)
+	return _u
+}
+
+// SetNillableCheckerSource sets the "checker_source" field if the given value is not nil.
+func (_u *ProblemUpdate) SetNillableCheckerSource(v *string) *ProblemUpdate {
+	if v != nil {
+		_u.SetCheckerSource(*v)
+	}
+	return _u
+}
+
+// ClearCheckerSource clears the value of the "checker_source" field.
+func (_u *ProblemUpdate) ClearCheckerSource() *ProblemUpdate {
+	_u.mutation.ClearCheckerSource()
+	return _u
+}
+
 // SetVersion sets the "version" field.
 func (_u *ProblemUpdate) SetVersion(v int) *ProblemUpdate {
 	_u.mutation.ResetVersion()
@@ -231,6 +279,21 @@ func (_u *ProblemUpdate) AddSubmissions(v ...*Submission) *ProblemUpdate {
 	return _u.AddSubmissionIDs(ids...)
 }
 
+// AddContestEntryIDs adds the "contest_entries" edge to the ContestProblem entity by IDs.
+func (_u *ProblemUpdate) AddContestEntryIDs(ids ...int) *ProblemUpdate {
+	_u.mutation.AddContestEntryIDs(ids...)
+	return _u
+}
+
+// AddContestEntries adds the "contest_entries" edges to the ContestProblem entity.
+func (_u *ProblemUpdate) AddContestEntries(v ...*ContestProblem) *ProblemUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddContestEntryIDs(ids...)
+}
+
 // Mutation returns the ProblemMutation object of the builder.
 func (_u *ProblemUpdate) Mutation() *ProblemMutation {
 	return _u.mutation
@@ -297,6 +360,27 @@ func (_u *ProblemUpdate) RemoveSubmissions(v ...*Submission) *ProblemUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSubmissionIDs(ids...)
+}
+
+// ClearContestEntries clears all "contest_entries" edges to the ContestProblem entity.
+func (_u *ProblemUpdate) ClearContestEntries() *ProblemUpdate {
+	_u.mutation.ClearContestEntries()
+	return _u
+}
+
+// RemoveContestEntryIDs removes the "contest_entries" edge to ContestProblem entities by IDs.
+func (_u *ProblemUpdate) RemoveContestEntryIDs(ids ...int) *ProblemUpdate {
+	_u.mutation.RemoveContestEntryIDs(ids...)
+	return _u
+}
+
+// RemoveContestEntries removes "contest_entries" edges to ContestProblem entities.
+func (_u *ProblemUpdate) RemoveContestEntries(v ...*ContestProblem) *ProblemUpdate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveContestEntryIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -367,6 +451,11 @@ func (_u *ProblemUpdate) check() error {
 			return &ValidationError{Name: "checker", err: fmt.Errorf(`ent: validator failed for field "Problem.checker": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CheckerTolerance(); ok {
+		if err := problem.CheckerToleranceValidator(v); err != nil {
+			return &ValidationError{Name: "checker_tolerance", err: fmt.Errorf(`ent: validator failed for field "Problem.checker_tolerance": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Version(); ok {
 		if err := problem.VersionValidator(v); err != nil {
 			return &ValidationError{Name: "version", err: fmt.Errorf(`ent: validator failed for field "Problem.version": %w`, err)}
@@ -419,6 +508,21 @@ func (_u *ProblemUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Checker(); ok {
 		_spec.SetField(problem.FieldChecker, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.CheckerTolerance(); ok {
+		_spec.SetField(problem.FieldCheckerTolerance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCheckerTolerance(); ok {
+		_spec.AddField(problem.FieldCheckerTolerance, field.TypeFloat64, value)
+	}
+	if _u.mutation.CheckerToleranceCleared() {
+		_spec.ClearField(problem.FieldCheckerTolerance, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.CheckerSource(); ok {
+		_spec.SetField(problem.FieldCheckerSource, field.TypeString, value)
+	}
+	if _u.mutation.CheckerSourceCleared() {
+		_spec.ClearField(problem.FieldCheckerSource, field.TypeString)
 	}
 	if value, ok := _u.mutation.Version(); ok {
 		_spec.SetField(problem.FieldVersion, field.TypeInt, value)
@@ -560,6 +664,51 @@ func (_u *ProblemUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submission.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ContestEntriesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedContestEntriesIDs(); len(nodes) > 0 && !_u.mutation.ContestEntriesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ContestEntriesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -701,6 +850,53 @@ func (_u *ProblemUpdateOne) SetNillableChecker(v *problem.Checker) *ProblemUpdat
 	return _u
 }
 
+// SetCheckerTolerance sets the "checker_tolerance" field.
+func (_u *ProblemUpdateOne) SetCheckerTolerance(v float64) *ProblemUpdateOne {
+	_u.mutation.ResetCheckerTolerance()
+	_u.mutation.SetCheckerTolerance(v)
+	return _u
+}
+
+// SetNillableCheckerTolerance sets the "checker_tolerance" field if the given value is not nil.
+func (_u *ProblemUpdateOne) SetNillableCheckerTolerance(v *float64) *ProblemUpdateOne {
+	if v != nil {
+		_u.SetCheckerTolerance(*v)
+	}
+	return _u
+}
+
+// AddCheckerTolerance adds value to the "checker_tolerance" field.
+func (_u *ProblemUpdateOne) AddCheckerTolerance(v float64) *ProblemUpdateOne {
+	_u.mutation.AddCheckerTolerance(v)
+	return _u
+}
+
+// ClearCheckerTolerance clears the value of the "checker_tolerance" field.
+func (_u *ProblemUpdateOne) ClearCheckerTolerance() *ProblemUpdateOne {
+	_u.mutation.ClearCheckerTolerance()
+	return _u
+}
+
+// SetCheckerSource sets the "checker_source" field.
+func (_u *ProblemUpdateOne) SetCheckerSource(v string) *ProblemUpdateOne {
+	_u.mutation.SetCheckerSource(v)
+	return _u
+}
+
+// SetNillableCheckerSource sets the "checker_source" field if the given value is not nil.
+func (_u *ProblemUpdateOne) SetNillableCheckerSource(v *string) *ProblemUpdateOne {
+	if v != nil {
+		_u.SetCheckerSource(*v)
+	}
+	return _u
+}
+
+// ClearCheckerSource clears the value of the "checker_source" field.
+func (_u *ProblemUpdateOne) ClearCheckerSource() *ProblemUpdateOne {
+	_u.mutation.ClearCheckerSource()
+	return _u
+}
+
 // SetVersion sets the "version" field.
 func (_u *ProblemUpdateOne) SetVersion(v int) *ProblemUpdateOne {
 	_u.mutation.ResetVersion()
@@ -787,6 +983,21 @@ func (_u *ProblemUpdateOne) AddSubmissions(v ...*Submission) *ProblemUpdateOne {
 	return _u.AddSubmissionIDs(ids...)
 }
 
+// AddContestEntryIDs adds the "contest_entries" edge to the ContestProblem entity by IDs.
+func (_u *ProblemUpdateOne) AddContestEntryIDs(ids ...int) *ProblemUpdateOne {
+	_u.mutation.AddContestEntryIDs(ids...)
+	return _u
+}
+
+// AddContestEntries adds the "contest_entries" edges to the ContestProblem entity.
+func (_u *ProblemUpdateOne) AddContestEntries(v ...*ContestProblem) *ProblemUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddContestEntryIDs(ids...)
+}
+
 // Mutation returns the ProblemMutation object of the builder.
 func (_u *ProblemUpdateOne) Mutation() *ProblemMutation {
 	return _u.mutation
@@ -853,6 +1064,27 @@ func (_u *ProblemUpdateOne) RemoveSubmissions(v ...*Submission) *ProblemUpdateOn
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSubmissionIDs(ids...)
+}
+
+// ClearContestEntries clears all "contest_entries" edges to the ContestProblem entity.
+func (_u *ProblemUpdateOne) ClearContestEntries() *ProblemUpdateOne {
+	_u.mutation.ClearContestEntries()
+	return _u
+}
+
+// RemoveContestEntryIDs removes the "contest_entries" edge to ContestProblem entities by IDs.
+func (_u *ProblemUpdateOne) RemoveContestEntryIDs(ids ...int) *ProblemUpdateOne {
+	_u.mutation.RemoveContestEntryIDs(ids...)
+	return _u
+}
+
+// RemoveContestEntries removes "contest_entries" edges to ContestProblem entities.
+func (_u *ProblemUpdateOne) RemoveContestEntries(v ...*ContestProblem) *ProblemUpdateOne {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveContestEntryIDs(ids...)
 }
 
 // Where appends a list predicates to the ProblemUpdate builder.
@@ -936,6 +1168,11 @@ func (_u *ProblemUpdateOne) check() error {
 			return &ValidationError{Name: "checker", err: fmt.Errorf(`ent: validator failed for field "Problem.checker": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.CheckerTolerance(); ok {
+		if err := problem.CheckerToleranceValidator(v); err != nil {
+			return &ValidationError{Name: "checker_tolerance", err: fmt.Errorf(`ent: validator failed for field "Problem.checker_tolerance": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Version(); ok {
 		if err := problem.VersionValidator(v); err != nil {
 			return &ValidationError{Name: "version", err: fmt.Errorf(`ent: validator failed for field "Problem.version": %w`, err)}
@@ -1005,6 +1242,21 @@ func (_u *ProblemUpdateOne) sqlSave(ctx context.Context) (_node *Problem, err er
 	}
 	if value, ok := _u.mutation.Checker(); ok {
 		_spec.SetField(problem.FieldChecker, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.CheckerTolerance(); ok {
+		_spec.SetField(problem.FieldCheckerTolerance, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedCheckerTolerance(); ok {
+		_spec.AddField(problem.FieldCheckerTolerance, field.TypeFloat64, value)
+	}
+	if _u.mutation.CheckerToleranceCleared() {
+		_spec.ClearField(problem.FieldCheckerTolerance, field.TypeFloat64)
+	}
+	if value, ok := _u.mutation.CheckerSource(); ok {
+		_spec.SetField(problem.FieldCheckerSource, field.TypeString, value)
+	}
+	if _u.mutation.CheckerSourceCleared() {
+		_spec.ClearField(problem.FieldCheckerSource, field.TypeString)
 	}
 	if value, ok := _u.mutation.Version(); ok {
 		_spec.SetField(problem.FieldVersion, field.TypeInt, value)
@@ -1146,6 +1398,51 @@ func (_u *ProblemUpdateOne) sqlSave(ctx context.Context) (_node *Problem, err er
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submission.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ContestEntriesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedContestEntriesIDs(); len(nodes) > 0 && !_u.mutation.ContestEntriesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ContestEntriesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

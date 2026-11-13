@@ -40,6 +40,9 @@ jobs:
       id-token: write
     env:
       TF_DIR: infra/envs/${{ inputs.environment }}
+      # Optional: alarm e-mails (DLQ) for this environment. Empty: no subscription.
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_contest_email_from: ${{ vars.CONTEST_EMAIL_FROM }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
@@ -122,8 +125,31 @@ jobs:
           done
           echo "::error::${SITE_URL} did not answer"
           exit 1
-      # Anonymous, read-only checks of the real edge: SPA, routing function, security
-      # headers, no API caching, HTTPS redirect, ALB not reachable around CloudFront.
+      # A temporary Cognito user for the signed-in tests. ADMIN_USER_PASSWORD_AUTH needs
+      # IAM credentials, so only the pipeline can use it. The user is deleted below.
+      - name: Sign in a temporary test user
+        id: testuser
+        run: |
+          pool_id=$(jq -r '.authority | split("/") | last' <<<"${COGNITO}")
+          client_id=$(jq -r .client_id <<<"${COGNITO}")
+          username="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.invalid"
+          password="Ci$(openssl rand -hex 16)Aa1"
+          echo "::add-mask::${password}"
+          echo "pool_id=${pool_id}" >> "$GITHUB_OUTPUT"
+          echo "username=${username}" >> "$GITHUB_OUTPUT"
+          aws cognito-idp admin-create-user --user-pool-id "${pool_id}" --username "${username}" \
+            --user-attributes Name=email,Value="${username}" Name=email_verified,Value=true \
+            --message-action SUPPRESS >/dev/null
+          aws cognito-idp admin-set-user-password --user-pool-id "${pool_id}" --username "${username}" \
+            --password "${password}" --permanent
+          token=$(aws cognito-idp admin-initiate-auth --user-pool-id "${pool_id}" --client-id "${client_id}" \
+            --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters "USERNAME=${username},PASSWORD=${password}" \
+            --query AuthenticationResult.AccessToken --output text)
+          echo "::add-mask::${token}"
+          echo "E2E_ACCESS_TOKEN=${token}" >> "$GITHUB_ENV"
+      # Edge checks (anonymous): SPA, routing function, security headers, no API caching,
+      # HTTPS redirect, ALB not reachable around CloudFront. Signed in: real judge runs
+      # (Python, C++, custom checker) through the queue, the worker and the runner Lambdas.
       - name: Post-deploy tests (Playwright against the environment)
         working-directory: frontend
         env:
@@ -131,6 +157,12 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           E2E_ALB_URL=$(jq -r .alb_url <<<"${DEPLOY}") npx playwright test
+      - name: Delete the temporary test user
+        if: always() && steps.testuser.outputs.username != ''
+        env:
+          POOL_ID: ${{ steps.testuser.outputs.pool_id }}
+          TEST_USER: ${{ steps.testuser.outputs.username }}
+        run: aws cognito-idp admin-delete-user --user-pool-id "${POOL_ID}" --username "${TEST_USER}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:

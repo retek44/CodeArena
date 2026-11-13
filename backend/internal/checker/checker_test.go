@@ -39,3 +39,40 @@ func TestExact(t *testing.T) {
 		})
 	}
 }
+
+func TestFloat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		got, want string
+		tol       float64
+		accept    bool
+	}{
+		{"identical", "3.141593\n", "3.141593\n", 1e-6, true},
+		{"within absolute tolerance", "0.0000004\n", "0\n", 1e-6, true},
+		{"within relative tolerance", "1000000.5\n", "1000000\n", 1e-6, true},
+		{"outside tolerance", "3.14\n", "3.141593\n", 1e-6, false},
+		{"more digits are fine", "3.14159265358979\n", "3.141593\n", 1e-6, true},
+		{"line breaks do not matter", "1.0 2.0\n", "1\n2\n", 1e-6, true},
+		{"scientific notation", "1e-3\n", "0.001\n", 1e-9, true},
+		{"words must match", "YES 1.0\n", "yes 1.0\n", 1e-6, false},
+		{"word for number", "abc\n", "1\n", 1e-6, false},
+		{"missing token", "1.0\n", "1.0 2.0\n", 1e-6, false},
+		{"extra token", "1.0 2.0 3.0\n", "1.0 2.0\n", 1e-6, false},
+		{"nan never matches", "NaN\n", "1\n", 1e-6, false},
+		{"infinity never matches", "Inf\n", "1e308\n", 1, false},
+		{"zero tolerance uses the default", "1.0000001\n", "1\n", 0, true},
+		{"empty output for empty answer", "", "\n", 1e-6, true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := checker.Float(tc.got, tc.want, tc.tol); got != tc.accept {
+				t.Errorf("Float(%q, %q, %g) = %v, want %v", tc.got, tc.want, tc.tol, got, tc.accept)
+			}
+		})
+	}
+}

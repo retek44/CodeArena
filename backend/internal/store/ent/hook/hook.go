@@ -9,6 +9,54 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/store/ent"
 )
 
+// The ContestFunc type is an adapter to allow the use of ordinary
+// function as Contest mutator.
+type ContestFunc func(context.Context, *ent.ContestMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ContestFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ContestMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ContestMutation", m)
+}
+
+// The ContestParticipantFunc type is an adapter to allow the use of ordinary
+// function as ContestParticipant mutator.
+type ContestParticipantFunc func(context.Context, *ent.ContestParticipantMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ContestParticipantFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ContestParticipantMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ContestParticipantMutation", m)
+}
+
+// The ContestProblemFunc type is an adapter to allow the use of ordinary
+// function as ContestProblem mutator.
+type ContestProblemFunc func(context.Context, *ent.ContestProblemMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ContestProblemFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ContestProblemMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ContestProblemMutation", m)
+}
+
+// The HintFunc type is an adapter to allow the use of ordinary
+// function as Hint mutator.
+type HintFunc func(context.Context, *ent.HintMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f HintFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.HintMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.HintMutation", m)
+}
+
 // The OutboxMessageFunc type is an adapter to allow the use of ordinary
 // function as OutboxMessage mutator.
 type OutboxMessageFunc func(context.Context, *ent.OutboxMessageMutation) (ent.Value, error)

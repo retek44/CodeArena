@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/tag"
@@ -72,6 +73,34 @@ func (_c *ProblemCreate) SetChecker(v problem.Checker) *ProblemCreate {
 func (_c *ProblemCreate) SetNillableChecker(v *problem.Checker) *ProblemCreate {
 	if v != nil {
 		_c.SetChecker(*v)
+	}
+	return _c
+}
+
+// SetCheckerTolerance sets the "checker_tolerance" field.
+func (_c *ProblemCreate) SetCheckerTolerance(v float64) *ProblemCreate {
+	_c.mutation.SetCheckerTolerance(v)
+	return _c
+}
+
+// SetNillableCheckerTolerance sets the "checker_tolerance" field if the given value is not nil.
+func (_c *ProblemCreate) SetNillableCheckerTolerance(v *float64) *ProblemCreate {
+	if v != nil {
+		_c.SetCheckerTolerance(*v)
+	}
+	return _c
+}
+
+// SetCheckerSource sets the "checker_source" field.
+func (_c *ProblemCreate) SetCheckerSource(v string) *ProblemCreate {
+	_c.mutation.SetCheckerSource(v)
+	return _c
+}
+
+// SetNillableCheckerSource sets the "checker_source" field if the given value is not nil.
+func (_c *ProblemCreate) SetNillableCheckerSource(v *string) *ProblemCreate {
+	if v != nil {
+		_c.SetCheckerSource(*v)
 	}
 	return _c
 }
@@ -175,6 +204,21 @@ func (_c *ProblemCreate) AddSubmissions(v ...*Submission) *ProblemCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSubmissionIDs(ids...)
+}
+
+// AddContestEntryIDs adds the "contest_entries" edge to the ContestProblem entity by IDs.
+func (_c *ProblemCreate) AddContestEntryIDs(ids ...int) *ProblemCreate {
+	_c.mutation.AddContestEntryIDs(ids...)
+	return _c
+}
+
+// AddContestEntries adds the "contest_entries" edges to the ContestProblem entity.
+func (_c *ProblemCreate) AddContestEntries(v ...*ContestProblem) *ProblemCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddContestEntryIDs(ids...)
 }
 
 // Mutation returns the ProblemMutation object of the builder.
@@ -287,6 +331,11 @@ func (_c *ProblemCreate) check() error {
 			return &ValidationError{Name: "checker", err: fmt.Errorf(`ent: validator failed for field "Problem.checker": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.CheckerTolerance(); ok {
+		if err := problem.CheckerToleranceValidator(v); err != nil {
+			return &ValidationError{Name: "checker_tolerance", err: fmt.Errorf(`ent: validator failed for field "Problem.checker_tolerance": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.Version(); !ok {
 		return &ValidationError{Name: "version", err: errors.New(`ent: missing required field "Problem.version"`)}
 	}
@@ -359,6 +408,14 @@ func (_c *ProblemCreate) createSpec() (*Problem, *sqlgraph.CreateSpec) {
 		_spec.SetField(problem.FieldChecker, field.TypeEnum, value)
 		_node.Checker = value
 	}
+	if value, ok := _c.mutation.CheckerTolerance(); ok {
+		_spec.SetField(problem.FieldCheckerTolerance, field.TypeFloat64, value)
+		_node.CheckerTolerance = &value
+	}
+	if value, ok := _c.mutation.CheckerSource(); ok {
+		_spec.SetField(problem.FieldCheckerSource, field.TypeString, value)
+		_node.CheckerSource = &value
+	}
 	if value, ok := _c.mutation.Version(); ok {
 		_spec.SetField(problem.FieldVersion, field.TypeInt, value)
 		_node.Version = value
@@ -416,6 +473,22 @@ func (_c *ProblemCreate) createSpec() (*Problem, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submission.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ContestEntriesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   problem.ContestEntriesTable,
+			Columns: []string{problem.ContestEntriesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestproblem.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -568,6 +641,48 @@ func (u *ProblemUpsert) SetChecker(v problem.Checker) *ProblemUpsert {
 // UpdateChecker sets the "checker" field to the value that was provided on create.
 func (u *ProblemUpsert) UpdateChecker() *ProblemUpsert {
 	u.SetExcluded(problem.FieldChecker)
+	return u
+}
+
+// SetCheckerTolerance sets the "checker_tolerance" field.
+func (u *ProblemUpsert) SetCheckerTolerance(v float64) *ProblemUpsert {
+	u.Set(problem.FieldCheckerTolerance, v)
+	return u
+}
+
+// UpdateCheckerTolerance sets the "checker_tolerance" field to the value that was provided on create.
+func (u *ProblemUpsert) UpdateCheckerTolerance() *ProblemUpsert {
+	u.SetExcluded(problem.FieldCheckerTolerance)
+	return u
+}
+
+// AddCheckerTolerance adds v to the "checker_tolerance" field.
+func (u *ProblemUpsert) AddCheckerTolerance(v float64) *ProblemUpsert {
+	u.Add(problem.FieldCheckerTolerance, v)
+	return u
+}
+
+// ClearCheckerTolerance clears the value of the "checker_tolerance" field.
+func (u *ProblemUpsert) ClearCheckerTolerance() *ProblemUpsert {
+	u.SetNull(problem.FieldCheckerTolerance)
+	return u
+}
+
+// SetCheckerSource sets the "checker_source" field.
+func (u *ProblemUpsert) SetCheckerSource(v string) *ProblemUpsert {
+	u.Set(problem.FieldCheckerSource, v)
+	return u
+}
+
+// UpdateCheckerSource sets the "checker_source" field to the value that was provided on create.
+func (u *ProblemUpsert) UpdateCheckerSource() *ProblemUpsert {
+	u.SetExcluded(problem.FieldCheckerSource)
+	return u
+}
+
+// ClearCheckerSource clears the value of the "checker_source" field.
+func (u *ProblemUpsert) ClearCheckerSource() *ProblemUpsert {
+	u.SetNull(problem.FieldCheckerSource)
 	return u
 }
 
@@ -767,6 +882,55 @@ func (u *ProblemUpsertOne) SetChecker(v problem.Checker) *ProblemUpsertOne {
 func (u *ProblemUpsertOne) UpdateChecker() *ProblemUpsertOne {
 	return u.Update(func(s *ProblemUpsert) {
 		s.UpdateChecker()
+	})
+}
+
+// SetCheckerTolerance sets the "checker_tolerance" field.
+func (u *ProblemUpsertOne) SetCheckerTolerance(v float64) *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.SetCheckerTolerance(v)
+	})
+}
+
+// AddCheckerTolerance adds v to the "checker_tolerance" field.
+func (u *ProblemUpsertOne) AddCheckerTolerance(v float64) *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.AddCheckerTolerance(v)
+	})
+}
+
+// UpdateCheckerTolerance sets the "checker_tolerance" field to the value that was provided on create.
+func (u *ProblemUpsertOne) UpdateCheckerTolerance() *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.UpdateCheckerTolerance()
+	})
+}
+
+// ClearCheckerTolerance clears the value of the "checker_tolerance" field.
+func (u *ProblemUpsertOne) ClearCheckerTolerance() *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.ClearCheckerTolerance()
+	})
+}
+
+// SetCheckerSource sets the "checker_source" field.
+func (u *ProblemUpsertOne) SetCheckerSource(v string) *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.SetCheckerSource(v)
+	})
+}
+
+// UpdateCheckerSource sets the "checker_source" field to the value that was provided on create.
+func (u *ProblemUpsertOne) UpdateCheckerSource() *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.UpdateCheckerSource()
+	})
+}
+
+// ClearCheckerSource clears the value of the "checker_source" field.
+func (u *ProblemUpsertOne) ClearCheckerSource() *ProblemUpsertOne {
+	return u.Update(func(s *ProblemUpsert) {
+		s.ClearCheckerSource()
 	})
 }
 
@@ -1139,6 +1303,55 @@ func (u *ProblemUpsertBulk) SetChecker(v problem.Checker) *ProblemUpsertBulk {
 func (u *ProblemUpsertBulk) UpdateChecker() *ProblemUpsertBulk {
 	return u.Update(func(s *ProblemUpsert) {
 		s.UpdateChecker()
+	})
+}
+
+// SetCheckerTolerance sets the "checker_tolerance" field.
+func (u *ProblemUpsertBulk) SetCheckerTolerance(v float64) *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.SetCheckerTolerance(v)
+	})
+}
+
+// AddCheckerTolerance adds v to the "checker_tolerance" field.
+func (u *ProblemUpsertBulk) AddCheckerTolerance(v float64) *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.AddCheckerTolerance(v)
+	})
+}
+
+// UpdateCheckerTolerance sets the "checker_tolerance" field to the value that was provided on create.
+func (u *ProblemUpsertBulk) UpdateCheckerTolerance() *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.UpdateCheckerTolerance()
+	})
+}
+
+// ClearCheckerTolerance clears the value of the "checker_tolerance" field.
+func (u *ProblemUpsertBulk) ClearCheckerTolerance() *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.ClearCheckerTolerance()
+	})
+}
+
+// SetCheckerSource sets the "checker_source" field.
+func (u *ProblemUpsertBulk) SetCheckerSource(v string) *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.SetCheckerSource(v)
+	})
+}
+
+// UpdateCheckerSource sets the "checker_source" field to the value that was provided on create.
+func (u *ProblemUpsertBulk) UpdateCheckerSource() *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.UpdateCheckerSource()
+	})
+}
+
+// ClearCheckerSource clears the value of the "checker_source" field.
+func (u *ProblemUpsertBulk) ClearCheckerSource() *ProblemUpsertBulk {
+	return u.Update(func(s *ProblemUpsert) {
+		s.ClearCheckerSource()
 	})
 }
 

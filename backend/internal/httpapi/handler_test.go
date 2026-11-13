@@ -85,3 +85,23 @@ func TestRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestSecurityHeadersOnEveryResponse(t *testing.T) {
+	t.Parallel()
+
+	handler := httpapi.NewHandler(httpapi.Deps{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	for _, path := range []string{"/healthz", "/version", "/nope"} {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, nil))
+
+		for header, want := range map[string]string{
+			"X-Content-Type-Options":       "nosniff",
+			"Cross-Origin-Resource-Policy": "same-origin",
+			"Cache-Control":                "no-store",
+		} {
+			if got := rec.Header().Get(header); got != want {
+				t.Errorf("%s: %s = %q, want %q", path, header, got, want)
+			}
+		}
+	}
+}

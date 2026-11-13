@@ -19,8 +19,18 @@ type Querier interface {
 	// submission whose lease expired (its worker crashed) can be claimed again.
 	ClaimSubmission(ctx context.Context, arg ClaimSubmissionParams) (ClaimSubmissionRow, error)
 	CompleteSubmission(ctx context.Context, arg CompleteSubmissionParams) (int64, error)
+	// Contest leaderboard (ADR-0016). The source of truth: Valkey only caches what this
+	// query returns, and the API falls back to it when Valkey is down.
+	// One row per participant and contest problem, with ICPC data: when the problem was
+	// first accepted and how many rejected submissions came before that. Compile errors
+	// and internal errors are not penalized. Only submissions made before the cutoff count
+	// (freeze_at for the frozen leaderboard). user_id NULL means all participants.
+	ContestStandings(ctx context.Context, arg ContestStandingsParams) ([]ContestStandingsRow, error)
 	// Housekeeping: sent rows are only kept for a short audit window.
 	DeleteSentOutbox(ctx context.Context, olderThan pgtype.Interval) (int64, error)
+	// Sweeper: a running submission whose worker went silent after its last allowed
+	// attempt gets IE instead of another try (a poison submission must not loop).
+	FailExhaustedSubmissions(ctx context.Context, arg FailExhaustedSubmissionsParams) ([]FailExhaustedSubmissionsRow, error)
 	// Gives up after the retry budget: the user sees IE (internal error).
 	FailSubmission(ctx context.Context, id uuid.UUID) (int64, error)
 	// One statement for all test cases; a retried worker inserts nothing twice.
@@ -35,6 +45,12 @@ type Querier interface {
 	// Backs off before the next attempt; the error is kept for debugging.
 	MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error
 	MarkOutboxSent(ctx context.Context, ids []int64) error
+	// Sweeper: submissions whose queue message is gone (moved to the DLQ, or lost)
+	// would wait forever. Running ones whose worker went silent and queued ones that
+	// nobody claimed go back to queued, and a new outbox message announces each one in
+	// the same statement. A duplicate message is harmless: the claim is idempotent.
+	// SKIP LOCKED lets several sweepers (one per API task) run at once.
+	RequeueStuckSubmissions(ctx context.Context, arg RequeueStuckSubmissionsParams) ([]RequeueStuckSubmissionsRow, error)
 	// Returns a running submission to the queue after a worker or runner failure.
 	RequeueSubmission(ctx context.Context, id uuid.UUID) (int64, error)
 }

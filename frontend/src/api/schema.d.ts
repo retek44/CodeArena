@@ -114,6 +114,132 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/submissions/{id}/hint": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get an AI hint for a failed submission
+         * @description Returns a short hint that points at the likely mistake without giving the
+         *     solution (Amazon Bedrock with a guardrail). One hint per submission: asking
+         *     again returns the stored hint and does not count against the rate limit.
+         *     Available for judged submissions with the verdict WA, RE, TLE, MLE or OLE.
+         *     Hidden test data is never sent to the model.
+         */
+        post: operations["createHint"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ws/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get a ticket for the WebSocket API
+         * @description Returns a single-use ticket that is valid for one minute. Open the WebSocket
+         *     with `url?ticket=<ticket>`, then subscribe to submissions (contracts/asyncapi.yaml).
+         *     503 means there are no live updates in this environment: poll instead.
+         */
+        post: operations["createWebSocketTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List contests, newest first */
+        get: operations["listContests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contests/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a contest
+         * @description Public. Problems are listed only after the start. With a valid access token the
+         *     response also says whether the caller is registered.
+         */
+        get: operations["getContest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contests/{slug}/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register for a contest
+         * @description Idempotent. Allowed until the contest ends.
+         */
+        post: operations["registerForContest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/contests/{slug}/leaderboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the leaderboard (ICPC rules)
+         * @description Ranked by solved problems, then penalty minutes (solve time plus 20 per rejected
+         *     attempt before the first accept). Between freeze_at and ends_at the board shows
+         *     the state at freeze_at (frozen is true).
+         */
+        get: operations["getLeaderboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/users/me/submissions": {
         parameters: {
             query?: never;
@@ -139,8 +265,16 @@ export interface components {
         Slug: string;
         /** @enum {string} */
         Difficulty: "easy" | "medium" | "hard";
-        /** @enum {string} */
-        Language: "python";
+        /**
+         * @description Languages a submission can be written in.
+         * @enum {string}
+         */
+        Language: "python" | "cpp";
+        /**
+         * @description Language of an existing submission. Extensible: new languages are added over time,
+         *     so clients must accept values they do not know (show them as text).
+         */
+        LanguageName: string;
         /**
          * @description AC accepted, WA wrong answer, TLE time limit, MLE memory limit, OLE output limit,
          *     RE runtime error, CE compile error, IE internal error.
@@ -177,12 +311,17 @@ export interface components {
             problem: components["schemas"]["Slug"];
             language: components["schemas"]["Language"];
             source: string;
+            /**
+             * @description Submit in a contest (slug). The contest must be running, the caller must be
+             *     registered and the problem must belong to it.
+             */
+            contest?: components["schemas"]["Slug"];
         };
         Submission: {
             /** Format: uuid */
             id: string;
             problem: components["schemas"]["Slug"];
-            language: components["schemas"]["Language"];
+            language: components["schemas"]["LanguageName"];
             status: components["schemas"]["SubmissionStatus"];
             /** @description Null until judging is finished. */
             verdict: components["schemas"]["Verdict"] | null;
@@ -203,6 +342,78 @@ export interface components {
             verdict: components["schemas"]["Verdict"] | "SKIPPED";
             runtime_ms?: number;
             memory_kb?: number;
+        };
+        Hint: {
+            /** Format: uuid */
+            submission_id: string;
+            /** @description Plain text, a few sentences. */
+            hint: string;
+            /** @description `blocked`: the guardrail replaced the model's answer with a generic hint. */
+            status: string;
+            /** Format: date-time */
+            created_at: string;
+        };
+        WebSocketTicket: {
+            ticket: string;
+            /** @description wss:// URL of the WebSocket API. */
+            url: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        /** @description From the clock; frozen is the last part before the end. */
+        ContestPhase: string;
+        ContestSummary: {
+            slug: components["schemas"]["Slug"];
+            title: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            freeze_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            phase: components["schemas"]["ContestPhase"];
+        };
+        Contest: {
+            slug: components["schemas"]["Slug"];
+            title: string;
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            freeze_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            phase: components["schemas"]["ContestPhase"];
+            description_md: string;
+            problems: {
+                label: string;
+                slug: components["schemas"]["Slug"];
+                title: string;
+            }[];
+            participants: number;
+            /** @description Only for signed-in callers. */
+            registered?: boolean;
+        };
+        Leaderboard: {
+            contest: components["schemas"]["Slug"];
+            phase: components["schemas"]["ContestPhase"];
+            frozen: boolean;
+            labels: string[];
+            rows: components["schemas"]["LeaderboardRow"][];
+        };
+        LeaderboardRow: {
+            rank: number;
+            username: string;
+            solved: number;
+            /** @description Minutes. */
+            penalty: number;
+            problems: components["schemas"]["LeaderboardCell"][];
+        };
+        LeaderboardCell: {
+            label: string;
+            /** @description Minutes from the start to the first accept; null while unsolved. */
+            solved_minute: number | null;
+            rejected: number;
+            pending: number;
         };
         /** @description RFC 9457 problem details. */
         ProblemDetails: {
@@ -248,6 +459,8 @@ export interface components {
         Cursor: string;
         /** @description Page size. */
         Limit: number;
+        /** @description Contest slug. */
+        ContestSlug: components["schemas"]["Slug"];
         /** @description Submission ID. */
         SubmissionId: string;
     };
@@ -387,8 +600,20 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            /** @description Contest submission by a user who is not registered for the contest. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
             404: components["responses"]["NotFound"];
-            /** @description The `Idempotency-Key` was already used with a different request body. */
+            /**
+             * @description The `Idempotency-Key` was already used with a different request body, or the
+             *     contest of a contest submission is not running.
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -432,6 +657,194 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createHint: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Submission ID. */
+                id: components["parameters"]["SubmissionId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The hint. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Hint"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description The submission is not judged yet or its verdict needs no hint (AC, CE). */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too many hints. */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before the next hint. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Hints are disabled in this environment or the model is not available. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createWebSocketTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ticket. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebSocketTicket"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            /** @description No WebSocket API in this environment, or it is not available. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listContests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Contests. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["ContestSummary"][];
+                    };
+                };
+            };
+        };
+    };
+    getContest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Contest slug. */
+                slug: components["parameters"]["ContestSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The contest. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Contest"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    registerForContest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Contest slug. */
+                slug: components["parameters"]["ContestSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Registered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description The contest has ended. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getLeaderboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Contest slug. */
+                slug: components["parameters"]["ContestSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The leaderboard. */
+            200: {
+                headers: {
+                    /** @description cache (Valkey) or database (computed in Postgres). */
+                    "X-Leaderboard-Source"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Leaderboard"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };

@@ -19,3 +19,8 @@ output "login_domain" {
 }
 
 data "aws_region" "current" {}
+
+output "user_pool_arn" {
+  description = "User pool ARN (IAM policies)."
+  value       = aws_cognito_user_pool.this.arn
+}

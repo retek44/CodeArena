@@ -5,11 +5,15 @@
 //	DATABASE_URL            PostgreSQL connection string
 //	SUBMISSIONS_QUEUE_URL   SQS queue (AWS_ENDPOINT_URL_SQS points to ElasticMQ locally)
 //	RUNNER_MODE             http (runner container) or lambda
-//	RUNNER_URL              http mode: Lambda Runtime Interface Emulator invoke URL
+//	RUNNER_URL              http mode: Lambda Runtime Interface Emulator invoke URL (Python runner)
+//	RUNNER_URL_CPP          http mode: invoke URL of the C++ runner (optional)
 //	RUNNER_FUNCTION_PYTHON  lambda mode: runner function name or ARN
+//	RUNNER_FUNCTION_CPP     lambda mode: C++ runner function (optional)
 //	WORKER_CONCURRENCY      submissions judged at once (default 4)
 //	WORKER_LEASE            lease and retry delay, e.g. 2m (default 2m; match the queue visibility timeout)
 //	WORKER_MAX_ATTEMPTS     judging attempts before IE (default 3)
+//	EVENT_BUS_NAME          EventBridge bus for status events (optional; WebSocket push)
+//	VALKEY_URL              leaderboard cache (optional; redis:// or rediss://)
 package main
 
 import (
@@ -26,9 +30,13 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/valkey-io/valkey-go"
 
+	"github.com/retek44/CodeArena/backend/internal/contest"
+	"github.com/retek44/CodeArena/backend/internal/events"
 	"github.com/retek44/CodeArena/backend/internal/queue"
 	"github.com/retek44/CodeArena/backend/internal/runner"
 	"github.com/retek44/CodeArena/backend/internal/store"
@@ -91,6 +99,10 @@ func run(logger *slog.Logger) error {
 		Lease:       lease,
 		MaxAttempts: maxAttempts,
 	}
+	processor.Leaderboard = &contest.Leaderboard{Queries: st.Queries, Cache: valkeyCache(logger), Logger: logger}
+	if bus := os.Getenv("EVENT_BUS_NAME"); bus != "" {
+		processor.Events = &events.EventBridge{Client: eventbridge.NewFromConfig(awsCfg), Bus: bus}
+	}
 	consumer := &queue.Consumer{
 		Client:      sqs.NewFromConfig(awsCfg),
 		QueueURL:    queueURL,
@@ -113,16 +125,22 @@ func newInvoker(cfg aws.Config, timeout time.Duration) (runner.Invoker, error) {
 		if url == "" {
 			return nil, errors.New("RUNNER_URL is required when RUNNER_MODE=http")
 		}
-		return &runner.HTTPInvoker{URL: url, Client: &http.Client{Timeout: timeout}}, nil
+		client := &http.Client{Timeout: timeout}
+		invokers := runner.ByLanguage{"python": &runner.HTTPInvoker{URL: url, Client: client}}
+		if cpp := os.Getenv("RUNNER_URL_CPP"); cpp != "" {
+			invokers["cpp"] = &runner.HTTPInvoker{URL: cpp, Client: client}
+		}
+		return invokers, nil
 	case "lambda":
 		fn := os.Getenv("RUNNER_FUNCTION_PYTHON")
 		if fn == "" {
 			return nil, errors.New("RUNNER_FUNCTION_PYTHON is required when RUNNER_MODE=lambda")
 		}
-		return &runner.LambdaInvoker{
-			Client:    lambda.NewFromConfig(cfg),
-			Functions: map[string]string{"python": fn},
-		}, nil
+		functions := map[string]string{"python": fn}
+		if cpp := os.Getenv("RUNNER_FUNCTION_CPP"); cpp != "" {
+			functions["cpp"] = cpp
+		}
+		return &runner.LambdaInvoker{Client: lambda.NewFromConfig(cfg), Functions: functions}, nil
 	default:
 		return nil, fmt.Errorf("RUNNER_MODE must be http or lambda, got %q", mode)
 	}
@@ -150,4 +168,19 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 		return 0, fmt.Errorf("%s must be a positive duration such as 2m", key)
 	}
 	return d, nil
+}
+
+// valkeyCache connects to the leaderboard cache (VALKEY_URL). Without it, or when
+// Valkey is down at startup, leaderboards are computed in Postgres.
+func valkeyCache(logger *slog.Logger) valkey.Client {
+	url := os.Getenv("VALKEY_URL")
+	if url == "" {
+		return nil
+	}
+	client, err := contest.NewCache(url)
+	if err != nil {
+		logger.Warn("valkey unavailable: leaderboards come from Postgres", "error", err)
+		return nil
+	}
+	return client
 }

@@ -1,0 +1,1298 @@
+{
+  "consumer": {
+    "name": "codearena-spa"
+  },
+  "interactions": [
+    {
+      "description": "a contest submission",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "alice is registered for the running contest weekly-1"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "contest": "weekly-1",
+            "language": "python",
+            "problem": "a-plus-b",
+            "source": "print(3)"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ],
+          "Content-Type": [
+            "application/json"
+          ],
+          "Idempotency-Key": [
+            "click-0002"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            },
+            "Idempotency-Key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[A-Za-z0-9_-]{8,128}$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/submissions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "cases": [],
+            "created_at": "2026-11-13T10:00:00Z",
+            "id": "0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b",
+            "language": "python",
+            "problem": "a-plus-b",
+            "status": "queued",
+            "verdict": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.created_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 202
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a hint request for alice's wrong answer",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "alice has a wrong-answer submission of a-plus-b"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/api/submissions/${submissionId}/hint",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "POST",
+        "path": "/api/submissions/0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b/hint"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "created_at": "2026-11-13T10:00:00Z",
+            "hint": "Check the largest input.",
+            "status": "ok",
+            "submission_id": "0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.submission_id": {
+              "expression": "${submissionId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.created_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.hint": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.submission_id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a new submission",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "problem a-plus-b exists"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "language": "python",
+            "problem": "a-plus-b",
+            "source": "print(sum(map(int, input().split())))"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ],
+          "Content-Type": [
+            "application/json"
+          ],
+          "Idempotency-Key": [
+            "click-0001"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            },
+            "Idempotency-Key": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^[A-Za-z0-9_-]{8,128}$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/submissions"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "cases": [],
+            "created_at": "2026-11-13T10:00:00Z",
+            "id": "0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b",
+            "language": "python",
+            "problem": "a-plus-b",
+            "status": "queued",
+            "verdict": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.created_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          }
+        },
+        "status": 202
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a registration for contest weekly-1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "contest weekly-1 is running"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/api/contests/weekly-1/register"
+      },
+      "response": {
+        "status": 204
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for a problem that does not exist",
+      "pending": false,
+      "request": {
+        "method": "GET",
+        "path": "/api/problems/no-such-problem"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "detail": "problem not found",
+            "status": 404,
+            "title": "Not Found",
+            "type": "about:blank"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/problem+json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.detail": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.title": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 404
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for alice's judged submission",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "alice has a wrong-answer submission of a-plus-b"
+        }
+      ],
+      "request": {
+        "generators": {
+          "path": {
+            "expression": "/api/submissions/${submissionId}",
+            "type": "ProviderState"
+          }
+        },
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          },
+          "path": {
+            "combine": "AND",
+            "matchers": [
+              {
+                "match": "type"
+              }
+            ]
+          }
+        },
+        "method": "GET",
+        "path": "/api/submissions/0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "cases": [
+              {
+                "index": 1,
+                "verdict": "WA"
+              }
+            ],
+            "created_at": "2026-11-13T10:00:00Z",
+            "id": "0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b",
+            "language": "python",
+            "memory_kb": 9000,
+            "problem": "a-plus-b",
+            "runtime_ms": 12,
+            "status": "done",
+            "verdict": "WA"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.id": {
+              "expression": "${submissionId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.cases": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.cases[*].index": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.cases[*].verdict": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.created_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.language": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.memory_kb": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.runtime_ms": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for alice's submissions",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "alice has a wrong-answer submission of a-plus-b"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/api/users/me/submissions",
+        "query": {
+          "limit": [
+            "20"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "cases": [
+                  {
+                    "index": 1,
+                    "verdict": "WA"
+                  }
+                ],
+                "created_at": "2026-11-13T10:00:00Z",
+                "id": "0b6f4c3e-8d2a-4f1b-9c7e-5a3d2e1f0a9b",
+                "language": "python",
+                "memory_kb": 9000,
+                "problem": "a-plus-b",
+                "runtime_ms": 12,
+                "status": "done",
+                "verdict": "WA"
+              }
+            ],
+            "next_cursor": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "generators": {
+          "body": {
+            "$.items[*].id": {
+              "expression": "${submissionId}",
+              "type": "ProviderState"
+            }
+          }
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].cases": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].cases[*].index": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].cases[*].verdict": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].created_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.items[*].id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].language": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.items[*].memory_kb": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.items[*].runtime_ms": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for contest weekly-1 by a participant",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "alice is registered for the running contest weekly-1"
+        }
+      ],
+      "request": {
+        "headers": {
+          "Authorization": [
+            "Bearer eyJhbGciOiJSUzI1NiJ9.alice.signature"
+          ]
+        },
+        "matchingRules": {
+          "header": {
+            "Authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+$"
+                }
+              ]
+            }
+          }
+        },
+        "method": "GET",
+        "path": "/api/contests/weekly-1"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "description_md": "Three problems.",
+            "ends_at": "2026-11-13T12:00:00Z",
+            "freeze_at": "2026-11-13T11:40:00Z",
+            "participants": 1,
+            "phase": "running",
+            "problems": [
+              {
+                "label": "A",
+                "slug": "a-plus-b",
+                "title": "A + B"
+              }
+            ],
+            "registered": true,
+            "slug": "weekly-1",
+            "starts_at": "2026-11-13T10:00:00Z",
+            "title": "Weekly 1"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.description_md": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.ends_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.freeze_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.participants": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.problems": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.problems[*].label": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.problems[*].slug": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.problems[*].title": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.starts_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.title": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for problem a-plus-b",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "problem a-plus-b exists"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/problems/a-plus-b"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "difficulty": "easy",
+            "memory_limit_mb": 64,
+            "samples": [
+              {
+                "input": "1 2\n",
+                "output": "3\n"
+              }
+            ],
+            "slug": "a-plus-b",
+            "statement_md": "Add two numbers.",
+            "time_limit_ms": 1000,
+            "title": "A + B"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.difficulty": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.memory_limit_mb": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.samples": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.samples[*].input": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.samples[*].output": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.statement_md": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.time_limit_ms": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.title": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the contests",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "contest weekly-1 is running"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/contests"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "ends_at": "2026-11-13T12:00:00Z",
+                "freeze_at": "2026-11-13T11:40:00Z",
+                "phase": "running",
+                "slug": "weekly-1",
+                "starts_at": "2026-11-13T10:00:00Z",
+                "title": "Weekly 1"
+              }
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].ends_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.items[*].freeze_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.items[*].starts_at": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?(Z|[+-]\\d{2}:\\d{2})$"
+                }
+              ]
+            },
+            "$.items[*].title": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the first page of problems",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "problem a-plus-b exists"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/problems",
+        "query": {
+          "limit": [
+            "20"
+          ]
+        }
+      },
+      "response": {
+        "body": {
+          "content": {
+            "items": [
+              {
+                "difficulty": "easy",
+                "slug": "a-plus-b",
+                "title": "A + B"
+              }
+            ],
+            "next_cursor": null
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.items": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.items[*].difficulty": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^(easy|medium|hard)$"
+                }
+              ]
+            },
+            "$.items[*].title": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a request for the leaderboard of weekly-1",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "alice solved problem A of the running contest weekly-1"
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/api/contests/weekly-1/leaderboard"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "contest": "weekly-1",
+            "frozen": false,
+            "labels": [
+              "A"
+            ],
+            "phase": "running",
+            "rows": [
+              {
+                "penalty": 5,
+                "problems": [
+                  {
+                    "label": "A",
+                    "pending": 0,
+                    "rejected": 0,
+                    "solved_minute": 5
+                  }
+                ],
+                "rank": 1,
+                "solved": 1,
+                "username": "alice"
+              }
+            ]
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.labels": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.rows": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.rows[*].penalty": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.rows[*].problems": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type",
+                  "min": 1
+                }
+              ]
+            },
+            "$.rows[*].problems[*].label": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.rows[*].problems[*].pending": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.rows[*].problems[*].rejected": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.rows[*].problems[*].solved_minute": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.rows[*].rank": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.rows[*].solved": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "integer"
+                }
+              ]
+            },
+            "$.rows[*].username": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "17.1.4"
+    },
+    "pactRust": {
+      "ffi": "0.5.8",
+      "models": "1.3.16"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "codearena-api"
+  }
+}

@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/retek44/CodeArena/backend/internal/judge"
 )
 
 func apiURL() string {
@@ -91,9 +93,13 @@ func TestGoldenSolutionsEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			// One user per solution: the submission rate limit (10 per minute) applies per user.
+			// Dev user names: [a-z0-9-]{1,32}.
+			name := strings.ReplaceAll("e2e-"+problemSlug+"-"+strings.TrimSuffix(file, filepath.Ext(file)), "_", "-")
+			user := map[string]string{"X-Dev-User": name[:min(len(name), 32)]}
 			status, body := call(t, http.MethodPost, "/api/submissions",
-				map[string]string{"problem": problemSlug, "language": "python", "source": string(source)},
-				map[string]string{"Idempotency-Key": uuid.NewString()})
+				map[string]string{"problem": problemSlug, "language": judge.LanguageOf(file), "source": string(source)},
+				map[string]string{"Idempotency-Key": uuid.NewString(), "X-Dev-User": user["X-Dev-User"]})
 			if status != http.StatusAccepted {
 				t.Fatalf("submit: status %d: %s", status, body)
 			}
@@ -102,7 +108,7 @@ func TestGoldenSolutionsEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got := waitForVerdict(t, created.ID, 90*time.Second)
+			got := waitForVerdict(t, created.ID, user, 90*time.Second)
 			if got.Status != "done" || got.Verdict == nil || *got.Verdict != want {
 				t.Fatalf("status=%s verdict=%v, want done %s (cases: %+v)", got.Status, deref(got.Verdict), want, got.Cases)
 			}
@@ -110,11 +116,11 @@ func TestGoldenSolutionsEndToEnd(t *testing.T) {
 	}
 }
 
-func waitForVerdict(t *testing.T, id string, timeout time.Duration) submission {
+func waitForVerdict(t *testing.T, id string, headers map[string]string, timeout time.Duration) submission {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for {
-		status, body := call(t, http.MethodGet, "/api/submissions/"+id, nil, nil)
+		status, body := call(t, http.MethodGet, "/api/submissions/"+id, nil, headers)
 		if status != http.StatusOK {
 			t.Fatalf("get submission: status %d: %s", status, body)
 		}

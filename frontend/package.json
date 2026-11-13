@@ -14,6 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:pact": "vitest run --config vitest.pact.config.ts",
     "api:types": "openapi-typescript ../contracts/openapi.yaml -o src/api/schema.d.ts",
     "e2e": "playwright test"
   },
@@ -30,6 +32,7 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@eslint/js": "10.0.1",
+    "@pact-foundation/pact": "17.1.4",
     "@playwright/test": "1.65.0",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",
@@ -39,6 +42,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.3.0",
+    "@vitest/coverage-v8": "5.1.0",
     "eslint": "10.14.0",
     "eslint-plugin-react-hooks": "7.1.1",
     "globals": "17.14.0",
@@ -48,5 +52,8 @@
     "typescript-eslint": "8.72.2",
     "vite": "8.3.8",
     "vitest": "5.1.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.17"
   }
 }

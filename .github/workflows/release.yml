@@ -1,9 +1,10 @@
 name: Release
 
 # Promotes one commit of main through every environment with the same images:
-# build once -> dev -> staging -> prod. Each stage deploys, migrates, seeds and runs
-# the post-deploy Playwright suite; a failed stage stops the promotion. prod waits
-# for a reviewer (protection rule of the "prod" GitHub environment).
+# build once -> dev -> staging -> non-functional gates -> prod. Each stage deploys,
+# migrates, seeds and runs the post-deploy Playwright suite; staging also gets the
+# load, chaos and ZAP tests (nonfunctional.yml). A failed stage stops the promotion.
+# prod waits for a reviewer (protection rule of the "prod" GitHub environment).
 #
 # Cost: dev and staging are destroyed by the nightly run; prod is not. Destroy prod by
 # hand after a demo (Actions -> Destroy -> prod).
@@ -44,8 +45,18 @@ jobs:
     with:
       environment: staging
 
-  prod:
+  # Load (k6), chaos (FIS) and security (ZAP) gates on staging before prod.
+  nonfunctional:
     needs: staging
+    uses: ./.github/workflows/nonfunctional.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: staging
+
+  prod:
+    needs: [staging, nonfunctional]
     uses: ./.github/workflows/deploy-environment.yml
     permissions:
       contents: read

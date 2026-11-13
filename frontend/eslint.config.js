@@ -4,7 +4,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "playwright-report", "test-results", "src/api/schema.d.ts"] },
+  { ignores: ["dist", "coverage", "reports", ".stryker-tmp", "playwright-report", "test-results", "src/api/schema.d.ts"] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   reactHooks.configs.flat["recommended-latest"],

@@ -1,0 +1,239 @@
+asyncapi: 3.0.0
+info:
+  title: CodeArena live updates
+  version: 0.1.0
+  description: |
+    Event-driven part of CodeArena (ADR-0015).
+
+    - The judge worker publishes `SubmissionUpdated` to the environment's EventBridge bus.
+    - The push Lambda (lambdas/ws) forwards it as `submission_update` to the WebSocket
+      connections that subscribed to the submission and belong to its owner.
+    - The worker publishes `Leaderboard updated` after a judged contest submission
+      (not while the leaderboard is frozen), the contest lifecycle publishes
+      `Contest phase changed`; both go to every connection watching the contest.
+
+    The browser opens the WebSocket with a single-use ticket from `POST /api/ws/ticket`
+    (contracts/openapi.yaml). Messages are JSON; the tests of lambdas/ws validate every
+    message they send or receive against the schemas below.
+
+servers:
+  websocket:
+    host: "{apiId}.execute-api.{region}.amazonaws.com"
+    pathname: /live
+    protocol: wss
+    description: API Gateway WebSocket API of one environment.
+    variables:
+      apiId:
+        description: API ID (Terraform output)
+      region:
+        default: eu-central-1
+  eventbridge:
+    host: "events.{region}.amazonaws.com"
+    protocol: https
+    description: EventBridge bus `codearena-<env>`.
+    variables:
+      region:
+        default: eu-central-1
+
+channels:
+  live:
+    address: /live
+    servers:
+      - $ref: "#/servers/websocket"
+    bindings:
+      ws:
+        query:
+          type: object
+          required: [ticket]
+          properties:
+            ticket:
+              type: string
+              description: Single-use ticket from POST /api/ws/ticket, valid for one minute.
+    messages:
+      subscribe:
+        $ref: "#/components/messages/Subscribe"
+      submissionUpdate:
+        $ref: "#/components/messages/SubmissionUpdate"
+      leaderboardUpdate:
+        $ref: "#/components/messages/LeaderboardUpdate"
+      contestPhase:
+        $ref: "#/components/messages/ContestPhase"
+      error:
+        $ref: "#/components/messages/Error"
+  judgeEvents:
+    address: codearena.judge
+    servers:
+      - $ref: "#/servers/eventbridge"
+    messages:
+      submissionUpdated:
+        $ref: "#/components/messages/SubmissionUpdated"
+      contestUpdated:
+        $ref: "#/components/messages/ContestUpdated"
+
+operations:
+  subscribe:
+    action: receive
+    channel:
+      $ref: "#/channels/live"
+    summary: The browser asks for updates of one of its submissions.
+    messages:
+      - $ref: "#/channels/live/messages/subscribe"
+  pushUpdate:
+    action: send
+    channel:
+      $ref: "#/channels/live"
+    summary: The server pushes a status change; the browser then reads the submission over HTTP.
+    messages:
+      - $ref: "#/channels/live/messages/submissionUpdate"
+      - $ref: "#/channels/live/messages/leaderboardUpdate"
+      - $ref: "#/channels/live/messages/contestPhase"
+      - $ref: "#/channels/live/messages/error"
+  publishSubmissionUpdated:
+    action: send
+    channel:
+      $ref: "#/channels/judgeEvents"
+    summary: The worker and the contest lifecycle announce changes (best effort).
+    messages:
+      - $ref: "#/channels/judgeEvents/messages/submissionUpdated"
+      - $ref: "#/channels/judgeEvents/messages/contestUpdated"
+
+components:
+  messages:
+    Subscribe:
+      name: subscribe
+      payload:
+        $ref: "#/components/schemas/Subscribe"
+    SubmissionUpdate:
+      name: submission_update
+      payload:
+        $ref: "#/components/schemas/SubmissionUpdate"
+    LeaderboardUpdate:
+      name: leaderboard_update
+      payload:
+        $ref: "#/components/schemas/LeaderboardUpdate"
+    ContestPhase:
+      name: contest_phase
+      payload:
+        $ref: "#/components/schemas/ContestPhase"
+    Error:
+      name: error
+      payload:
+        $ref: "#/components/schemas/Error"
+    SubmissionUpdated:
+      name: SubmissionUpdated
+      title: EventBridge detail of "Submission updated" (source codearena.judge)
+      payload:
+        $ref: "#/components/schemas/SubmissionUpdated"
+    ContestUpdated:
+      name: ContestUpdated
+      title: EventBridge detail of "Leaderboard updated" and "Contest phase changed"
+      payload:
+        $ref: "#/components/schemas/ContestUpdated"
+
+  schemas:
+    Status:
+      type: string
+      enum: [queued, running, done, failed]
+    Slug:
+      type: string
+      maxLength: 64
+      pattern: "^[a-z0-9]+(-[a-z0-9]+)*$"
+    Subscribe:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [action, submission_id]
+          properties:
+            action:
+              const: subscribe
+            submission_id:
+              type: string
+              format: uuid
+        - type: object
+          additionalProperties: false
+          required: [action, contest]
+          properties:
+            action:
+              const: subscribe
+            contest:
+              $ref: "#/components/schemas/Slug"
+    LeaderboardUpdate:
+      type: object
+      additionalProperties: false
+      required: [type, contest]
+      properties:
+        type:
+          const: leaderboard_update
+        contest:
+          $ref: "#/components/schemas/Slug"
+    ContestPhase:
+      type: object
+      additionalProperties: false
+      required: [type, contest, phase]
+      properties:
+        type:
+          const: contest_phase
+        contest:
+          $ref: "#/components/schemas/Slug"
+        phase:
+          type: string
+          description: running, frozen, ended or final.
+    SubmissionUpdate:
+      type: object
+      additionalProperties: false
+      required: [type, submission_id, status]
+      properties:
+        type:
+          const: submission_update
+        submission_id:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/Status"
+        verdict:
+          type: string
+          description: Set when status is done or failed (see Verdict in openapi.yaml).
+    Error:
+      type: object
+      additionalProperties: false
+      required: [type, message]
+      properties:
+        type:
+          const: error
+        message:
+          type: string
+    SubmissionUpdated:
+      type: object
+      additionalProperties: false
+      required: [v, submission_id, user_id, status, at]
+      properties:
+        v:
+          const: 1
+        submission_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          description: Owner (Cognito sub). Never sent to browsers.
+        status:
+          $ref: "#/components/schemas/Status"
+        verdict:
+          type: string
+        at:
+          type: string
+          format: date-time
+    ContestUpdated:
+      type: object
+      additionalProperties: false
+      required: [v, contest, at]
+      properties:
+        v:
+          const: 1
+        contest:
+          $ref: "#/components/schemas/Slug"
+        phase:
+          type: string
+          description: Set for "Contest phase changed".
+        at:
+          type: string
+          format: date-time

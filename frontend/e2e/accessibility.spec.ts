@@ -18,3 +18,9 @@ test("sign-in page", async ({ page }) => {
   await page.goto("/login");
   await expectNoSeriousViolations(page);
 });
+
+test("contest page with leaderboard", async ({ page }) => {
+  await page.goto("/contests/weekly-1");
+  await expect(page.getByRole("heading", { name: "Leaderboard" })).toBeVisible();
+  await expectNoSeriousViolations(page);
+});

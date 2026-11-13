@@ -1,0 +1,9 @@
+# Approved breaking changes for the oasdiff check in pr.yml (err-ignore / warn-ignore).
+# Each line must contain the method, the path and the oasdiff message of one change.
+# Keep an entry only while the base branch still has the old contract; delete it after merge.
+#
+# C++ support (ADR-0013): Submission.language became an extensible enum. Our own SPA
+# shows unknown languages as text; there are no third-party clients.
+POST /api/submissions removed the enum constraint from the `language` response property for the response status `202`
+GET /api/submissions/{id} removed the enum constraint from the `language` response property for the response status `200`
+GET /api/users/me/submissions removed the enum constraint from the `items/items/language` response property for the response status `200`

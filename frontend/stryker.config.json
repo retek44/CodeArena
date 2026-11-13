@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing of the SPA (nightly.yml). Run: npx -p @stryker-mutator/core@10.1.1 -p @stryker-mutator/vitest-runner@10.1.1 stryker run",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vite.config.ts" },
+  "mutate": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.test.{ts,tsx}",
+    "!src/test/**",
+    "!src/api/schema.d.ts",
+    "!src/main.tsx",
+    "!src/vite-env.d.ts"
+  ],
+  "reporters": ["clear-text", "progress", "html", "json"],
+  "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
+  "thresholds": { "high": 80, "low": 60, "break": 40 },
+  "coverageAnalysis": "perTest",
+  "concurrency": 4,
+  "tempDirName": ".stryker-tmp"
+}

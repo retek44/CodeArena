@@ -17,8 +17,10 @@ locals {
     "codearena-api",
     "codearena-worker",
     "codearena-runner-python",
+    "codearena-runner-cpp",
     "codearena-migrate",
     "codearena-seed",
+    "codearena-contest",
   ])
 }
 

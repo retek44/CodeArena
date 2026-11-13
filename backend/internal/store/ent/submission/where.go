@@ -66,6 +66,11 @@ func ProblemID(v int) predicate.Submission {
 	return predicate.Submission(sql.FieldEQ(FieldProblemID, v))
 }
 
+// ContestID applies equality check predicate on the "contest_id" field. It's identical to ContestIDEQ.
+func ContestID(v int) predicate.Submission {
+	return predicate.Submission(sql.FieldEQ(FieldContestID, v))
+}
+
 // ProblemVersion applies equality check predicate on the "problem_version" field. It's identical to ProblemVersionEQ.
 func ProblemVersion(v int) predicate.Submission {
 	return predicate.Submission(sql.FieldEQ(FieldProblemVersion, v))
@@ -204,6 +209,36 @@ func ProblemIDIn(vs ...int) predicate.Submission {
 // ProblemIDNotIn applies the NotIn predicate on the "problem_id" field.
 func ProblemIDNotIn(vs ...int) predicate.Submission {
 	return predicate.Submission(sql.FieldNotIn(FieldProblemID, vs...))
+}
+
+// ContestIDEQ applies the EQ predicate on the "contest_id" field.
+func ContestIDEQ(v int) predicate.Submission {
+	return predicate.Submission(sql.FieldEQ(FieldContestID, v))
+}
+
+// ContestIDNEQ applies the NEQ predicate on the "contest_id" field.
+func ContestIDNEQ(v int) predicate.Submission {
+	return predicate.Submission(sql.FieldNEQ(FieldContestID, v))
+}
+
+// ContestIDIn applies the In predicate on the "contest_id" field.
+func ContestIDIn(vs ...int) predicate.Submission {
+	return predicate.Submission(sql.FieldIn(FieldContestID, vs...))
+}
+
+// ContestIDNotIn applies the NotIn predicate on the "contest_id" field.
+func ContestIDNotIn(vs ...int) predicate.Submission {
+	return predicate.Submission(sql.FieldNotIn(FieldContestID, vs...))
+}
+
+// ContestIDIsNil applies the IsNil predicate on the "contest_id" field.
+func ContestIDIsNil() predicate.Submission {
+	return predicate.Submission(sql.FieldIsNull(FieldContestID))
+}
+
+// ContestIDNotNil applies the NotNil predicate on the "contest_id" field.
+func ContestIDNotNil() predicate.Submission {
+	return predicate.Submission(sql.FieldNotNull(FieldContestID))
 }
 
 // ProblemVersionEQ applies the EQ predicate on the "problem_version" field.
@@ -902,6 +937,29 @@ func HasProblemWith(preds ...predicate.Problem) predicate.Submission {
 	})
 }
 
+// HasContest applies the HasEdge predicate on the "contest" edge.
+func HasContest() predicate.Submission {
+	return predicate.Submission(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, true, ContestTable, ContestColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasContestWith applies the HasEdge predicate on the "contest" edge with a given conditions (other predicates).
+func HasContestWith(preds ...predicate.Contest) predicate.Submission {
+	return predicate.Submission(func(s *sql.Selector) {
+		step := newContestStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasResults applies the HasEdge predicate on the "results" edge.
 func HasResults() predicate.Submission {
 	return predicate.Submission(func(s *sql.Selector) {
@@ -917,6 +975,29 @@ func HasResults() predicate.Submission {
 func HasResultsWith(preds ...predicate.SubmissionResult) predicate.Submission {
 	return predicate.Submission(func(s *sql.Selector) {
 		step := newResultsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasHint applies the HasEdge predicate on the "hint" edge.
+func HasHint() predicate.Submission {
+	return predicate.Submission(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2O, false, HintTable, HintColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasHintWith applies the HasEdge predicate on the "hint" edge with a given conditions (other predicates).
+func HasHintWith(preds ...predicate.Hint) predicate.Submission {
+	return predicate.Submission(func(s *sql.Selector) {
+		step := newHintStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

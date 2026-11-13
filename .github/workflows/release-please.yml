@@ -1,0 +1,63 @@
+name: Release notes
+
+# release-please reads the Conventional Commit squash titles on main and keeps one
+# release PR open (version bump + CHANGELOG.md). Merging that PR tags the version and
+# publishes a GitHub Release with an SPDX SBOM of the repository attached.
+# Deploying a release is separate: Actions -> Release promotes main through dev,
+# staging and prod.
+#
+# PRs opened with GITHUB_TOKEN do not start other workflows, so the release PR would
+# never get the required "CI OK" check. Store a fine-grained token (contents and pull
+# requests: read and write on this repository) as the secret RELEASE_PLEASE_TOKEN;
+# without it the workflow still runs, but the release PR needs a manual re-run of CI.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR and tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  sbom:
+    name: Attach SBOM to the release
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: codearena-sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Upload to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: gh release upload "${TAG}" codearena-sbom.spdx.json --clobber

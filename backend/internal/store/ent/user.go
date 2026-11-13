@@ -34,9 +34,11 @@ type User struct {
 type UserEdges struct {
 	// Submissions holds the value of the submissions edge.
 	Submissions []*Submission `json:"submissions,omitempty"`
+	// Contests holds the value of the contests edge.
+	Contests []*ContestParticipant `json:"contests,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // SubmissionsOrErr returns the Submissions value or an error if the edge
@@ -46,6 +48,15 @@ func (e UserEdges) SubmissionsOrErr() ([]*Submission, error) {
 		return e.Submissions, nil
 	}
 	return nil, &NotLoadedError{edge: "submissions"}
+}
+
+// ContestsOrErr returns the Contests value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ContestsOrErr() ([]*ContestParticipant, error) {
+	if e.loadedTypes[1] {
+		return e.Contests, nil
+	}
+	return nil, &NotLoadedError{edge: "contests"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -112,6 +123,11 @@ func (_m *User) Value(name string) (ent.Value, error) {
 // QuerySubmissions queries the "submissions" edge of the User entity.
 func (_m *User) QuerySubmissions() *SubmissionQuery {
 	return NewUserClient(_m.config).QuerySubmissions(_m)
+}
+
+// QueryContests queries the "contests" edge of the User entity.
+func (_m *User) QueryContests() *ContestParticipantQuery {
+	return NewUserClient(_m.config).QueryContests(_m)
 }
 
 // Update returns a builder for updating this User.

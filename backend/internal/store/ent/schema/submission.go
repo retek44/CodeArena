@@ -30,11 +30,16 @@ func (Submission) Fields() []ent.Field {
 			Immutable(),
 		field.Int("problem_id").
 			Immutable(),
+		// Set when the submission was made in a contest (counts for its leaderboard).
+		field.Int("contest_id").
+			Optional().
+			Nillable().
+			Immutable(),
 		field.Int("problem_version").
 			Positive().
 			Immutable(),
 		field.Enum("language").
-			Values("python").
+			Values("python", "cpp").
 			Immutable(),
 		field.Text("source").
 			NotEmpty().
@@ -98,7 +103,15 @@ func (Submission) Edges() []ent.Edge {
 			Unique().
 			Required().
 			Immutable(),
+		edge.From("contest", Contest.Type).
+			Ref("submissions").
+			Field("contest_id").
+			Unique().
+			Immutable(),
 		edge.To("results", SubmissionResult.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
+		edge.To("hint", Hint.Type).
+			Unique().
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
@@ -113,5 +126,7 @@ func (Submission) Indexes() []ent.Index {
 		index.Fields("user_id", "created_at"),
 		// Finding stuck submissions (running for too long).
 		index.Fields("status", "updated_at"),
+		// Leaderboard: a contest's submissions per user in time order.
+		index.Fields("contest_id", "user_id", "created_at"),
 	}
 }

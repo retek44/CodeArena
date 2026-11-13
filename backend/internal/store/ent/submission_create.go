@@ -13,6 +13,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
@@ -36,6 +38,20 @@ func (_c *SubmissionCreate) SetUserID(v string) *SubmissionCreate {
 // SetProblemID sets the "problem_id" field.
 func (_c *SubmissionCreate) SetProblemID(v int) *SubmissionCreate {
 	_c.mutation.SetProblemID(v)
+	return _c
+}
+
+// SetContestID sets the "contest_id" field.
+func (_c *SubmissionCreate) SetContestID(v int) *SubmissionCreate {
+	_c.mutation.SetContestID(v)
+	return _c
+}
+
+// SetNillableContestID sets the "contest_id" field if the given value is not nil.
+func (_c *SubmissionCreate) SetNillableContestID(v *int) *SubmissionCreate {
+	if v != nil {
+		_c.SetContestID(*v)
+	}
 	return _c
 }
 
@@ -219,6 +235,11 @@ func (_c *SubmissionCreate) SetProblem(v *Problem) *SubmissionCreate {
 	return _c.SetProblemID(v.ID)
 }
 
+// SetContest sets the "contest" edge to the Contest entity.
+func (_c *SubmissionCreate) SetContest(v *Contest) *SubmissionCreate {
+	return _c.SetContestID(v.ID)
+}
+
 // AddResultIDs adds the "results" edge to the SubmissionResult entity by IDs.
 func (_c *SubmissionCreate) AddResultIDs(ids ...int) *SubmissionCreate {
 	_c.mutation.AddResultIDs(ids...)
@@ -232,6 +253,25 @@ func (_c *SubmissionCreate) AddResults(v ...*SubmissionResult) *SubmissionCreate
 		ids[i] = v[i].ID
 	}
 	return _c.AddResultIDs(ids...)
+}
+
+// SetHintID sets the "hint" edge to the Hint entity by ID.
+func (_c *SubmissionCreate) SetHintID(id int) *SubmissionCreate {
+	_c.mutation.SetHintID(id)
+	return _c
+}
+
+// SetNillableHintID sets the "hint" edge to the Hint entity by ID if the given value is not nil.
+func (_c *SubmissionCreate) SetNillableHintID(id *int) *SubmissionCreate {
+	if id != nil {
+		_c = _c.SetHintID(*id)
+	}
+	return _c
+}
+
+// SetHint sets the "hint" edge to the Hint entity.
+func (_c *SubmissionCreate) SetHint(v *Hint) *SubmissionCreate {
+	return _c.SetHintID(v.ID)
 }
 
 // Mutation returns the SubmissionMutation object of the builder.
@@ -508,6 +548,23 @@ func (_c *SubmissionCreate) createSpec() (*Submission, *sqlgraph.CreateSpec) {
 		_node.ProblemID = nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
+	if nodes := _c.mutation.ContestIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: true,
+			Table:   submission.ContestTable,
+			Columns: []string{submission.ContestColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contest.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.ContestID = &nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
 	if nodes := _c.mutation.ResultsIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -517,6 +574,22 @@ func (_c *SubmissionCreate) createSpec() (*Submission, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submissionresult.FieldID, field.TypeInt),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.HintIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2O,
+			Inverse: false,
+			Table:   submission.HintTable,
+			Columns: []string{submission.HintColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(hint.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -742,6 +815,9 @@ func (u *SubmissionUpsertOne) UpdateNewValues() *SubmissionUpsertOne {
 		}
 		if _, exists := u.create.mutation.ProblemID(); exists {
 			s.SetIgnore(submission.FieldProblemID)
+		}
+		if _, exists := u.create.mutation.ContestID(); exists {
+			s.SetIgnore(submission.FieldContestID)
 		}
 		if _, exists := u.create.mutation.ProblemVersion(); exists {
 			s.SetIgnore(submission.FieldProblemVersion)
@@ -1148,6 +1224,9 @@ func (u *SubmissionUpsertBulk) UpdateNewValues() *SubmissionUpsertBulk {
 			}
 			if _, exists := b.mutation.ProblemID(); exists {
 				s.SetIgnore(submission.FieldProblemID)
+			}
+			if _, exists := b.mutation.ContestID(); exists {
+				s.SetIgnore(submission.FieldContestID)
 			}
 			if _, exists := b.mutation.ProblemVersion(); exists {
 				s.SetIgnore(submission.FieldProblemVersion)

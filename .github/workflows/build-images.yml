@@ -1,7 +1,7 @@
 name: Build images
 
-# Reusable: builds the four images of the calling commit once (arm64), with SBOM,
-# provenance (not for the Lambda image) and a keyless cosign signature. Tags are the git SHA and immutable, so
+# Reusable: builds the images of the calling commit once (arm64), with SBOM, a Grype
+# vulnerability gate, provenance (not for the Lambda image) and a keyless cosign signature. Tags are the git SHA and immutable, so
 # every environment runs exactly the same bytes.
 on:
   workflow_call:
@@ -64,6 +64,10 @@ jobs:
             context: backend
             file: backend/Dockerfile
             args: CMD=worker
+          - name: contest
+            context: backend
+            file: backend/Dockerfile
+            args: CMD=contest
           - name: migrate
             context: backend
             file: backend/Dockerfile.migrate
@@ -79,6 +83,11 @@ jobs:
             args: ""
             # Lambda accepts only a single image manifest: an image index with
             # attestation manifests fails with "media type ... is not supported".
+            lambda: true
+          - name: runner-cpp
+            context: runners
+            file: runners/cpp/Dockerfile
+            args: ""
             lambda: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -126,6 +135,16 @@ jobs:
           image: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}@${{ steps.build.outputs.digest }}
           format: spdx-json
           artifact-name: sbom-${{ matrix.name }}.spdx.json
+      # Gate before signing: no critical vulnerability that already has a fix.
+      - name: Vulnerability scan (Grype)
+        if: steps.exists.outputs.found == 'false'
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}@${{ steps.build.outputs.digest }}
+          severity-cutoff: critical
+          only-fixed: true
+          fail-build: true
+          output-format: table
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
         if: steps.exists.outputs.found == 'false'
       - name: Sign image (keyless, GitHub OIDC identity)

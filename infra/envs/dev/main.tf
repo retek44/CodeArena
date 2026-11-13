@@ -15,6 +15,8 @@ module "app" {
 
   env                     = "dev"
   image_tag               = var.image_tag
+  alert_email             = var.alert_email
+  contest_email_from      = var.contest_email_from
   cidr_block              = "10.20.0.0/16"
   allow_localhost_sign_in = true
 }

@@ -36,9 +36,18 @@ func (Problem) Fields() []ent.Field {
 			Range(100, 10000),
 		field.Int("memory_limit_mb").
 			Range(16, 512),
+		// exact: line-wise comparison; float: numbers within checker_tolerance;
+		// custom: checker_source (Python) decides, run in the sandbox like a submission.
 		field.Enum("checker").
-			Values("exact").
+			Values("exact", "float", "custom").
 			Default("exact"),
+		field.Float("checker_tolerance").
+			Optional().
+			Nillable().
+			Positive(),
+		field.Text("checker_source").
+			Optional().
+			Nillable(),
 		field.Int("version").
 			Positive().
 			Default(1),
@@ -60,5 +69,6 @@ func (Problem) Edges() []ent.Edge {
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("tags", Tag.Type),
 		edge.To("submissions", Submission.Type),
+		edge.To("contest_entries", ContestProblem.Type),
 	}
 }

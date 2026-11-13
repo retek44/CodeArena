@@ -1,0 +1,205 @@
+name: Nightly
+
+# Slow checks that would hold up pull requests:
+#   - mutation testing: Gremlins (Go judge logic) and Stryker (SPA); scores go to the
+#     job summary, a score below the break threshold fails the job
+#   - Terraform drift: plans every stack that is deployed with the version it runs and
+#     opens (or updates) an issue labelled "drift" when AWS differs from the code
+#   - AI hint evaluation: the dev hint Lambda answers every wrong golden solution and
+#     prompt-injection cases; deterministic checks plus an LLM judge (tests/llm-eval)
+# Runs at 20:00 UTC, before the nightly destroy (destroy.yml, 21:00 UTC).
+on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TF_VERSION: 1.16.5
+  GREMLINS_VERSION: v0.6.0
+  STRYKER_VERSION: 10.1.1
+  BOTO3_VERSION: 1.44.2
+
+jobs:
+  mutation-go:
+    name: Mutation testing (Go, Gremlins)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Install Gremlins
+        run: go install "github.com/go-gremlins/gremlins/cmd/gremlins@${GREMLINS_VERSION}"
+      # Pure judge logic with fast unit tests. Efficacy = killed / (killed + lived).
+      - name: Mutate checker, judge and problem
+        run: |
+          echo "### Go mutation testing (Gremlins)" >> "$GITHUB_STEP_SUMMARY"
+          status=0
+          for pkg in ./internal/checker ./internal/judge ./internal/problem ./internal/sweeper; do
+            echo "::group::${pkg}"
+            out=$(gremlins unleash --timeout-coefficient 10 --threshold-efficacy 70 "${pkg}" 2>&1) || status=1
+            echo "${out}"
+            echo "::endgroup::"
+            echo "- \`${pkg}\`: $(grep -E 'Test efficacy|Mutator coverage' <<<"${out}" | tr '\n' ' ')" >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit "${status}"
+
+  mutation-ts:
+    name: Mutation testing (TypeScript, Stryker)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Stryker
+        run: npx --yes -p "@stryker-mutator/core@${STRYKER_VERSION}" -p "@stryker-mutator/vitest-runner@${STRYKER_VERSION}" stryker run
+      - name: Score summary
+        if: always()
+        run: |
+          [ -f reports/mutation/mutation.json ] || exit 0
+          node scripts/mutation-score.mjs >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: stryker-report
+          path: frontend/reports/mutation
+          retention-days: 14
+
+  drift:
+    name: Terraform drift (${{ matrix.stack }})
+    if: vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [shared, dev, staging, prod]
+    env:
+      TF_DIR: ${{ matrix.stack == 'shared' && 'infra/shared' || format('infra/envs/{0}', matrix.stack) }}
+      STACK: ${{ matrix.stack }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-plan
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Plan against the running version
+        id: plan
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          args=()
+          if [ "${STACK}" != "shared" ]; then
+            # An environment is checked only while it runs; its image tag comes from the
+            # deployed API task definition, so the plan compares like with like.
+            image=$(terraform -chdir="${TF_DIR}" show -json | jq -r '
+              [.values.root_module | .. | objects | select(.address? == "module.app.module.backend[0].aws_ecs_task_definition.api")
+               | .values.container_definitions | fromjson | .[0].image] | first // empty')
+            if [ -z "${image}" ]; then
+              echo "${STACK} is not deployed: nothing to compare."
+              echo "drift=skip" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            args+=(-var "image_tag=${image##*:}")
+          fi
+          set +e
+          terraform -chdir="${TF_DIR}" plan -input=false -no-color -lock=false -detailed-exitcode "${args[@]}" > plan.txt 2>&1
+          code=$?
+          set -e
+          tail -c 60000 plan.txt
+          case "${code}" in
+            0) echo "drift=none" >> "$GITHUB_OUTPUT" ;;
+            2) echo "drift=found" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::terraform plan failed"; exit 1 ;;
+          esac
+      - name: Open or update the drift issue
+        if: steps.plan.outputs.drift == 'found'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Terraform drift: ${STACK}"
+          {
+            echo "The nightly plan of \`${TF_DIR}\` differs from AWS (${RUN_URL})."
+            echo
+            echo '```'
+            grep -E '^\s+# |^Plan:' plan.txt | head -100
+            echo '```'
+          } > body.md
+          gh label create drift --color B60205 --description "AWS differs from the Terraform code" 2>/dev/null || true
+          number=$(gh issue list --label drift --state open --search "\"${title}\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "${number}" ]; then
+            gh issue comment "${number}" --body-file body.md
+          else
+            gh issue create --title "${title}" --label drift --body-file body.md
+          fi
+          echo "::warning::Drift in ${STACK}"
+
+  llm-eval:
+    name: AI hint evaluation (dev)
+    if: vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    # The dev deploy role: invoking the hint Lambda and the judge model is not read-only.
+    environment: dev
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      FUNCTION: codearena-dev-hint
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-dev
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Is dev deployed?
+        id: deployed
+        run: |
+          if aws lambda get-function --function-name "${FUNCTION}" >/dev/null 2>&1; then
+            echo "yes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "The dev environment is not deployed: nothing to evaluate." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "yes=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Evaluate the hints
+        if: steps.deployed.outputs.yes == 'true'
+        run: |
+          pip install "boto3==${BOTO3_VERSION}"
+          python tests/llm-eval/eval_hints.py --function "${FUNCTION}" --report hint-eval.md
+      - name: Summary
+        if: always() && steps.deployed.outputs.yes == 'true'
+        run: |
+          [ -f hint-eval.md ] && cat hint-eval.md >> "$GITHUB_STEP_SUMMARY" || true
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always() && steps.deployed.outputs.yes == 'true'
+        with:
+          name: hint-eval
+          path: hint-eval.md
+          if-no-files-found: ignore
+          retention-days: 30

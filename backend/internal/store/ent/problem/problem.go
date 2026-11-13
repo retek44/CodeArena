@@ -29,6 +29,10 @@ const (
 	FieldMemoryLimitMB = "memory_limit_mb"
 	// FieldChecker holds the string denoting the checker field in the database.
 	FieldChecker = "checker"
+	// FieldCheckerTolerance holds the string denoting the checker_tolerance field in the database.
+	FieldCheckerTolerance = "checker_tolerance"
+	// FieldCheckerSource holds the string denoting the checker_source field in the database.
+	FieldCheckerSource = "checker_source"
 	// FieldVersion holds the string denoting the version field in the database.
 	FieldVersion = "version"
 	// FieldPublished holds the string denoting the published field in the database.
@@ -43,6 +47,8 @@ const (
 	EdgeTags = "tags"
 	// EdgeSubmissions holds the string denoting the submissions edge name in mutations.
 	EdgeSubmissions = "submissions"
+	// EdgeContestEntries holds the string denoting the contest_entries edge name in mutations.
+	EdgeContestEntries = "contest_entries"
 	// Table holds the table name of the problem in the database.
 	Table = "problems"
 	// TestCasesTable is the table that holds the test_cases relation/edge.
@@ -64,6 +70,13 @@ const (
 	SubmissionsInverseTable = "submissions"
 	// SubmissionsColumn is the table column denoting the submissions relation/edge.
 	SubmissionsColumn = "problem_id"
+	// ContestEntriesTable is the table that holds the contest_entries relation/edge.
+	ContestEntriesTable = "contest_problems"
+	// ContestEntriesInverseTable is the table name for the ContestProblem entity.
+	// It exists in this package in order to avoid circular dependency with the "contestproblem" package.
+	ContestEntriesInverseTable = "contest_problems"
+	// ContestEntriesColumn is the table column denoting the contest_entries relation/edge.
+	ContestEntriesColumn = "problem_id"
 )
 
 // Columns holds all SQL columns for problem fields.
@@ -76,6 +89,8 @@ var Columns = []string{
 	FieldTimeLimitMs,
 	FieldMemoryLimitMB,
 	FieldChecker,
+	FieldCheckerTolerance,
+	FieldCheckerSource,
 	FieldVersion,
 	FieldPublished,
 	FieldCreatedAt,
@@ -107,6 +122,8 @@ var (
 	TimeLimitMsValidator func(int) error
 	// MemoryLimitMBValidator is a validator for the "memory_limit_mb" field. It is called by the builders before save.
 	MemoryLimitMBValidator func(int) error
+	// CheckerToleranceValidator is a validator for the "checker_tolerance" field. It is called by the builders before save.
+	CheckerToleranceValidator func(float64) error
 	// DefaultVersion holds the default value on creation for the "version" field.
 	DefaultVersion int
 	// VersionValidator is a validator for the "version" field. It is called by the builders before save.
@@ -153,7 +170,9 @@ const DefaultChecker = CheckerExact
 
 // Checker values.
 const (
-	CheckerExact Checker = "exact"
+	CheckerExact  Checker = "exact"
+	CheckerFloat  Checker = "float"
+	CheckerCustom Checker = "custom"
 )
 
 func (c Checker) String() string {
@@ -163,7 +182,7 @@ func (c Checker) String() string {
 // CheckerValidator is a validator for the "checker" field enum values. It is called by the builders before save.
 func CheckerValidator(c Checker) error {
 	switch c {
-	case CheckerExact:
+	case CheckerExact, CheckerFloat, CheckerCustom:
 		return nil
 	default:
 		return fmt.Errorf("problem: invalid enum value for checker field: %q", c)
@@ -211,6 +230,16 @@ func ByMemoryLimitMB(opts ...sql.OrderTermOption) OrderOption {
 // ByChecker orders the results by the checker field.
 func ByChecker(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldChecker, opts...).ToFunc()
+}
+
+// ByCheckerTolerance orders the results by the checker_tolerance field.
+func ByCheckerTolerance(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCheckerTolerance, opts...).ToFunc()
+}
+
+// ByCheckerSource orders the results by the checker_source field.
+func ByCheckerSource(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCheckerSource, opts...).ToFunc()
 }
 
 // ByVersion orders the results by the version field.
@@ -274,6 +303,20 @@ func BySubmissions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSubmissionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByContestEntriesCount orders the results by contest_entries count.
+func ByContestEntriesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newContestEntriesStep(), opts...)
+	}
+}
+
+// ByContestEntries orders the results by contest_entries terms.
+func ByContestEntries(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newContestEntriesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTestCasesStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -293,5 +336,12 @@ func newSubmissionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SubmissionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, SubmissionsTable, SubmissionsColumn),
+	)
+}
+func newContestEntriesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ContestEntriesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, ContestEntriesTable, ContestEntriesColumn),
 	)
 }

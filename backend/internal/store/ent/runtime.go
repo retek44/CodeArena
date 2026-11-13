@@ -6,6 +6,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/schema"
@@ -20,6 +24,60 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	contestFields := schema.Contest{}.Fields()
+	_ = contestFields
+	// contestDescSlug is the schema descriptor for slug field.
+	contestDescSlug := contestFields[0].Descriptor()
+	// contest.SlugValidator is a validator for the "slug" field. It is called by the builders before save.
+	contest.SlugValidator = contestDescSlug.Validators[0].(func(string) error)
+	// contestDescTitle is the schema descriptor for title field.
+	contestDescTitle := contestFields[1].Descriptor()
+	// contest.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	contest.TitleValidator = contestDescTitle.Validators[0].(func(string) error)
+	// contestDescDescriptionMd is the schema descriptor for description_md field.
+	contestDescDescriptionMd := contestFields[2].Descriptor()
+	// contest.DefaultDescriptionMd holds the default value on creation for the description_md field.
+	contest.DefaultDescriptionMd = contestDescDescriptionMd.Default.(string)
+	// contestDescCreatedAt is the schema descriptor for created_at field.
+	contestDescCreatedAt := contestFields[7].Descriptor()
+	// contest.DefaultCreatedAt holds the default value on creation for the created_at field.
+	contest.DefaultCreatedAt = contestDescCreatedAt.Default.(func() time.Time)
+	contestparticipantFields := schema.ContestParticipant{}.Fields()
+	_ = contestparticipantFields
+	// contestparticipantDescRegisteredAt is the schema descriptor for registered_at field.
+	contestparticipantDescRegisteredAt := contestparticipantFields[2].Descriptor()
+	// contestparticipant.DefaultRegisteredAt holds the default value on creation for the registered_at field.
+	contestparticipant.DefaultRegisteredAt = contestparticipantDescRegisteredAt.Default.(func() time.Time)
+	contestproblemFields := schema.ContestProblem{}.Fields()
+	_ = contestproblemFields
+	// contestproblemDescLabel is the schema descriptor for label field.
+	contestproblemDescLabel := contestproblemFields[2].Descriptor()
+	// contestproblem.LabelValidator is a validator for the "label" field. It is called by the builders before save.
+	contestproblem.LabelValidator = func() func(string) error {
+		validators := contestproblemDescLabel.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(label string) error {
+			for _, fn := range fns {
+				if err := fn(label); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	hintFields := schema.Hint{}.Fields()
+	_ = hintFields
+	// hintDescUserID is the schema descriptor for user_id field.
+	hintDescUserID := hintFields[1].Descriptor()
+	// hint.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	hint.UserIDValidator = hintDescUserID.Validators[0].(func(string) error)
+	// hintDescCreatedAt is the schema descriptor for created_at field.
+	hintDescCreatedAt := hintFields[5].Descriptor()
+	// hint.DefaultCreatedAt holds the default value on creation for the created_at field.
+	hint.DefaultCreatedAt = hintDescCreatedAt.Default.(func() time.Time)
 	outboxmessageFields := schema.OutboxMessage{}.Fields()
 	_ = outboxmessageFields
 	// outboxmessageDescTopic is the schema descriptor for topic field.
@@ -101,22 +159,26 @@ func init() {
 	problemDescMemoryLimitMB := problemFields[5].Descriptor()
 	// problem.MemoryLimitMBValidator is a validator for the "memory_limit_mb" field. It is called by the builders before save.
 	problem.MemoryLimitMBValidator = problemDescMemoryLimitMB.Validators[0].(func(int) error)
+	// problemDescCheckerTolerance is the schema descriptor for checker_tolerance field.
+	problemDescCheckerTolerance := problemFields[7].Descriptor()
+	// problem.CheckerToleranceValidator is a validator for the "checker_tolerance" field. It is called by the builders before save.
+	problem.CheckerToleranceValidator = problemDescCheckerTolerance.Validators[0].(func(float64) error)
 	// problemDescVersion is the schema descriptor for version field.
-	problemDescVersion := problemFields[7].Descriptor()
+	problemDescVersion := problemFields[9].Descriptor()
 	// problem.DefaultVersion holds the default value on creation for the version field.
 	problem.DefaultVersion = problemDescVersion.Default.(int)
 	// problem.VersionValidator is a validator for the "version" field. It is called by the builders before save.
 	problem.VersionValidator = problemDescVersion.Validators[0].(func(int) error)
 	// problemDescPublished is the schema descriptor for published field.
-	problemDescPublished := problemFields[8].Descriptor()
+	problemDescPublished := problemFields[10].Descriptor()
 	// problem.DefaultPublished holds the default value on creation for the published field.
 	problem.DefaultPublished = problemDescPublished.Default.(bool)
 	// problemDescCreatedAt is the schema descriptor for created_at field.
-	problemDescCreatedAt := problemFields[9].Descriptor()
+	problemDescCreatedAt := problemFields[11].Descriptor()
 	// problem.DefaultCreatedAt holds the default value on creation for the created_at field.
 	problem.DefaultCreatedAt = problemDescCreatedAt.Default.(func() time.Time)
 	// problemDescUpdatedAt is the schema descriptor for updated_at field.
-	problemDescUpdatedAt := problemFields[10].Descriptor()
+	problemDescUpdatedAt := problemFields[12].Descriptor()
 	// problem.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	problem.DefaultUpdatedAt = problemDescUpdatedAt.Default.(func() time.Time)
 	// problem.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
@@ -124,11 +186,11 @@ func init() {
 	submissionFields := schema.Submission{}.Fields()
 	_ = submissionFields
 	// submissionDescProblemVersion is the schema descriptor for problem_version field.
-	submissionDescProblemVersion := submissionFields[3].Descriptor()
+	submissionDescProblemVersion := submissionFields[4].Descriptor()
 	// submission.ProblemVersionValidator is a validator for the "problem_version" field. It is called by the builders before save.
 	submission.ProblemVersionValidator = submissionDescProblemVersion.Validators[0].(func(int) error)
 	// submissionDescSource is the schema descriptor for source field.
-	submissionDescSource := submissionFields[5].Descriptor()
+	submissionDescSource := submissionFields[6].Descriptor()
 	// submission.SourceValidator is a validator for the "source" field. It is called by the builders before save.
 	submission.SourceValidator = func() func(string) error {
 		validators := submissionDescSource.Validators
@@ -146,7 +208,7 @@ func init() {
 		}
 	}()
 	// submissionDescIdempotencyKey is the schema descriptor for idempotency_key field.
-	submissionDescIdempotencyKey := submissionFields[6].Descriptor()
+	submissionDescIdempotencyKey := submissionFields[7].Descriptor()
 	// submission.IdempotencyKeyValidator is a validator for the "idempotency_key" field. It is called by the builders before save.
 	submission.IdempotencyKeyValidator = func() func(string) error {
 		validators := submissionDescIdempotencyKey.Validators
@@ -164,7 +226,7 @@ func init() {
 		}
 	}()
 	// submissionDescRequestHash is the schema descriptor for request_hash field.
-	submissionDescRequestHash := submissionFields[7].Descriptor()
+	submissionDescRequestHash := submissionFields[8].Descriptor()
 	// submission.RequestHashValidator is a validator for the "request_hash" field. It is called by the builders before save.
 	submission.RequestHashValidator = func() func(string) error {
 		validators := submissionDescRequestHash.Validators
@@ -182,25 +244,25 @@ func init() {
 		}
 	}()
 	// submissionDescRuntimeMs is the schema descriptor for runtime_ms field.
-	submissionDescRuntimeMs := submissionFields[10].Descriptor()
+	submissionDescRuntimeMs := submissionFields[11].Descriptor()
 	// submission.RuntimeMsValidator is a validator for the "runtime_ms" field. It is called by the builders before save.
 	submission.RuntimeMsValidator = submissionDescRuntimeMs.Validators[0].(func(int) error)
 	// submissionDescMemoryKB is the schema descriptor for memory_kb field.
-	submissionDescMemoryKB := submissionFields[11].Descriptor()
+	submissionDescMemoryKB := submissionFields[12].Descriptor()
 	// submission.MemoryKBValidator is a validator for the "memory_kb" field. It is called by the builders before save.
 	submission.MemoryKBValidator = submissionDescMemoryKB.Validators[0].(func(int) error)
 	// submissionDescAttempt is the schema descriptor for attempt field.
-	submissionDescAttempt := submissionFields[13].Descriptor()
+	submissionDescAttempt := submissionFields[14].Descriptor()
 	// submission.DefaultAttempt holds the default value on creation for the attempt field.
 	submission.DefaultAttempt = submissionDescAttempt.Default.(int)
 	// submission.AttemptValidator is a validator for the "attempt" field. It is called by the builders before save.
 	submission.AttemptValidator = submissionDescAttempt.Validators[0].(func(int) error)
 	// submissionDescCreatedAt is the schema descriptor for created_at field.
-	submissionDescCreatedAt := submissionFields[14].Descriptor()
+	submissionDescCreatedAt := submissionFields[15].Descriptor()
 	// submission.DefaultCreatedAt holds the default value on creation for the created_at field.
 	submission.DefaultCreatedAt = submissionDescCreatedAt.Default.(func() time.Time)
 	// submissionDescUpdatedAt is the schema descriptor for updated_at field.
-	submissionDescUpdatedAt := submissionFields[15].Descriptor()
+	submissionDescUpdatedAt := submissionFields[16].Descriptor()
 	// submission.DefaultUpdatedAt holds the default value on creation for the updated_at field.
 	submission.DefaultUpdatedAt = submissionDescUpdatedAt.Default.(func() time.Time)
 	// submission.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.

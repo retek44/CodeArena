@@ -39,6 +39,10 @@ export class ProblemPage {
     await expect(this.page.getByRole("heading", { level: 1 })).toBeVisible();
   }
 
+  async chooseLanguage(label: string) {
+    await this.page.getByLabel("Language").selectOption({ label });
+  }
+
   /** Replaces the editor content. insertText bypasses Monaco's auto-indent and auto-close. */
   async setSource(source: string) {
     const lines = this.page.locator(".monaco-editor .view-lines");
@@ -58,10 +62,21 @@ export class ProblemPage {
 export class SubmissionPage {
   readonly result: Locator;
   readonly cases: Locator;
+  readonly hintButton: Locator;
+  readonly hint: Locator;
 
   constructor(page: Page) {
     this.result = page.getByText(/^Result:/);
     this.cases = page.getByRole("table", { name: "Test cases" });
+    this.hintButton = page.getByRole("button", { name: "Get a hint" });
+    this.hint = page.getByRole("region", { name: "Stuck?" }).getByRole("blockquote");
+  }
+
+  /** Asks for the AI hint and returns its text. */
+  async askForHint(): Promise<string> {
+    await this.hintButton.click();
+    await expect(this.hint).toBeVisible({ timeout: 30_000 });
+    return (await this.hint.innerText()).trim();
   }
 
   /** Waits until the polling page shows a final verdict. */

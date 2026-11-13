@@ -46,6 +46,34 @@ describe("ProblemPage", () => {
     expect(await post?.json()).toEqual({ problem: "a-plus-b", language: "python", source: "print(3)" });
   });
 
+  it("submits C++ with the C++ starter and keeps one draft per language", async () => {
+    const created = submission({ language: "cpp" });
+    const api = mockFetch({
+      "GET /api/problems/a-plus-b": () => json(aPlusB),
+      "POST /api/submissions": () => json(created, 202),
+      [`GET /api/submissions/${created.id}`]: () => json(created),
+    });
+    renderApp("/problems/a-plus-b", { fetch: api.fetch });
+
+    const editor = await screen.findByLabelText("Solution source code");
+    await userEvent.clear(editor);
+    await userEvent.type(editor, "print(3)");
+
+    await userEvent.selectOptions(screen.getByLabelText("Language"), "cpp");
+    expect(screen.getByLabelText("Solution source code")).toHaveValue(
+      "#include <iostream>\n\nint main() {\n    // Read from standard input, write to standard output.\n}\n",
+    );
+    await userEvent.selectOptions(screen.getByLabelText("Language"), "python");
+    expect(screen.getByLabelText("Solution source code")).toHaveValue("print(3)");
+
+    await userEvent.selectOptions(screen.getByLabelText("Language"), "cpp");
+    await userEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(await screen.findByText(/C\+\+20 \(GCC\)/)).toBeInTheDocument();
+    const post = api.requests.find((r) => r.method === "POST");
+    expect(await post?.json()).toMatchObject({ problem: "a-plus-b", language: "cpp" });
+  });
+
   it("explains the rate limit with the Retry-After time", async () => {
     const api = mockFetch({
       "GET /api/problems/a-plus-b": () => json(aPlusB),

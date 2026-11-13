@@ -6,6 +6,18 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// Contest is the predicate function for contest builders.
+type Contest func(*sql.Selector)
+
+// ContestParticipant is the predicate function for contestparticipant builders.
+type ContestParticipant func(*sql.Selector)
+
+// ContestProblem is the predicate function for contestproblem builders.
+type ContestProblem func(*sql.Selector)
+
+// Hint is the predicate function for hint builders.
+type Hint func(*sql.Selector)
+
 // OutboxMessage is the predicate function for outboxmessage builders.
 type OutboxMessage func(*sql.Selector)
 

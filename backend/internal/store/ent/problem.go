@@ -31,6 +31,10 @@ type Problem struct {
 	MemoryLimitMB int `json:"memory_limit_mb,omitempty"`
 	// Checker holds the value of the "checker" field.
 	Checker problem.Checker `json:"checker,omitempty"`
+	// CheckerTolerance holds the value of the "checker_tolerance" field.
+	CheckerTolerance *float64 `json:"checker_tolerance,omitempty"`
+	// CheckerSource holds the value of the "checker_source" field.
+	CheckerSource *string `json:"checker_source,omitempty"`
 	// Version holds the value of the "version" field.
 	Version int `json:"version,omitempty"`
 	// Published holds the value of the "published" field.
@@ -53,9 +57,11 @@ type ProblemEdges struct {
 	Tags []*Tag `json:"tags,omitempty"`
 	// Submissions holds the value of the submissions edge.
 	Submissions []*Submission `json:"submissions,omitempty"`
+	// ContestEntries holds the value of the contest_entries edge.
+	ContestEntries []*ContestProblem `json:"contest_entries,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 }
 
 // TestCasesOrErr returns the TestCases value or an error if the edge
@@ -85,6 +91,15 @@ func (e ProblemEdges) SubmissionsOrErr() ([]*Submission, error) {
 	return nil, &NotLoadedError{edge: "submissions"}
 }
 
+// ContestEntriesOrErr returns the ContestEntries value or an error if the edge
+// was not loaded in eager-loading.
+func (e ProblemEdges) ContestEntriesOrErr() ([]*ContestProblem, error) {
+	if e.loadedTypes[3] {
+		return e.ContestEntries, nil
+	}
+	return nil, &NotLoadedError{edge: "contest_entries"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Problem) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -92,9 +107,11 @@ func (*Problem) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case problem.FieldPublished:
 			values[i] = new(sql.NullBool)
+		case problem.FieldCheckerTolerance:
+			values[i] = new(sql.NullFloat64)
 		case problem.FieldID, problem.FieldTimeLimitMs, problem.FieldMemoryLimitMB, problem.FieldVersion:
 			values[i] = new(sql.NullInt64)
-		case problem.FieldSlug, problem.FieldTitle, problem.FieldDifficulty, problem.FieldStatementMd, problem.FieldChecker:
+		case problem.FieldSlug, problem.FieldTitle, problem.FieldDifficulty, problem.FieldStatementMd, problem.FieldChecker, problem.FieldCheckerSource:
 			values[i] = new(sql.NullString)
 		case problem.FieldCreatedAt, problem.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -161,6 +178,20 @@ func (_m *Problem) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Checker = problem.Checker(value.String)
 			}
+		case problem.FieldCheckerTolerance:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field checker_tolerance", values[i])
+			} else if value.Valid {
+				_m.CheckerTolerance = new(float64)
+				*_m.CheckerTolerance = value.Float64
+			}
+		case problem.FieldCheckerSource:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field checker_source", values[i])
+			} else if value.Valid {
+				_m.CheckerSource = new(string)
+				*_m.CheckerSource = value.String
+			}
 		case problem.FieldVersion:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field version", values[i])
@@ -213,6 +244,11 @@ func (_m *Problem) QuerySubmissions() *SubmissionQuery {
 	return NewProblemClient(_m.config).QuerySubmissions(_m)
 }
 
+// QueryContestEntries queries the "contest_entries" edge of the Problem entity.
+func (_m *Problem) QueryContestEntries() *ContestProblemQuery {
+	return NewProblemClient(_m.config).QueryContestEntries(_m)
+}
+
 // Update returns a builder for updating this Problem.
 // Note that you need to call Problem.Unwrap() before calling this method if this Problem
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -256,6 +292,16 @@ func (_m *Problem) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("checker=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Checker))
+	builder.WriteString(", ")
+	if v := _m.CheckerTolerance; v != nil {
+		builder.WriteString("checker_tolerance=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.CheckerSource; v != nil {
+		builder.WriteString("checker_source=")
+		builder.WriteString(*v)
+	}
 	builder.WriteString(", ")
 	builder.WriteString("version=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Version))

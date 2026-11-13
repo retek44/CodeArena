@@ -3,19 +3,34 @@
 // case is a sample. Existing problems (same slug) are left unchanged, so seeding is
 // safe to repeat; the deploy pipeline runs it on every rollout.
 //
+// Contests come from <dir>/contests.json with times relative to the first seed. In
+// AWS (CONTEST_STATE_MACHINE_ARN, CONTEST_SCHEDULE_GROUP, CONTEST_SCHEDULER_ROLE_ARN)
+// each new contest gets its lifecycle: a one-time EventBridge Scheduler schedule
+// starts the Step Functions state machine at the start time (ADR-0016).
+//
 //	DATABASE_URL=... seed -dir tests/golden
 package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/scheduler"
+	schedtypes "github.com/aws/aws-sdk-go-v2/service/scheduler/types"
+
+	"github.com/retek44/CodeArena/backend/internal/contest"
 	"github.com/retek44/CodeArena/backend/internal/problem"
 	"github.com/retek44/CodeArena/backend/internal/store"
+	"github.com/retek44/CodeArena/backend/internal/store/ent"
 	entproblem "github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 )
 
@@ -67,7 +82,77 @@ func run(ctx context.Context, logger *slog.Logger, dir string) error {
 		}
 		logger.Info("problem seeded", "slug", p.Slug, "test_cases", len(p.Cases))
 	}
-	return nil
+
+	sched, err := newScheduler(ctx)
+	if err != nil {
+		return err
+	}
+	return contest.SeedContests(ctx, st, filepath.Join(dir, "contests.json"), time.Now(), sched, logger)
+}
+
+// newScheduler returns nil locally: the phases follow the clock without it.
+func newScheduler(ctx context.Context) (contest.Scheduler, error) {
+	machine, group, role := os.Getenv("CONTEST_STATE_MACHINE_ARN"), os.Getenv("CONTEST_SCHEDULE_GROUP"), os.Getenv("CONTEST_SCHEDULER_ROLE_ARN")
+	if machine == "" || group == "" || role == "" {
+		return nil, nil
+	}
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load AWS config: %w", err)
+	}
+	return &awsScheduler{
+		scheduler: scheduler.NewFromConfig(cfg),
+		machine:   machine,
+		group:     group,
+		role:      role,
+	}, nil
+}
+
+type awsScheduler struct {
+	scheduler *scheduler.Client
+	machine   string
+	group     string
+	role      string
+}
+
+// Schedule starts the lifecycle at the contest's start with a one-time schedule that
+// deletes itself. A contest that starts now is scheduled two minutes ahead: on a fresh
+// environment the seed runs before the state machine exists, and Scheduler retries a
+// missing target for up to a day. The phases follow the clock anyway; the lifecycle
+// adds events, the frozen snapshot and the result e-mails.
+func (a *awsScheduler) Schedule(ctx context.Context, c *ent.Contest) error {
+	input, err := json.Marshal(map[string]any{
+		"contest_id": c.ID,
+		"slug":       c.Slug,
+		"freeze_at":  c.FreezeAt.UTC().Format(time.RFC3339),
+		"ends_at":    c.EndsAt.UTC().Format(time.RFC3339),
+	})
+	if err != nil {
+		return err
+	}
+	at := c.StartsAt
+	if earliest := time.Now().Add(2 * time.Minute); at.Before(earliest) {
+		at = earliest
+	}
+	name := fmt.Sprintf("%s-%d", c.Slug, c.StartsAt.Unix())
+	_, err = a.scheduler.CreateSchedule(ctx, &scheduler.CreateScheduleInput{
+		Name:                       aws.String(name),
+		GroupName:                  aws.String(a.group),
+		ScheduleExpression:         aws.String("at(" + at.UTC().Format("2006-01-02T15:04:05") + ")"),
+		ScheduleExpressionTimezone: aws.String("UTC"),
+		FlexibleTimeWindow:         &schedtypes.FlexibleTimeWindow{Mode: schedtypes.FlexibleTimeWindowModeOff},
+		ActionAfterCompletion:      schedtypes.ActionAfterCompletionDelete,
+		Target: &schedtypes.Target{
+			Arn:     aws.String(a.machine),
+			RoleArn: aws.String(a.role),
+			Input:   aws.String(string(input)),
+		},
+	})
+	var conflict *schedtypes.ConflictException
+	if errors.As(err, &conflict) {
+		return nil
+	}
+	return err
 }
 
 func insert(ctx context.Context, st *store.Store, p *problem.Problem) error {
@@ -83,15 +168,26 @@ func insert(ctx context.Context, st *store.Store, p *problem.Problem) error {
 	if statement == "" {
 		statement = "# " + title
 	}
-	created, err := tx.Problem.Create().
+	difficulty := entproblem.DifficultyEasy
+	if p.Difficulty != "" {
+		difficulty = entproblem.Difficulty(p.Difficulty)
+	}
+	create := tx.Problem.Create().
 		SetSlug(p.Slug).
 		SetTitle(title).
-		SetDifficulty(entproblem.DifficultyEasy).
+		SetDifficulty(difficulty).
 		SetStatementMd(statement).
 		SetTimeLimitMs(p.TimeMS).
 		SetMemoryLimitMB(p.MemoryMB).
-		SetPublished(true).
-		Save(ctx)
+		SetChecker(entproblem.Checker(p.Checker)).
+		SetPublished(true)
+	if p.Checker == problem.CheckerFloat && p.Tolerance > 0 {
+		create.SetCheckerTolerance(p.Tolerance)
+	}
+	if p.Checker == problem.CheckerCustom {
+		create.SetCheckerSource(p.CheckerSource)
+	}
+	created, err := create.Save(ctx)
 	if err != nil {
 		_ = tx.Rollback()
 		return err

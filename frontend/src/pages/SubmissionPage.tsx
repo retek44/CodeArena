@@ -1,7 +1,9 @@
 import { Link, useParams } from "react-router";
-import { useSubmission } from "../api/hooks";
+import type { Submission } from "../api/client";
+import { useHint, useSubmission } from "../api/hooks";
 import { ErrorMessage } from "../components/ErrorMessage";
 import { SubmissionStatus, VerdictBadge } from "../components/Verdict";
+import { languageLabel } from "../languages";
 
 export function SubmissionPage() {
   const { id = "" } = useParams();
@@ -15,7 +17,7 @@ export function SubmissionPage() {
     <article>
       <h1>Submission</h1>
       <p>
-        Problem <Link to={`/problems/${s.problem}`}>{s.problem}</Link> · {s.language} ·{" "}
+        Problem <Link to={`/problems/${s.problem}`}>{s.problem}</Link> · {languageLabel(s.language)} ·{" "}
         {new Date(s.created_at).toLocaleString()}
       </p>
       <p className="result" aria-live="polite">
@@ -30,6 +32,8 @@ export function SubmissionPage() {
           <pre>{s.compile_output}</pre>
         </section>
       )}
+
+      {hintAvailable(s) && <HintPanel submissionId={s.id} />}
 
       {s.cases.length > 0 && (
         <table>
@@ -57,5 +61,36 @@ export function SubmissionPage() {
         </table>
       )}
     </article>
+  );
+}
+
+// Verdicts a hint can help with (the API answers 409 for the others).
+const HINT_VERDICTS: ReadonlySet<string> = new Set(["WA", "RE", "TLE", "MLE", "OLE"]);
+
+function hintAvailable(s: Submission): boolean {
+  return s.status === "done" && s.verdict != null && HINT_VERDICTS.has(s.verdict);
+}
+
+function HintPanel({ submissionId }: { submissionId: string }) {
+  const hint = useHint(submissionId);
+
+  return (
+    <section aria-labelledby="hint-heading">
+      <h2 id="hint-heading">Stuck?</h2>
+      {hint.data ? (
+        <blockquote className="hint" aria-live="polite">
+          <p>{hint.data.hint}</p>
+          <footer className="meta">AI hint · it points at the problem, it does not solve it.</footer>
+        </blockquote>
+      ) : (
+        <>
+          <p className="meta">Get a short hint about the likely mistake. You can ask for 3 hints per hour.</p>
+          <button type="button" onClick={() => hint.mutate()} disabled={hint.isPending}>
+            {hint.isPending ? "Thinking…" : "Get a hint"}
+          </button>
+        </>
+      )}
+      {hint.isError && <ErrorMessage error={hint.error} />}
+    </section>
   );
 }

@@ -1,5 +1,6 @@
 # Full local stack: the same flow as in AWS, with local stand-ins.
 #   API -> outbox -> ElasticMQ (SQS) -> worker -> runner container (Lambda emulator) -> PostgreSQL
+#   Contest leaderboards are cached in Valkey. No WebSocket API locally: the SPA polls.
 #
 #   docker compose up -d --build --wait      (make local-up)
 #   go test -tags e2e ./e2e/                 (from backend/, make e2e)
@@ -12,6 +13,8 @@ x-aws-local: &aws-local
   AWS_ENDPOINT_URL_SQS: http://elasticmq:9324
   SUBMISSIONS_QUEUE_URL: http://elasticmq:9324/000000000000/codearena-submissions
   DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
+  # Leaderboard cache (ElastiCache Serverless for Valkey in AWS, with TLS).
+  VALKEY_URL: redis://valkey:6379
 
 services:
   postgres:
@@ -57,6 +60,15 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      retries: 15
+
   elasticmq:
     image: softwaremill/elasticmq-native:1.7.1
     ports:
@@ -75,6 +87,18 @@ services:
     mem_limit: 1g
     restart: unless-stopped
 
+  # C++ runner. The compiled program runs from /tmp, which Lambda allows; Docker mounts
+  # tmpfs with noexec unless told otherwise.
+  runner-cpp:
+    build:
+      context: runners
+      dockerfile: cpp/Dockerfile
+    read_only: true
+    tmpfs:
+      - /tmp:rw,exec,size=256m
+    mem_limit: 1g
+    restart: unless-stopped
+
   api:
     build:
       context: backend
@@ -85,6 +109,8 @@ services:
       PORT: "8080"
       # Local only: trusts the X-Dev-User header instead of a Cognito token.
       AUTH_MODE: dev
+      # Hints come from a fixed fake text locally (no Bedrock).
+      HINT_MODE: fake
     ports:
       - "8080:8080"
     depends_on:
@@ -92,6 +118,8 @@ services:
         condition: service_completed_successfully
       elasticmq:
         condition: service_started
+      valkey:
+        condition: service_healthy
 
   worker:
     build:
@@ -102,6 +130,7 @@ services:
       <<: *aws-local
       RUNNER_MODE: http
       RUNNER_URL: http://runner:8080/2015-03-31/functions/function/invocations
+      RUNNER_URL_CPP: http://runner-cpp:8080/2015-03-31/functions/function/invocations
       # The Lambda emulator serves one invocation at a time (a real Lambda scales out),
       # so locally the worker judges one submission at a time.
       WORKER_CONCURRENCY: "1"
@@ -114,6 +143,10 @@ services:
         condition: service_started
       runner:
         condition: service_started
+      runner-cpp:
+        condition: service_started
+      valkey:
+        condition: service_healthy
 
 volumes:
   postgres-data:

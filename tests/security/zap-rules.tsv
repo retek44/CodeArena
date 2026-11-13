@@ -1,0 +1,3 @@
+# OWASP ZAP rule overrides for zap-api-scan.py (-c). Format: <rule id>	<IGNORE|INFO|WARN|FAIL>	<reason>
+# Every rule not listed here keeps its default level; warnings fail the build.
+# Example: 10049	IGNORE	(Storable and cacheable content: API responses send Cache-Control: no-store)

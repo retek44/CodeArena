@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -24,7 +23,10 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/runner"
 )
 
-const defaultRunnerURL = "http://localhost:9000/2015-03-31/functions/function/invocations"
+const (
+	defaultRunnerURL    = "http://localhost:9000/2015-03-31/functions/function/invocations"
+	defaultRunnerURLCpp = "http://localhost:9001/2015-03-31/functions/function/invocations"
+)
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -36,14 +38,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 	problemDir := fs.String("problem", "", "problem directory (problem.json + cases/)")
 	srcPath := fs.String("src", "", "solution source file")
 	lang := fs.String("lang", "", "language (default: from file extension)")
-	runnerURL := fs.String("runner-url", envOr("CODEARENA_RUNNER_URL", defaultRunnerURL), "runner invoke URL")
+	runnerURL := fs.String("runner-url", envOr("CODEARENA_RUNNER_URL", defaultRunnerURL), "Python runner invoke URL (also runs custom checkers)")
+	runnerURLCpp := fs.String("runner-url-cpp", envOr("CODEARENA_RUNNER_URL_CPP", defaultRunnerURLCpp), "C++ runner invoke URL")
 	asJSON := fs.Bool("json", false, "print the result as JSON")
 	timeout := fs.Duration("timeout", 2*time.Minute, "overall timeout")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if *problemDir == "" || *srcPath == "" {
-		fmt.Fprintln(stderr, "usage: judge -problem DIR -src FILE [-lang python] [-runner-url URL] [-json]")
+		fmt.Fprintln(stderr, "usage: judge -problem DIR -src FILE [-lang python|cpp] [-runner-url URL] [-runner-url-cpp URL] [-json]")
 		return 1
 	}
 
@@ -70,7 +73,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	ctx, cancel := context.WithTimeout(context.Background(), *timeout)
 	defer cancel()
 
-	inv := &runner.HTTPInvoker{URL: *runnerURL, Client: &http.Client{Timeout: *timeout}}
+	client := &http.Client{Timeout: *timeout}
+	inv := runner.ByLanguage{
+		"python": &runner.HTTPInvoker{URL: *runnerURL, Client: client},
+		"cpp":    &runner.HTTPInvoker{URL: *runnerURLCpp, Client: client},
+	}
 	sub := judge.Submission{ID: "local-" + time.Now().UTC().Format("20060102T150405"), Language: language, Source: string(source)}
 	result, err := judge.Run(ctx, inv, p, sub)
 	if err != nil {
@@ -110,12 +117,10 @@ func printResult(w io.Writer, p *problem.Problem, r judge.Result) {
 }
 
 func languageFor(path string) (string, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".py":
-		return "python", nil
-	default:
-		return "", fmt.Errorf("cannot detect language of %s; use -lang", path)
+	if lang := judge.LanguageOf(path); lang != "" {
+		return lang, nil
 	}
+	return "", fmt.Errorf("cannot detect language of %s; use -lang", path)
 }
 
 func envOr(key, fallback string) string {

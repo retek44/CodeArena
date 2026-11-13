@@ -1,0 +1,20 @@
+[
+  {
+    "slug": "weekly-1",
+    "title": "Weekly Contest 1",
+    "description_md": "Three warm-up problems with ICPC rules: solved problems first, then penalty minutes (solve time plus 20 per rejected attempt). The leaderboard freezes 20 minutes before the end.",
+    "starts_in_minutes": 0,
+    "freeze_after_minutes": 100,
+    "duration_minutes": 120,
+    "problems": { "A": "a-plus-b", "B": "circle-area", "C": "pair-sum" }
+  },
+  {
+    "slug": "weekly-2",
+    "title": "Weekly Contest 2",
+    "description_md": "The next round. Register now; the problems appear at the start.",
+    "starts_in_minutes": 1440,
+    "freeze_after_minutes": 100,
+    "duration_minutes": 120,
+    "problems": { "A": "pair-sum", "B": "circle-area" }
+  }
+]

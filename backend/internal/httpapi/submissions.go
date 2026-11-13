@@ -18,6 +18,8 @@ import (
 
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/store/ent"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
@@ -38,6 +40,8 @@ type createSubmissionJSON struct {
 	Problem  string `json:"problem"`
 	Language string `json:"language"`
 	Source   string `json:"source"`
+	// Contest (slug) makes it a contest submission: it counts for the leaderboard.
+	Contest string `json:"contest,omitempty"`
 }
 
 type caseResultJSON struct {
@@ -131,6 +135,19 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
+	var contestID *int
+	if req.Contest != "" {
+		id, status, msg, err := s.contestForSubmission(ctx, req.Contest, principal.UserID, p.ID)
+		if err != nil {
+			s.internalError(w, r, err)
+			return
+		}
+		if status != 0 {
+			s.writeProblem(w, status, msg)
+			return
+		}
+		contestID = &id
+	}
 
 	// The submission and its outbox message commit together (ADR-0011): no submission
 	// without a message to the judge, and no message for a rolled-back submission.
@@ -147,6 +164,7 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		SetSource(req.Source).
 		SetIdempotencyKey(key).
 		SetRequestHash(hash).
+		SetNillableContestID(contestID).
 		// Same clock as the rate limit window, so Retry-After never exceeds the window.
 		SetCreatedAt(s.Now()).
 		Save(ctx)
@@ -171,6 +189,36 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 	created.Edges.Problem = p
 	w.Header().Set("Location", "/api/submissions/"+created.ID.String())
 	s.writeJSON(w, http.StatusAccepted, toSubmissionJSON(created))
+}
+
+// contestForSubmission checks a contest submission: the contest runs, the caller is
+// registered and the problem belongs to it. A non-zero status is the client error.
+func (s *server) contestForSubmission(ctx context.Context, slug, userID string, problemID int) (int, int, string, error) {
+	c, err := s.contestBySlug(ctx, slug)
+	if ent.IsNotFound(err) {
+		return 0, http.StatusNotFound, "contest not found", nil
+	}
+	if err != nil {
+		return 0, 0, "", err
+	}
+	if !timesOf(c).AcceptsSubmissions(s.Now()) {
+		return 0, http.StatusConflict, "the contest is not running", nil
+	}
+	registered, err := c.QueryParticipants().Where(contestparticipant.UserID(userID)).Exist(ctx)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	if !registered {
+		return 0, http.StatusForbidden, "register for the contest first", nil
+	}
+	inContest, err := c.QueryProblems().Where(contestproblem.ProblemID(problemID)).Exist(ctx)
+	if err != nil {
+		return 0, 0, "", err
+	}
+	if !inContest {
+		return 0, http.StatusNotFound, "the problem is not part of this contest", nil
+	}
+	return c.ID, 0, "", nil
 }
 
 // submissionRetryAfter applies a sliding-window limit per user, counted from the
@@ -314,13 +362,19 @@ func decodeCreateSubmission(w http.ResponseWriter, r *http.Request) (createSubmi
 		return req, errors.New("source must not be empty")
 	case utf8.RuneCountInString(req.Source) > maxSourceChars:
 		return req, fmt.Errorf("source must be at most %d characters", maxSourceChars)
+	case req.Contest != "" && (!slugPattern.MatchString(req.Contest) || len(req.Contest) > 64):
+		return req, errors.New("contest must be a valid slug")
 	}
 	return req, nil
 }
 
 // requestHash identifies the request body for idempotent replays.
 func requestHash(req createSubmissionJSON) string {
-	sum := sha256.Sum256([]byte(req.Problem + "\x00" + req.Language + "\x00" + req.Source))
+	body := req.Problem + "\x00" + req.Language + "\x00" + req.Source
+	if req.Contest != "" {
+		body += "\x00contest:" + req.Contest // unchanged hashes for non-contest submissions
+	}
+	sum := sha256.Sum256([]byte(body))
 	return hex.EncodeToString(sum[:])
 }
 

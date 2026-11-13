@@ -9,7 +9,7 @@
   "properties": {
     "protocol_version": { "const": 1 },
     "submission_id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[A-Za-z0-9._-]+$" },
-    "language": { "type": "string", "enum": ["python"] },
+    "language": { "type": "string", "enum": ["python", "cpp"] },
     "source": { "type": "string", "minLength": 1, "maxLength": 65536 },
     "limits": {
       "type": "object",

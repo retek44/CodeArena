@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/user"
 )
@@ -78,6 +79,21 @@ func (_c *UserCreate) AddSubmissions(v ...*Submission) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddSubmissionIDs(ids...)
+}
+
+// AddContestIDs adds the "contests" edge to the ContestParticipant entity by IDs.
+func (_c *UserCreate) AddContestIDs(ids ...int) *UserCreate {
+	_c.mutation.AddContestIDs(ids...)
+	return _c
+}
+
+// AddContests adds the "contests" edges to the ContestParticipant entity.
+func (_c *UserCreate) AddContests(v ...*ContestParticipant) *UserCreate {
+	ids := make([]int, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddContestIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -208,6 +224,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submission.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ContestsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   user.ContestsTable,
+			Columns: []string{user.ContestsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(contestparticipant.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

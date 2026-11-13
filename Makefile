@@ -4,6 +4,8 @@ SHELL := bash
 TF_DIRS := infra/bootstrap infra/shared $(wildcard infra/envs/*) $(wildcard infra/modules/*)
 RUNNER_IMAGE := codearena-runner-python:local
 RUNNER_URL ?= http://localhost:9000/2015-03-31/functions/function/invocations
+RUNNER_IMAGE_CPP := codearena-runner-cpp:local
+RUNNER_URL_CPP ?= http://localhost:9001/2015-03-31/functions/function/invocations
 
 .PHONY: help
 help: ## List targets
@@ -23,6 +25,16 @@ test: ## Run Go unit tests with race detector
 test-integration: ## Integration tests with Testcontainers (needs Docker)
 	cd backend && go test -tags integration -race -count=1 ./internal/...
 
+.PHONY: pact
+pact: ## Pact: SPA consumer tests, then provider verification in a Linux container (cgo + Pact FFI)
+	cd frontend && PACT_DO_NOT_TRACK=true npm run test:pact
+	docker run --rm -v "$(CURDIR):/repo" -v codearena-gomod:/go/pkg/mod -v /var/run/docker.sock:/var/run/docker.sock \
+		-e TESTCONTAINERS_RYUK_DISABLED=true -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -e CGO_ENABLED=1 \
+		-e PACT_DO_NOT_TRACK=true -w /repo/backend golang:1.26-bookworm sh -c '\
+		go run github.com/pact-foundation/pact-go/v2@v2.9.0 install -d /usr/local/lib && \
+		mkdir -p /var/tmp/gobuild && GOTMPDIR=/var/tmp/gobuild \
+		go test -tags integration,pact -count=1 -run TestPactProvider ./internal/httpapi'
+
 .PHONY: run-api
 run-api: ## Run the API locally
 	cd backend && go run ./cmd/api
@@ -35,6 +47,7 @@ image: ## Build the API and worker container images
 # --- Database (ADR-0004) -----------------------------------------------------
 
 ATLAS_IMAGE := arigaio/atlas:1.3.0
+ATLAS_COMMUNITY_IMAGE := arigaio/atlas:1.3.0-community
 SQLC_IMAGE := sqlc/sqlc:1.31.1
 # From inside a container, the compose Postgres is reachable on the host.
 DOCKER_DB_HOST := host.docker.internal:5432
@@ -68,47 +81,56 @@ migrate-validate: ## Check migration files against atlas.sum
 		--dir file:///migrations \
 		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable"
 
+# Usage: make migrate-lint LATEST=1 (number of newest migrations to check)
+.PHONY: migrate-lint
+migrate-lint: ## Lint the newest migrations (destructive / data-dependent changes fail)
+	docker run --rm -v "$(CURDIR)/backend":/backend $(ATLAS_COMMUNITY_IMAGE) migrate lint 		--config file:///backend/lint.atlas.hcl --dir file:///backend/migrations 		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable" 		--latest $(or $(LATEST),1)
+
 # --- Runner -------------------------------------------------------------------
 
 .PHONY: py-lint
-py-lint: ## ruff + mypy for the Python runner
-	ruff check runners
-	ruff format --check runners
+py-lint: ## ruff + mypy for the Python runner and the hint Lambda
+	ruff check runners lambdas tests/llm-eval
+	ruff format --check runners lambdas tests/llm-eval
 	mypy
 
 .PHONY: py-test
 py-test: ## Runner unit and contract tests (Linux; on Windows use py-test-docker)
-	pytest -q runners/core/tests
+	pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests tests/llm-eval
 
 .PHONY: py-test-docker
 py-test-docker: ## Runner lint and tests inside a Linux container
 	docker run --rm -v "$(CURDIR)":/src -w /src python:3.13-slim sh -c \
-		'pip install -q -r requirements-dev.txt && ruff check runners && mypy && pytest -q runners/core/tests'
+		'pip install -q -r requirements-dev.txt && ruff check runners lambdas tests/llm-eval && mypy && pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests tests/llm-eval'
 
 .PHONY: runner-image
-runner-image: ## Build the Python runner image
+runner-image: ## Build the Python and C++ runner images
 	docker build -t $(RUNNER_IMAGE) -f runners/python/Dockerfile runners
+	docker build -t $(RUNNER_IMAGE_CPP) -f runners/cpp/Dockerfile runners
 
 .PHONY: runner-up
 runner-up: runner-image ## Start the runner on :9000, restricted like Lambda
 	-docker rm -f codearena-runner >/dev/null 2>&1
 	docker run -d --name codearena-runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g \
 		-p 9000:8080 $(RUNNER_IMAGE)
+	-docker rm -f codearena-runner-cpp >/dev/null 2>&1
+	# The C++ program runs from /tmp (allowed in Lambda); Docker tmpfs is noexec by default.
+	docker run -d --name codearena-runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \n		-p 9001:8080 $(RUNNER_IMAGE_CPP)
 
 .PHONY: runner-down
-runner-down: ## Stop the runner container
-	-docker rm -f codearena-runner
+runner-down: ## Stop the runner containers
+	-docker rm -f codearena-runner codearena-runner-cpp
 
 .PHONY: golden
 golden: ## Golden verdict tests against the running runner (make runner-up first)
-	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) go test -count=1 -run TestGolden -v ./internal/judge/
+	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) CODEARENA_RUNNER_URL_CPP=$(RUNNER_URL_CPP) go test -count=1 -run TestGolden -v ./internal/judge/
 
 # Usage: make judge SRC=tests/golden/a-plus-b/solutions/ac.py [PROBLEM=tests/golden/a-plus-b]
 PROBLEM ?= tests/golden/a-plus-b
 
 .PHONY: judge
 judge: ## Judge one solution locally (SRC=..., PROBLEM=...)
-	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
+	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) CODEARENA_RUNNER_URL_CPP=$(RUNNER_URL_CPP) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
 
 # --- Frontend -----------------------------------------------------------------
 

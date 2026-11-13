@@ -20,3 +20,9 @@ variable "dlq_retention_seconds" {
   type        = number
   default     = 1209600 # 14 days
 }
+
+variable "alarm_actions" {
+  description = "ARNs notified when the dead-letter queue alarm changes state (SNS topics)."
+  type        = list(string)
+  default     = []
+}

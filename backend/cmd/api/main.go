@@ -10,17 +10,25 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/valkey-io/valkey-go"
 
 	"github.com/retek44/CodeArena/backend/internal/auth"
+	"github.com/retek44/CodeArena/backend/internal/contest"
+	"github.com/retek44/CodeArena/backend/internal/hint"
 	"github.com/retek44/CodeArena/backend/internal/httpapi"
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/queue"
+	"github.com/retek44/CodeArena/backend/internal/realtime"
 	"github.com/retek44/CodeArena/backend/internal/store"
+	"github.com/retek44/CodeArena/backend/internal/sweeper"
 )
 
 // Set at build time: -ldflags "-X main.version=... -X main.commit=...".
@@ -66,6 +74,19 @@ func run(logger *slog.Logger) error {
 		}
 		deps.Auth = auth
 
+		hinter, err := newHinter(ctx)
+		if err != nil {
+			return err
+		}
+		deps.Hinter = hinter
+
+		tickets, err := newTicketer(ctx)
+		if err != nil {
+			return err
+		}
+		deps.Tickets = tickets
+		deps.Leaderboard = &contest.Leaderboard{Queries: st.Queries, Cache: valkeyCache(logger), Logger: logger}
+
 		// The outbox relay publishes new submissions to the judge queue (ADR-0011).
 		if queueURL := os.Getenv("SUBMISSIONS_QUEUE_URL"); queueURL != "" {
 			awsCfg, err := config.LoadDefaultConfig(ctx)
@@ -78,6 +99,13 @@ func run(logger *slog.Logger) error {
 				Logger:    logger,
 			}
 			go relay.Run(ctx)
+
+			// The sweeper re-announces submissions whose queue message is gone (DLQ).
+			sweep, err := newSweeper(st, logger)
+			if err != nil {
+				return err
+			}
+			go sweep.Run(ctx)
 		} else {
 			logger.Warn("SUBMISSIONS_QUEUE_URL is not set: submissions stay queued (no outbox relay)")
 		}
@@ -120,6 +148,37 @@ func run(logger *slog.Logger) error {
 	return nil
 }
 
+// newHinter selects the hint service: HINT_MODE=fake (local), HINT_FUNCTION (the
+// hint Lambda in AWS), or neither (hints are off and the endpoint answers 503).
+func newHinter(ctx context.Context) (hint.Hinter, error) {
+	if os.Getenv("HINT_MODE") == "fake" {
+		return hint.Fake{}, nil
+	}
+	fn := os.Getenv("HINT_FUNCTION")
+	if fn == "" {
+		return nil, nil
+	}
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load AWS config: %w", err)
+	}
+	return &hint.Lambda{Client: lambda.NewFromConfig(cfg), Function: fn}, nil
+}
+
+// newTicketer enables WebSocket tickets when the WebSocket API exists (WS_URL and
+// WS_TABLE, set by Terraform). Locally there is none and the SPA polls.
+func newTicketer(ctx context.Context) (realtime.Ticketer, error) {
+	url, table := os.Getenv("WS_URL"), os.Getenv("WS_TABLE")
+	if url == "" || table == "" {
+		return nil, nil
+	}
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load AWS config: %w", err)
+	}
+	return &realtime.DynamoDB{Client: dynamodb.NewFromConfig(cfg), Table: table, URL: url}, nil
+}
+
 // authenticator selects the authentication mode. There is no default: a deployment
 // must choose explicitly, so a missing variable cannot turn on the dev mode.
 func authenticator(ctx context.Context, logger *slog.Logger) (httpapi.Authenticator, error) {
@@ -143,4 +202,59 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// newSweeper reads the sweeper settings (all optional):
+//
+//	SWEEP_INTERVAL        time between sweeps (default 1m)
+//	SWEEP_RUNNING_AFTER   running without progress this long = worker lost (default 10m)
+//	SWEEP_QUEUED_AFTER    queued and unclaimed this long = message lost (default 15m)
+//	WORKER_MAX_ATTEMPTS   same value as the worker's; exhausted submissions get IE (default 3)
+func newSweeper(st *store.Store, logger *slog.Logger) (*sweeper.Sweeper, error) {
+	s := &sweeper.Sweeper{Pool: st.Pool, Logger: logger}
+	var err error
+	if s.Interval, err = durationEnv("SWEEP_INTERVAL", sweeper.DefaultInterval); err != nil {
+		return nil, err
+	}
+	if s.RunningAfter, err = durationEnv("SWEEP_RUNNING_AFTER", sweeper.DefaultRunningAfter); err != nil {
+		return nil, err
+	}
+	if s.QueuedAfter, err = durationEnv("SWEEP_QUEUED_AFTER", sweeper.DefaultQueuedAfter); err != nil {
+		return nil, err
+	}
+	if raw := os.Getenv("WORKER_MAX_ATTEMPTS"); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 1 {
+			return nil, errors.New("WORKER_MAX_ATTEMPTS must be a positive integer")
+		}
+		s.MaxAttempts = n
+	}
+	return s, nil
+}
+
+func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration such as 10m", key)
+	}
+	return d, nil
+}
+
+// valkeyCache connects to the leaderboard cache (VALKEY_URL). Without it, or when
+// Valkey is down at startup, leaderboards are computed in Postgres.
+func valkeyCache(logger *slog.Logger) valkey.Client {
+	url := os.Getenv("VALKEY_URL")
+	if url == "" {
+		return nil
+	}
+	client, err := contest.NewCache(url)
+	if err != nil {
+		logger.Warn("valkey unavailable: leaderboards come from Postgres", "error", err)
+		return nil
+	}
+	return client
 }

@@ -1,3 +1,6 @@
-h1:kcyNO/tRH4Qb2cS0nIVVBiTZa5n6ycB+eTittqzO7AQ=
+h1:y1JhQhYwDgVi+y9N3z5uGAxhPTaDwrZ/pRjHNAFJqRU=
 20261111183343_initial.sql h1:WnVLkIKcgpR4NndZ/a3UmRkj/LfrQcV3492+F6kjKN0=
 20261113070255_add_outbox.sql h1:kFBUUQ5Toq0kxYRCUp4X7qCByu91FKdF1dBz65aXvyg=
+20261113131934_add_checkers.sql h1:dn4xHvh1zUWrXDyPMI5nYNuz2nAyps/+9Qi/lSlK7k0=
+20261113141406_add_hints.sql h1:hZUC8q1ckcS6KJIsvH87i24guPucf9t1p8amxxcB+QI=
+20261113145058_add_contests.sql h1:ZJJlpxV8/Y86va/UGIRyTpduAbYJAKQFjtDB79L/dAw=

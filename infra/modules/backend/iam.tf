@@ -52,6 +52,24 @@ data "aws_iam_policy_document" "api" {
     actions   = ["sqs:SendMessage"]
     resources = [var.queue.arn]
   }
+
+  dynamic "statement" {
+    for_each = var.hint_function_arn == null ? [] : [var.hint_function_arn]
+    content {
+      sid       = "InvokeHint"
+      actions   = ["lambda:InvokeFunction"]
+      resources = [statement.value]
+    }
+  }
+
+  dynamic "statement" {
+    for_each = var.realtime == null ? [] : [var.realtime.table_arn]
+    content {
+      sid       = "IssueWebSocketTickets"
+      actions   = ["dynamodb:PutItem"]
+      resources = [statement.value]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "api" {
@@ -82,7 +100,16 @@ data "aws_iam_policy_document" "worker" {
   statement {
     sid       = "InvokeRunner"
     actions   = ["lambda:InvokeFunction"]
-    resources = [var.runner_function_arn]
+    resources = values(var.runner_function_arns)
+  }
+
+  dynamic "statement" {
+    for_each = var.realtime == null ? [] : [var.realtime.bus_arn]
+    content {
+      sid       = "PublishJudgeEvents"
+      actions   = ["events:PutEvents"]
+      resources = [statement.value]
+    }
   }
 }
 

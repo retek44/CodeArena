@@ -9,6 +9,128 @@ import (
 )
 
 var (
+	// ContestsColumns holds the columns for the "contests" table.
+	ContestsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "slug", Type: field.TypeString, Unique: true},
+		{Name: "title", Type: field.TypeString},
+		{Name: "description_md", Type: field.TypeString, Size: 2147483647, Default: ""},
+		{Name: "starts_at", Type: field.TypeTime},
+		{Name: "freeze_at", Type: field.TypeTime},
+		{Name: "ends_at", Type: field.TypeTime},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"scheduled", "running", "frozen", "ended", "final"}, Default: "scheduled"},
+		{Name: "created_at", Type: field.TypeTime},
+	}
+	// ContestsTable holds the schema information for the "contests" table.
+	ContestsTable = &schema.Table{
+		Name:       "contests",
+		Columns:    ContestsColumns,
+		PrimaryKey: []*schema.Column{ContestsColumns[0]},
+	}
+	// ContestParticipantsColumns holds the columns for the "contest_participants" table.
+	ContestParticipantsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "registered_at", Type: field.TypeTime},
+		{Name: "contest_id", Type: field.TypeInt},
+		{Name: "user_id", Type: field.TypeString, Size: 64},
+	}
+	// ContestParticipantsTable holds the schema information for the "contest_participants" table.
+	ContestParticipantsTable = &schema.Table{
+		Name:       "contest_participants",
+		Columns:    ContestParticipantsColumns,
+		PrimaryKey: []*schema.Column{ContestParticipantsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "contest_participants_contests_participants",
+				Columns:    []*schema.Column{ContestParticipantsColumns[2]},
+				RefColumns: []*schema.Column{ContestsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "contest_participants_users_contests",
+				Columns:    []*schema.Column{ContestParticipantsColumns[3]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "contestparticipant_contest_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{ContestParticipantsColumns[2], ContestParticipantsColumns[3]},
+			},
+		},
+	}
+	// ContestProblemsColumns holds the columns for the "contest_problems" table.
+	ContestProblemsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "label", Type: field.TypeString, Size: 2},
+		{Name: "contest_id", Type: field.TypeInt},
+		{Name: "problem_id", Type: field.TypeInt},
+	}
+	// ContestProblemsTable holds the schema information for the "contest_problems" table.
+	ContestProblemsTable = &schema.Table{
+		Name:       "contest_problems",
+		Columns:    ContestProblemsColumns,
+		PrimaryKey: []*schema.Column{ContestProblemsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "contest_problems_contests_problems",
+				Columns:    []*schema.Column{ContestProblemsColumns[2]},
+				RefColumns: []*schema.Column{ContestsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "contest_problems_problems_contest_entries",
+				Columns:    []*schema.Column{ContestProblemsColumns[3]},
+				RefColumns: []*schema.Column{ProblemsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "contestproblem_contest_id_label",
+				Unique:  true,
+				Columns: []*schema.Column{ContestProblemsColumns[2], ContestProblemsColumns[1]},
+			},
+			{
+				Name:    "contestproblem_contest_id_problem_id",
+				Unique:  true,
+				Columns: []*schema.Column{ContestProblemsColumns[2], ContestProblemsColumns[3]},
+			},
+		},
+	}
+	// HintsColumns holds the columns for the "hints" table.
+	HintsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "user_id", Type: field.TypeString},
+		{Name: "text", Type: field.TypeString, Size: 2147483647},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"ok", "blocked"}},
+		{Name: "model", Type: field.TypeString, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "submission_id", Type: field.TypeUUID, Unique: true},
+	}
+	// HintsTable holds the schema information for the "hints" table.
+	HintsTable = &schema.Table{
+		Name:       "hints",
+		Columns:    HintsColumns,
+		PrimaryKey: []*schema.Column{HintsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "hints_submissions_hint",
+				Columns:    []*schema.Column{HintsColumns[6]},
+				RefColumns: []*schema.Column{SubmissionsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "hint_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{HintsColumns[1], HintsColumns[5]},
+			},
+		},
+	}
 	// OutboxMessagesColumns holds the columns for the "outbox_messages" table.
 	OutboxMessagesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -45,7 +167,9 @@ var (
 		{Name: "statement_md", Type: field.TypeString, Size: 2147483647},
 		{Name: "time_limit_ms", Type: field.TypeInt},
 		{Name: "memory_limit_mb", Type: field.TypeInt},
-		{Name: "checker", Type: field.TypeEnum, Enums: []string{"exact"}, Default: "exact"},
+		{Name: "checker", Type: field.TypeEnum, Enums: []string{"exact", "float", "custom"}, Default: "exact"},
+		{Name: "checker_tolerance", Type: field.TypeFloat64, Nullable: true},
+		{Name: "checker_source", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "version", Type: field.TypeInt, Default: 1},
 		{Name: "published", Type: field.TypeBool, Default: false},
 		{Name: "created_at", Type: field.TypeTime},
@@ -61,7 +185,7 @@ var (
 	SubmissionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
 		{Name: "problem_version", Type: field.TypeInt},
-		{Name: "language", Type: field.TypeEnum, Enums: []string{"python"}},
+		{Name: "language", Type: field.TypeEnum, Enums: []string{"python", "cpp"}},
 		{Name: "source", Type: field.TypeString, Size: 65536},
 		{Name: "idempotency_key", Type: field.TypeString, Size: 128},
 		{Name: "request_hash", Type: field.TypeString, Size: 64},
@@ -74,6 +198,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "judged_at", Type: field.TypeTime, Nullable: true},
+		{Name: "contest_id", Type: field.TypeInt, Nullable: true},
 		{Name: "problem_id", Type: field.TypeInt},
 		{Name: "user_id", Type: field.TypeString, Size: 64},
 	}
@@ -84,14 +209,20 @@ var (
 		PrimaryKey: []*schema.Column{SubmissionsColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "submissions_problems_submissions",
+				Symbol:     "submissions_contests_submissions",
 				Columns:    []*schema.Column{SubmissionsColumns[15]},
+				RefColumns: []*schema.Column{ContestsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "submissions_problems_submissions",
+				Columns:    []*schema.Column{SubmissionsColumns[16]},
 				RefColumns: []*schema.Column{ProblemsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "submissions_users_submissions",
-				Columns:    []*schema.Column{SubmissionsColumns[16]},
+				Columns:    []*schema.Column{SubmissionsColumns[17]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -100,17 +231,22 @@ var (
 			{
 				Name:    "submission_user_id_idempotency_key",
 				Unique:  true,
-				Columns: []*schema.Column{SubmissionsColumns[16], SubmissionsColumns[4]},
+				Columns: []*schema.Column{SubmissionsColumns[17], SubmissionsColumns[4]},
 			},
 			{
 				Name:    "submission_user_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{SubmissionsColumns[16], SubmissionsColumns[12]},
+				Columns: []*schema.Column{SubmissionsColumns[17], SubmissionsColumns[12]},
 			},
 			{
 				Name:    "submission_status_updated_at",
 				Unique:  false,
 				Columns: []*schema.Column{SubmissionsColumns[6], SubmissionsColumns[13]},
+			},
+			{
+				Name:    "submission_contest_id_user_id_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{SubmissionsColumns[15], SubmissionsColumns[17], SubmissionsColumns[12]},
 			},
 		},
 	}
@@ -226,6 +362,10 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		ContestsTable,
+		ContestParticipantsTable,
+		ContestProblemsTable,
+		HintsTable,
 		OutboxMessagesTable,
 		ProblemsTable,
 		SubmissionsTable,
@@ -238,8 +378,14 @@ var (
 )
 
 func init() {
-	SubmissionsTable.ForeignKeys[0].RefTable = ProblemsTable
-	SubmissionsTable.ForeignKeys[1].RefTable = UsersTable
+	ContestParticipantsTable.ForeignKeys[0].RefTable = ContestsTable
+	ContestParticipantsTable.ForeignKeys[1].RefTable = UsersTable
+	ContestProblemsTable.ForeignKeys[0].RefTable = ContestsTable
+	ContestProblemsTable.ForeignKeys[1].RefTable = ProblemsTable
+	HintsTable.ForeignKeys[0].RefTable = SubmissionsTable
+	SubmissionsTable.ForeignKeys[0].RefTable = ContestsTable
+	SubmissionsTable.ForeignKeys[1].RefTable = ProblemsTable
+	SubmissionsTable.ForeignKeys[2].RefTable = UsersTable
 	SubmissionResultsTable.ForeignKeys[0].RefTable = SubmissionsTable
 	TestCasesTable.ForeignKeys[0].RefTable = ProblemsTable
 	ProblemTagsTable.ForeignKeys[0].RefTable = ProblemsTable

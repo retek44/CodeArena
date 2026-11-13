@@ -146,6 +146,9 @@ func expectStatus(t *testing.T, rec *httptest.ResponseRecorder, want int) {
 	if rec.Code != want {
 		t.Fatalf("status = %d, want %d; body: %s", rec.Code, want, rec.Body.String())
 	}
+	if want == http.StatusNoContent {
+		return
+	}
 	wantType := "application/json"
 	if want >= 400 {
 		wantType = "application/problem+json"

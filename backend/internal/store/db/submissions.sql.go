@@ -21,7 +21,7 @@ SET status = 'running',
 WHERE id = $1
   AND (status = 'queued'
        OR (status = 'running' AND updated_at < now() - $2::interval))
-RETURNING id, user_id, problem_id, problem_version, language, source, attempt
+RETURNING id, user_id, problem_id, problem_version, language, source, attempt, contest_id
 `
 
 type ClaimSubmissionParams struct {
@@ -37,6 +37,7 @@ type ClaimSubmissionRow struct {
 	Language       string
 	Source         string
 	Attempt        int64
+	ContestID      pgtype.Int8
 }
 
 // Hot-path queries (ADR-0004). sqlc generates internal/store/db from this file.
@@ -55,6 +56,7 @@ func (q *Queries) ClaimSubmission(ctx context.Context, arg ClaimSubmissionParams
 		&i.Language,
 		&i.Source,
 		&i.Attempt,
+		&i.ContestID,
 	)
 	return i, err
 }
@@ -92,6 +94,58 @@ func (q *Queries) CompleteSubmission(ctx context.Context, arg CompleteSubmission
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const failExhaustedSubmissions = `-- name: FailExhaustedSubmissions :many
+UPDATE submissions
+SET status = 'failed',
+    verdict = 'IE',
+    judged_at = now(),
+    updated_at = now()
+WHERE id IN (
+    SELECT s.id
+    FROM submissions s
+    WHERE s.status = 'running'
+      AND s.updated_at < now() - $1::interval
+      AND s.attempt >= $2::bigint
+    ORDER BY s.updated_at
+    LIMIT $3::int
+    FOR UPDATE SKIP LOCKED
+)
+RETURNING id, attempt
+`
+
+type FailExhaustedSubmissionsParams struct {
+	RunningAfter pgtype.Interval
+	MaxAttempts  int64
+	MaxRows      int32
+}
+
+type FailExhaustedSubmissionsRow struct {
+	ID      uuid.UUID
+	Attempt int64
+}
+
+// Sweeper: a running submission whose worker went silent after its last allowed
+// attempt gets IE instead of another try (a poison submission must not loop).
+func (q *Queries) FailExhaustedSubmissions(ctx context.Context, arg FailExhaustedSubmissionsParams) ([]FailExhaustedSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, failExhaustedSubmissions, arg.RunningAfter, arg.MaxAttempts, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []FailExhaustedSubmissionsRow
+	for rows.Next() {
+		var i FailExhaustedSubmissionsRow
+		if err := rows.Scan(&i.ID, &i.Attempt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const failSubmission = `-- name: FailSubmission :execrows
@@ -173,6 +227,76 @@ func (q *Queries) ListStuckSubmissions(ctx context.Context, arg ListStuckSubmiss
 	var items []ListStuckSubmissionsRow
 	for rows.Next() {
 		var i ListStuckSubmissionsRow
+		if err := rows.Scan(&i.ID, &i.Attempt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const requeueStuckSubmissions = `-- name: RequeueStuckSubmissions :many
+WITH stuck AS (
+    SELECT s.id
+    FROM submissions s
+    WHERE (s.status = 'running' AND s.updated_at < now() - $1::interval
+           AND s.attempt < $2::bigint)
+       OR (s.status = 'queued' AND s.updated_at < now() - $3::interval)
+    ORDER BY s.updated_at
+    LIMIT $4::int
+    FOR UPDATE SKIP LOCKED
+), requeued AS (
+    UPDATE submissions s
+    SET status = 'queued',
+        updated_at = now()
+    FROM stuck
+    WHERE s.id = stuck.id
+    RETURNING s.id, s.attempt
+), announced AS (
+    -- Same payload as outbox.SubmissionCreated (version 1).
+    INSERT INTO outbox_messages (topic, payload, created_at, available_at)
+    SELECT $5::text, jsonb_build_object('v', 1, 'submission_id', r.id), now(), now()
+    FROM requeued r
+)
+SELECT id, attempt FROM requeued
+`
+
+type RequeueStuckSubmissionsParams struct {
+	RunningAfter pgtype.Interval
+	MaxAttempts  int64
+	QueuedAfter  pgtype.Interval
+	MaxRows      int32
+	Topic        string
+}
+
+type RequeueStuckSubmissionsRow struct {
+	ID      uuid.UUID
+	Attempt int64
+}
+
+// Sweeper: submissions whose queue message is gone (moved to the DLQ, or lost)
+// would wait forever. Running ones whose worker went silent and queued ones that
+// nobody claimed go back to queued, and a new outbox message announces each one in
+// the same statement. A duplicate message is harmless: the claim is idempotent.
+// SKIP LOCKED lets several sweepers (one per API task) run at once.
+func (q *Queries) RequeueStuckSubmissions(ctx context.Context, arg RequeueStuckSubmissionsParams) ([]RequeueStuckSubmissionsRow, error) {
+	rows, err := q.db.Query(ctx, requeueStuckSubmissions,
+		arg.RunningAfter,
+		arg.MaxAttempts,
+		arg.QueuedAfter,
+		arg.MaxRows,
+		arg.Topic,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RequeueStuckSubmissionsRow
+	for rows.Next() {
+		var i RequeueStuckSubmissionsRow
 		if err := rows.Scan(&i.ID, &i.Attempt); err != nil {
 			return nil, err
 		}

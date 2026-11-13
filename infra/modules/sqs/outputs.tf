@@ -22,3 +22,13 @@ output "visibility_timeout_seconds" {
   description = "Visibility timeout; the worker lease must match it."
   value       = aws_sqs_queue.this.visibility_timeout_seconds
 }
+
+output "dlq_alarm_name" {
+  description = "CloudWatch alarm on dead letters."
+  value       = aws_cloudwatch_metric_alarm.dlq_not_empty.alarm_name
+}
+
+output "dlq_name" {
+  description = "Dead-letter queue name (dashboard)."
+  value       = aws_sqs_queue.dlq.name
+}

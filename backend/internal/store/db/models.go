@@ -9,6 +9,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Contest struct {
+	ID            int64
+	Slug          string
+	Title         string
+	DescriptionMd string
+	StartsAt      pgtype.Timestamptz
+	FreezeAt      pgtype.Timestamptz
+	EndsAt        pgtype.Timestamptz
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+}
+
+type ContestParticipant struct {
+	ID           int64
+	RegisteredAt pgtype.Timestamptz
+	ContestID    int64
+	UserID       string
+}
+
+type ContestProblem struct {
+	ID        int64
+	Label     string
+	ContestID int64
+	ProblemID int64
+}
+
+type Hint struct {
+	ID           int64
+	UserID       string
+	Text         string
+	Status       string
+	Model        pgtype.Text
+	CreatedAt    pgtype.Timestamptz
+	SubmissionID uuid.UUID
+}
+
 type OutboxMessage struct {
 	ID          int64
 	Topic       string
@@ -21,18 +57,20 @@ type OutboxMessage struct {
 }
 
 type Problem struct {
-	ID            int64
-	Slug          string
-	Title         string
-	Difficulty    string
-	StatementMd   string
-	TimeLimitMs   int64
-	MemoryLimitMb int64
-	Checker       string
-	Version       int64
-	Published     bool
-	CreatedAt     pgtype.Timestamptz
-	UpdatedAt     pgtype.Timestamptz
+	ID               int64
+	Slug             string
+	Title            string
+	Difficulty       string
+	StatementMd      string
+	TimeLimitMs      int64
+	MemoryLimitMb    int64
+	Checker          string
+	Version          int64
+	Published        bool
+	CreatedAt        pgtype.Timestamptz
+	UpdatedAt        pgtype.Timestamptz
+	CheckerTolerance pgtype.Float8
+	CheckerSource    pgtype.Text
 }
 
 type ProblemTag struct {
@@ -58,6 +96,7 @@ type Submission struct {
 	JudgedAt       pgtype.Timestamptz
 	ProblemID      int64
 	UserID         string
+	ContestID      pgtype.Int8
 }
 
 type SubmissionResult struct {

@@ -30,3 +30,21 @@ resource "aws_sqs_queue_redrive_allow_policy" "dlq" {
     sourceQueueArns   = [aws_sqs_queue.this.arn]
   })
 }
+
+# A dead letter means a submission lost its message. The sweeper in the API recovers
+# the submission itself; this alarm tells a human to look at why it happened.
+resource "aws_cloudwatch_metric_alarm" "dlq_not_empty" {
+  alarm_name          = "${var.name}-dlq-not-empty"
+  alarm_description   = "Messages in ${aws_sqs_queue.dlq.name}: a submission was delivered ${var.max_receive_count} times without success. Inspect, then redrive or purge."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = aws_sqs_queue.dlq.name }
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = var.alarm_actions
+  ok_actions          = var.alarm_actions
+}

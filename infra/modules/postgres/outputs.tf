@@ -22,3 +22,8 @@ output "password_secret_arn" {
   description = "Secrets Manager secret with the generated password (JSON key: password)."
   value       = aws_db_instance.this.master_user_secret[0].secret_arn
 }
+
+output "identifier" {
+  description = "RDS instance identifier (CloudWatch dimension DBInstanceIdentifier)."
+  value       = aws_db_instance.this.identifier
+}

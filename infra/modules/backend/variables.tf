@@ -56,9 +56,57 @@ variable "queue" {
   })
 }
 
-variable "runner_function_arn" {
-  description = "Python runner Lambda the worker invokes."
+variable "runner_function_arns" {
+  description = "Runner Lambda per language (python, cpp) the worker invokes."
+  type        = map(string)
+
+  validation {
+    condition     = contains(keys(var.runner_function_arns), "python")
+    error_message = "The Python runner is required: custom checkers run on it."
+  }
+}
+
+variable "hint_function_arn" {
+  description = "Hint Lambda the API invokes; null disables hints (the endpoint answers 503)."
   type        = string
+  default     = null
+}
+
+variable "realtime" {
+  description = "WebSocket API and event bus (infra/modules/realtime); null disables live updates."
+  type = object({
+    ws_url    = string
+    table     = string
+    table_arn = string
+    bus       = string
+    bus_arn   = string
+  })
+  default = null
+}
+
+variable "contests" {
+  description = <<-EOT
+    Contest lifecycle (infra/modules/contests): the task image and the names the seed
+    schedules with. The state machine and scheduler
+    role ARNs are derived from their names, so this module does not depend on them.
+    null disables the contest lifecycle; leaderboards then come from Postgres.
+  EOT
+  type = object({
+    image                = string
+    email_from           = string
+    cognito_user_pool_id = string
+    cognito_user_pool    = string
+    state_machine_arn    = string
+    scheduler_group      = string
+    scheduler_role_arn   = string
+  })
+  default = null
+}
+
+variable "valkey_url" {
+  description = "Leaderboard cache (rediss://...); null means leaderboards come from Postgres only."
+  type        = string
+  default     = null
 }
 
 variable "api_desired_count" {
