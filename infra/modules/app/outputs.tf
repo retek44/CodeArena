@@ -38,9 +38,10 @@ output "deploy" {
   } : null
 }
 
-# Separate from deploy: a targeted apply only writes an output whose references all
-# exist. This one needs only the cluster, the job tasks and their security group,
-# so the migrate and seed step can read it before the services exist.
+# Separate from deploy: a targeted apply only writes an output whose dependencies are
+# all in the targeted graph. This one needs only the network, the cluster, the job
+# tasks and their security group, so migrate and seed can read it before the services
+# exist. Keep the -target list in deploy-environment.yml in step with it.
 output "jobs" {
   description = "Values for the one-off migrate and seed ECS tasks (null without image_tag)."
   value = local.deploy ? {

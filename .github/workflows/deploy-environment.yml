@@ -62,6 +62,7 @@ jobs:
         run: >-
           terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s
           -var "image_tag=${GITHUB_SHA}"
+          -target=module.app.module.network
           -target=module.app.module.postgres
           -target=module.app.module.backend[0].aws_ecs_task_definition.job
           -target=module.app.module.backend[0].aws_security_group.job
