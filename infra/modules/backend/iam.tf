@@ -92,9 +92,9 @@ resource "aws_iam_role_policy" "worker" {
   policy = data.aws_iam_policy_document.worker.json
 }
 
-# Migration task role: needs no AWS access (only the database).
-resource "aws_iam_role" "migrate" {
-  name                 = "${var.name_prefix}-migrate-task"
+# One-off job tasks (migrate, seed): need no AWS access, only the database.
+resource "aws_iam_role" "job" {
+  name                 = "${var.name_prefix}-job-task"
   assume_role_policy   = data.aws_iam_policy_document.ecs_tasks_assume.json
   permissions_boundary = var.permissions_boundary_arn
 }

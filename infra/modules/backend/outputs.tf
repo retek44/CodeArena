@@ -24,9 +24,9 @@ output "worker_service_name" {
   value       = aws_ecs_service.worker.name
 }
 
-output "migrate_task_definition_arn" {
-  description = "Migration task definition (aws ecs run-task in the pipeline)."
-  value       = aws_ecs_task_definition.migrate.arn
+output "job_task_definition_arns" {
+  description = "One-off job task definitions by name (aws ecs run-task in the pipeline)."
+  value       = { for name, task in aws_ecs_task_definition.job : name => task.arn }
 }
 
 output "task_subnet_ids" {
@@ -37,8 +37,8 @@ output "task_subnet_ids" {
 output "security_group_ids" {
   description = "Security groups per component (database ingress, run-task)."
   value = {
-    api     = aws_security_group.api.id
-    worker  = aws_security_group.worker.id
-    migrate = aws_security_group.migrate.id
+    api    = aws_security_group.api.id
+    worker = aws_security_group.worker.id
+    job    = aws_security_group.job.id
   }
 }

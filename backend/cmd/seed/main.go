@@ -1,6 +1,7 @@
 // Command seed loads problems from a directory tree (tests/golden layout) into the
-// database: problem.json + cases/*.in/*.out per problem. The first case is a sample.
-// Existing problems (same slug) are left unchanged, so seeding is safe to repeat.
+// database: problem.json, statement.md and cases/*.in/*.out per problem. The first
+// case is a sample. Existing problems (same slug) are left unchanged, so seeding is
+// safe to repeat; the deploy pipeline runs it on every rollout.
 //
 //	DATABASE_URL=... seed -dir tests/golden
 package main
@@ -44,6 +45,10 @@ func run(ctx context.Context, logger *slog.Logger, dir string) error {
 	if err != nil {
 		return err
 	}
+	// An empty directory means a broken image or mount, not "nothing to do".
+	if len(problemDirs) == 0 {
+		return fmt.Errorf("no */problem.json under %s", dir)
+	}
 	for _, path := range problemDirs {
 		p, err := problem.Load(filepath.Dir(path))
 		if err != nil {
@@ -74,11 +79,15 @@ func insert(ctx context.Context, st *store.Store, p *problem.Problem) error {
 	if title == "" {
 		title = p.Slug
 	}
+	statement := p.Statement
+	if statement == "" {
+		statement = "# " + title
+	}
 	created, err := tx.Problem.Create().
 		SetSlug(p.Slug).
 		SetTitle(title).
 		SetDifficulty(entproblem.DifficultyEasy).
-		SetStatementMd("See tests/golden/" + p.Slug + "/README.md").
+		SetStatementMd(statement).
 		SetTimeLimitMs(p.TimeMS).
 		SetMemoryLimitMB(p.MemoryMB).
 		SetPublished(true).

@@ -44,17 +44,15 @@ services:
       postgres:
         condition: service_healthy
 
-  # Loads the golden problems (idempotent).
+  # Loads the golden problems (idempotent). Same image as the seed task in AWS.
   seed:
     build:
       context: backend
-      args:
-        CMD: seed
-    command: ["-dir", "/golden"]
+      dockerfile: Dockerfile.seed
+      additional_contexts:
+        problems: ./tests/golden
     environment:
       DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
-    volumes:
-      - ./tests/golden:/golden:ro
     depends_on:
       migrate:
         condition: service_completed_successfully

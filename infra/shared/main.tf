@@ -18,6 +18,7 @@ locals {
     "codearena-worker",
     "codearena-runner-python",
     "codearena-migrate",
+    "codearena-seed",
   ])
 }
 

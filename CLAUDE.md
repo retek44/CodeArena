@@ -52,6 +52,7 @@ Go, Terraform and the linters may not be installed on the host. Docker works for
 
 ```bash
 docker run --rm -v "$W":/work -w /work --entrypoint sh hashicorp/terraform:1.16.5 -c 'terraform fmt -check -recursive infra'
+docker run --rm -v "$W":/work -w /work/infra/modules/app --entrypoint sh hashicorp/terraform:1.16.5 -c 'terraform init -backend=false >/dev/null && terraform test'
 docker run --rm -v "$W":/data -w /data --entrypoint sh ghcr.io/terraform-linters/tflint:v0.64.0 -c 'tflint --init --config /data/.tflint.hcl && tflint --recursive --config /data/.tflint.hcl'
 docker run --rm -v "$W":/tf -w /tf bridgecrew/checkov:latest -d infra --config-file .checkov.yaml
 docker run --rm -v "$W":/src -w /src/backend golang:1.26-alpine go test ./...

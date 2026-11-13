@@ -3,10 +3,11 @@
 // Layout:
 //
 //	problem.json      {"slug": "...", "time_ms": 1000, "memory_mb": 64, "checker": "exact"}
+//	statement.md      problem statement shown to users (optional)
 //	cases/NAME.in     input
 //	cases/NAME.out    expected output
 //
-// In AWS, problems come from PostgreSQL and S3 instead (phase 2).
+// The judge reads problems from PostgreSQL; cmd/seed loads directories in this layout.
 package problem
 
 import (
@@ -26,7 +27,9 @@ type Problem struct {
 	TimeMS   int    `json:"time_ms"`
 	MemoryMB int    `json:"memory_mb"`
 	Checker  string `json:"checker"`
-	Cases    []Case `json:"-"`
+	// Statement is the Markdown from statement.md; empty without the file.
+	Statement string `json:"-"`
+	Cases     []Case `json:"-"`
 }
 
 // Case is one test case.
@@ -54,6 +57,14 @@ func Load(dir string) (*Problem, error) {
 	}
 	if p.TimeMS <= 0 || p.MemoryMB <= 0 {
 		return nil, errors.New("problem.json: time_ms and memory_mb must be positive")
+	}
+
+	statement, err := os.ReadFile(filepath.Join(dir, "statement.md")) //nolint:gosec // same directory as problem.json
+	switch {
+	case err == nil:
+		p.Statement = string(statement)
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, fmt.Errorf("read statement.md: %w", err)
 	}
 
 	inputs, err := filepath.Glob(filepath.Join(dir, "cases", "*.in"))

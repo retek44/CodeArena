@@ -3,6 +3,7 @@ package problem_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/retek44/CodeArena/backend/internal/problem"
@@ -33,6 +34,9 @@ func TestLoadSortsCases(t *testing.T) {
 	}
 	if p.Checker != "exact" {
 		t.Errorf("checker = %q, want default exact", p.Checker)
+	}
+	if p.Statement != "" {
+		t.Errorf("statement = %q, want empty without statement.md", p.Statement)
 	}
 	if len(p.Cases) != 2 || p.Cases[0].Name != "01" || p.Cases[1].Expected != "B" {
 		t.Errorf("cases = %+v", p.Cases)
@@ -73,5 +77,9 @@ func TestLoadGoldenProblem(t *testing.T) {
 	}
 	if p.Slug != "a-plus-b" || len(p.Cases) == 0 {
 		t.Errorf("unexpected problem: %+v", p)
+	}
+	// Seeded environments show this statement; every golden problem needs one.
+	if !strings.HasPrefix(p.Statement, "# A + B") {
+		t.Errorf("statement = %q, want the contents of statement.md", p.Statement)
 	}
 }

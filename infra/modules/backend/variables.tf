@@ -24,6 +24,7 @@ variable "images" {
     api     = string
     worker  = string
     migrate = string
+    seed    = string
   })
 }
 

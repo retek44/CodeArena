@@ -42,3 +42,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Reusable modules are not root stacks; their lock files come from terraform test runs.
+infra/modules/**/.terraform.lock.hcl

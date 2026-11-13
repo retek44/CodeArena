@@ -78,6 +78,11 @@ jobs:
             context: backend
             file: backend/Dockerfile.migrate
             args: ""
+          - name: seed
+            context: backend
+            file: backend/Dockerfile.seed
+            args: ""
+            contexts: problems=tests/golden
           - name: runner-python
             context: runners
             file: runners/python/Dockerfile
@@ -109,6 +114,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
+          build-contexts: ${{ matrix.contexts }}
           platforms: linux/arm64
           push: true
           provenance: mode=max
@@ -162,32 +168,21 @@ jobs:
         run: terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
 
       # Expand/contract: the schema must be ready before the new code runs. Step 1
-      # applies the database and the migration task only, step 2 migrates, step 3
-      # rolls out everything else.
-      - name: Apply database and migration task
+      # applies the database and the job tasks only, step 2 migrates and seeds,
+      # step 3 rolls out everything else. A failed job leaves the services unchanged.
+      - name: Apply database and job tasks
         run: >-
           terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s
           -var "image_tag=${GITHUB_SHA}"
           -target=module.app.module.postgres
-          -target=module.app.module.backend[0].aws_ecs_task_definition.migrate
-          -target=module.app.module.backend[0].aws_security_group.migrate
-      - name: Run migrations
+          -target=module.app.module.backend[0].aws_ecs_task_definition.job
+          -target=module.app.module.backend[0].aws_security_group.job
+      - name: Migrate and seed
         run: |
-          deploy=$(terraform -chdir="${TF_DIR}" output -json deploy)
-          cluster=$(echo "${deploy}" | jq -r .cluster)
-          taskdef=$(echo "${deploy}" | jq -r .migrate_task_definition_arn)
-          subnets=$(echo "${deploy}" | jq -r '.task_subnet_ids | join(",")')
-          sg=$(echo "${deploy}" | jq -r .migrate_security_group_id)
-          task=$(aws ecs run-task --cluster "${cluster}" --task-definition "${taskdef}" --launch-type FARGATE \
-            --network-configuration "awsvpcConfiguration={subnets=[${subnets}],securityGroups=[${sg}],assignPublicIp=ENABLED}" \
-            --query 'tasks[0].taskArn' --output text)
-          echo "migration task: ${task}"
-          aws ecs wait tasks-stopped --cluster "${cluster}" --tasks "${task}"
-          code=$(aws ecs describe-tasks --cluster "${cluster}" --tasks "${task}" --query 'tasks[0].containers[0].exitCode' --output text)
-          if [ "${code}" != "0" ]; then
-            echo "::error::Migration failed with exit code ${code}; nothing else was changed."
-            exit 1
-          fi
+          DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)
+          export DEPLOY
+          .github/scripts/run-ecs-task.sh migrate
+          .github/scripts/run-ecs-task.sh seed
       - name: Apply everything
         run: terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s -var "image_tag=${GITHUB_SHA}"
       - name: Read outputs

@@ -14,8 +14,8 @@ variable "subnet_ids" {
 }
 
 variable "client_security_group_ids" {
-  description = "Security groups allowed to connect on 5432 (API, worker, migration task)."
-  type        = list(string)
+  description = "Security groups allowed to connect on 5432, by name (static keys: the IDs are unknown until apply)."
+  type        = map(string)
 }
 
 variable "instance_class" {

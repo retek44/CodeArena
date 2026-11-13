@@ -37,7 +37,7 @@ resource "aws_ecs_cluster_capacity_providers" "this" {
 resource "aws_cloudwatch_log_group" "service" {
   #checkov:skip=CKV_AWS_158:Application logs hold no secrets; the AWS owned key is enough.
   #checkov:skip=CKV_AWS_338:Short retention keeps cost near zero for a demo project.
-  for_each = toset(["api", "worker", "migrate"])
+  for_each = toset(["api", "worker", "migrate", "seed"])
 
   name              = "/ecs/${var.name_prefix}/${each.key}"
   retention_in_days = var.log_retention_days
@@ -68,10 +68,10 @@ resource "aws_security_group" "worker" {
   revoke_rules_on_delete = true
 }
 
-resource "aws_security_group" "migrate" {
-  #checkov:skip=CKV2_AWS_5:Attached at runtime: the pipeline runs the migration task with this security group.
-  name                   = "${var.name_prefix}-migrate"
-  description            = "Migration task: no inbound traffic"
+resource "aws_security_group" "job" {
+  #checkov:skip=CKV2_AWS_5:Attached at runtime: the pipeline runs the job tasks with this security group.
+  name                   = "${var.name_prefix}-job"
+  description            = "One-off jobs (migrate, seed): no inbound traffic"
   vpc_id                 = var.vpc_id
   revoke_rules_on_delete = true
 }
@@ -79,9 +79,9 @@ resource "aws_security_group" "migrate" {
 # Outbound HTTPS (AWS APIs, Cognito JWKS, ECR) and PostgreSQL inside the VPC.
 resource "aws_vpc_security_group_egress_rule" "https" {
   for_each = {
-    api     = aws_security_group.api.id
-    worker  = aws_security_group.worker.id
-    migrate = aws_security_group.migrate.id
+    api    = aws_security_group.api.id
+    worker = aws_security_group.worker.id
+    job    = aws_security_group.job.id
   }
 
   security_group_id = each.value
@@ -98,9 +98,9 @@ data "aws_vpc" "this" {
 
 resource "aws_vpc_security_group_egress_rule" "postgres" {
   for_each = {
-    api     = aws_security_group.api.id
-    worker  = aws_security_group.worker.id
-    migrate = aws_security_group.migrate.id
+    api    = aws_security_group.api.id
+    worker = aws_security_group.worker.id
+    job    = aws_security_group.job.id
   }
 
   security_group_id = each.value
@@ -285,30 +285,41 @@ resource "aws_ecs_service" "worker" {
   depends_on = [aws_ecs_cluster_capacity_providers.this]
 }
 
-# --- Migration task (run by the pipeline before each deploy) ---------------------
+# --- One-off jobs, run by the pipeline before each rollout -----------------------
+#   migrate: Atlas applies backend/migrations (expand/contract).
+#   seed:    loads the problems baked into the seed image; existing slugs are skipped.
 
-resource "aws_ecs_task_definition" "migrate" {
-  family                   = "${var.name_prefix}-migrate"
+locals {
+  jobs = {
+    migrate = var.images.migrate
+    seed    = var.images.seed
+  }
+}
+
+resource "aws_ecs_task_definition" "job" {
+  for_each = local.jobs
+
+  family                   = "${var.name_prefix}-${each.key}"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
   cpu                      = 256
   memory                   = 512
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.migrate.arn
+  task_role_arn            = aws_iam_role.job.arn
 
   runtime_platform {
     operating_system_family = "LINUX"
     cpu_architecture        = "ARM64"
   }
 
-  # Read-only root file system; Atlas gets a writable /tmp on task ephemeral storage.
+  # Read-only root file system; Atlas needs a writable /tmp on task ephemeral storage.
   volume {
     name = "tmp"
   }
 
   container_definitions = jsonencode([{
-    name                   = "migrate"
-    image                  = var.images.migrate
+    name                   = each.key
+    image                  = each.value
     essential              = true
     readonlyRootFilesystem = true
     mountPoints            = [{ sourceVolume = "tmp", containerPath = "/tmp", readOnly = false }]
@@ -317,10 +328,19 @@ resource "aws_ecs_task_definition" "migrate" {
     logConfiguration = {
       logDriver = "awslogs"
       options = {
-        awslogs-group         = aws_cloudwatch_log_group.service["migrate"].name
+        awslogs-group         = aws_cloudwatch_log_group.service[each.key].name
         awslogs-region        = local.region
-        awslogs-stream-prefix = "migrate"
+        awslogs-stream-prefix = each.key
       }
     }
   }])
+
+  # The pipeline applies the job tasks alone (-target) before it migrates. Pull in
+  # everything a job needs to pull its image, read the secret and reach the database.
+  depends_on = [
+    aws_iam_role_policy_attachment.execution,
+    aws_iam_role_policy.execution_secrets,
+    aws_vpc_security_group_egress_rule.https,
+    aws_vpc_security_group_egress_rule.postgres,
+  ]
 }

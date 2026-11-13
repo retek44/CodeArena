@@ -25,14 +25,14 @@ output "cognito" {
 output "deploy" {
   description = "Values the pipeline needs after terraform apply (null without image_tag)."
   value = local.deploy ? {
-    cluster                     = module.backend[0].cluster_name
-    api_service                 = module.backend[0].api_service_name
-    worker_service              = module.backend[0].worker_service_name
-    migrate_task_definition_arn = module.backend[0].migrate_task_definition_arn
-    task_subnet_ids             = module.backend[0].task_subnet_ids
-    migrate_security_group_id   = module.backend[0].security_group_ids["migrate"]
-    web_bucket                  = module.web[0].bucket
-    distribution_id             = module.web[0].distribution_id
-    runner_function_name        = module.runner_python[0].function_name
+    cluster               = module.backend[0].cluster_name
+    api_service           = module.backend[0].api_service_name
+    worker_service        = module.backend[0].worker_service_name
+    job_task_definitions  = module.backend[0].job_task_definition_arns
+    task_subnet_ids       = module.backend[0].task_subnet_ids
+    job_security_group_id = module.backend[0].security_group_ids["job"]
+    web_bucket            = module.web[0].bucket
+    distribution_id       = module.web[0].distribution_id
+    runner_function_name  = module.runner_python[0].function_name
   } : null
 }

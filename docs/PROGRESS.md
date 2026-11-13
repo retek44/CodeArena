@@ -152,7 +152,11 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 - [x] `destroy.yml`: nightly destroy of dev and staging, manual destroy of any environment
 - [x] PR workflow: Terraform plan for shared, dev, staging, prod (needs the repo variables)
 - [ ] **(manual)** GitHub repo variables and environments (`docs/SETUP.md` 4.), then the first dev deploy
-- [ ] Seed problems in deployed environments (admin endpoint or seed task)
+- [x] Seed task: `backend/Dockerfile.seed` bakes `tests/golden` into the image (named build context),
+      idempotent; deploy runs migrate then seed as one-off ECS jobs (`.github/scripts/run-ecs-task.sh`);
+      docker compose uses the same image; problem statements from `statement.md`
+- [x] `terraform test` with mocked providers for `infra/modules/app` (plan-only, no AWS): caught a
+      `for_each` over unknown security group IDs that `validate` missed
 - [ ] Preview environments per PR (`infra/preview`) + cleanup workflow
 - [ ] ECS blue/green with test-listener hooks, Lambda canary (CodeDeploy)
 - [ ] staging → approval → prod promotion in one workflow; semantic-release

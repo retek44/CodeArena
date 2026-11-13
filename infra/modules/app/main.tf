@@ -48,7 +48,7 @@ module "cognito" {
 # --- Compute, only with a deployed image tag ----------------------------------------
 
 data "aws_ecr_repository" "this" {
-  for_each = local.deploy ? toset(["codearena-api", "codearena-worker", "codearena-migrate", "codearena-runner-python"]) : toset([])
+  for_each = local.deploy ? toset(["codearena-api", "codearena-worker", "codearena-migrate", "codearena-seed", "codearena-runner-python"]) : toset([])
 
   name = each.key
 }
@@ -72,7 +72,7 @@ module "postgres" {
   name_prefix               = local.name_prefix
   vpc_id                    = module.network.vpc_id
   subnet_ids                = module.network.isolated_subnet_ids
-  client_security_group_ids = values(module.backend[0].security_group_ids)
+  client_security_group_ids = module.backend[0].security_group_ids
   instance_class            = var.db_instance_class
   backup_retention_days     = var.protect_data ? 7 : 1
   deletion_protection       = var.protect_data
@@ -95,6 +95,7 @@ module "backend" {
     api     = "${data.aws_ecr_repository.this["codearena-api"].repository_url}:${var.image_tag}"
     worker  = "${data.aws_ecr_repository.this["codearena-worker"].repository_url}:${var.image_tag}"
     migrate = "${data.aws_ecr_repository.this["codearena-migrate"].repository_url}:${var.image_tag}"
+    seed    = "${data.aws_ecr_repository.this["codearena-seed"].repository_url}:${var.image_tag}"
   }
 
   database = {
