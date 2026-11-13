@@ -17,6 +17,7 @@ locals {
     "codearena-api",
     "codearena-worker",
     "codearena-runner-python",
+    "codearena-migrate",
   ])
 }
 

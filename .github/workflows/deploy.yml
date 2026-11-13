@@ -1,0 +1,250 @@
+name: Deploy
+
+# Builds, signs and deploys one environment. Manual on purpose: every running
+# environment costs money (RDS, ALB, Fargate), and the nightly destroy workflow
+# removes dev and staging again.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  TF_VERSION: 1.16.5
+  AWS_REGION: ${{ vars.AWS_REGION }}
+
+jobs:
+  # ECR repositories are account-wide (infra/shared): images are built once and
+  # promoted through dev, staging and prod.
+  shared:
+    name: Shared infrastructure (ECR)
+    runs-on: ubuntu-latest
+    environment: shared
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra/shared
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-shared
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: terraform apply
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          terraform init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          terraform apply -input=false -auto-approve -lock-timeout=120s
+
+  images:
+    name: Build, scan, sign and push images
+    needs: shared
+    # Native arm64 builds: Fargate and Lambda run on Graviton.
+    runs-on: ubuntu-24.04-arm
+    environment: shared
+    permissions:
+      contents: read
+      id-token: write # OIDC for AWS and for keyless cosign signatures
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: api
+            context: backend
+            file: backend/Dockerfile
+            args: CMD=api
+          - name: worker
+            context: backend
+            file: backend/Dockerfile
+            args: CMD=worker
+          - name: migrate
+            context: backend
+            file: backend/Dockerfile.migrate
+            args: ""
+          - name: runner-python
+            context: runners
+            file: runners/python/Dockerfile
+            args: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-shared
+          aws-region: ${{ vars.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+      - name: Image already pushed?
+        id: exists
+        env:
+          REPO: codearena-${{ matrix.name }}
+        run: |
+          # Tags are immutable: a commit is built once and promoted, never rebuilt.
+          if aws ecr describe-images --repository-name "${REPO}" --image-ids "imageTag=${GITHUB_SHA}" >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: steps.exists.outputs.found == 'false'
+      - id: build
+        if: steps.exists.outputs.found == 'false'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          platforms: linux/arm64
+          push: true
+          provenance: mode=max
+          build-args: |
+            ${{ matrix.args }}
+            VERSION=${{ github.sha }}
+            COMMIT=${{ github.sha }}
+          tags: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha,scope=deploy-${{ matrix.name }}
+          cache-to: type=gha,scope=deploy-${{ matrix.name }},mode=max
+      - name: SBOM
+        if: steps.exists.outputs.found == 'false'
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          artifact-name: sbom-${{ matrix.name }}.spdx.json
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        if: steps.exists.outputs.found == 'false'
+      - name: Sign image (keyless, GitHub OIDC identity)
+        if: steps.exists.outputs.found == 'false'
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/codearena-${{ matrix.name }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "${IMAGE}"
+
+  deploy:
+    name: Deploy ${{ inputs.environment }}
+    needs: images
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.outputs.outputs.site_url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_DIR: infra/envs/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-${{ inputs.environment }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: terraform init
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+
+      # Expand/contract: the schema must be ready before the new code runs. Step 1
+      # applies the database and the migration task only, step 2 migrates, step 3
+      # rolls out everything else.
+      - name: Apply database and migration task
+        run: >-
+          terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s
+          -var "image_tag=${GITHUB_SHA}"
+          -target=module.app.module.postgres
+          -target=module.app.module.backend[0].aws_ecs_task_definition.migrate
+          -target=module.app.module.backend[0].aws_security_group.migrate
+      - name: Run migrations
+        run: |
+          deploy=$(terraform -chdir="${TF_DIR}" output -json deploy)
+          cluster=$(echo "${deploy}" | jq -r .cluster)
+          taskdef=$(echo "${deploy}" | jq -r .migrate_task_definition_arn)
+          subnets=$(echo "${deploy}" | jq -r '.task_subnet_ids | join(",")')
+          sg=$(echo "${deploy}" | jq -r .migrate_security_group_id)
+          task=$(aws ecs run-task --cluster "${cluster}" --task-definition "${taskdef}" --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${subnets}],securityGroups=[${sg}],assignPublicIp=ENABLED}" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "migration task: ${task}"
+          aws ecs wait tasks-stopped --cluster "${cluster}" --tasks "${task}"
+          code=$(aws ecs describe-tasks --cluster "${cluster}" --tasks "${task}" --query 'tasks[0].containers[0].exitCode' --output text)
+          if [ "${code}" != "0" ]; then
+            echo "::error::Migration failed with exit code ${code}; nothing else was changed."
+            exit 1
+          fi
+      - name: Apply everything
+        run: terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s -var "image_tag=${GITHUB_SHA}"
+      - name: Read outputs
+        id: outputs
+        run: |
+          echo "site_url=$(terraform -chdir="${TF_DIR}" output -raw site_url)" >> "$GITHUB_OUTPUT"
+          {
+            echo "COGNITO=$(terraform -chdir="${TF_DIR}" output -json cognito)"
+            echo "DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)"
+          } >> "$GITHUB_ENV"
+      - name: Wait for the API rollout (ECS rolls back by itself on failure)
+        run: |
+          aws ecs wait services-stable \
+            --cluster "$(echo "${DEPLOY}" | jq -r .cluster)" \
+            --services "$(echo "${DEPLOY}" | jq -r .api_service)"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build and upload the SPA
+        working-directory: frontend
+        run: |
+          npm ci
+          VITE_AUTH_MODE=cognito \
+          VITE_COGNITO_AUTHORITY="$(echo "${COGNITO}" | jq -r .authority)" \
+          VITE_COGNITO_CLIENT_ID="$(echo "${COGNITO}" | jq -r .client_id)" \
+          VITE_COGNITO_DOMAIN="$(echo "${COGNITO}" | jq -r .domain)" \
+          npm run build
+          bucket=$(echo "${DEPLOY}" | jq -r .web_bucket)
+          # Hashed assets are immutable; index.html must always be revalidated.
+          aws s3 sync dist/ "s3://${bucket}/" --delete --exclude index.html --cache-control "public,max-age=31536000,immutable"
+          aws s3 cp dist/index.html "s3://${bucket}/index.html" --cache-control "no-cache"
+          aws cloudfront create-invalidation --distribution-id "$(echo "${DEPLOY}" | jq -r .distribution_id)" --paths "/index.html" >/dev/null
+
+      - name: Smoke test
+        env:
+          SITE_URL: ${{ steps.outputs.outputs.site_url }}
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS "${SITE_URL}/api/problems" >/dev/null && curl -fsS "${SITE_URL}/" | grep -q '<div id="root">'; then
+              echo "Smoke test passed: ${SITE_URL}"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${SITE_URL} did not answer"
+          exit 1
+      - name: Summary
+        env:
+          SITE_URL: ${{ steps.outputs.outputs.site_url }}
+          TARGET_ENV: ${{ inputs.environment }}
+        run: |
+          {
+            echo "### Deployed ${GITHUB_SHA::7} to ${TARGET_ENV}"
+            echo "${SITE_URL}"
+            echo
+            echo "Destroy it after the demo: Actions → Destroy → ${TARGET_ENV} (or wait for the nightly run)."
+          } >> "$GITHUB_STEP_SUMMARY"

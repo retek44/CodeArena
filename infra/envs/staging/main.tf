@@ -4,15 +4,17 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = "codearena"
-      Environment = local.env
+      Environment = "staging"
       ManagedBy   = "terraform"
     }
   }
 }
 
-locals {
-  env         = "staging"
-  name_prefix = "codearena-${local.env}"
-}
+module "app" {
+  source = "../../modules/app"
 
-# Phase 1+ wires the application modules here (network, data, api, judge, ...).
+  env        = "staging"
+  image_tag  = var.image_tag
+  cidr_block = "10.30.0.0/16"
+
+}

@@ -1,0 +1,55 @@
+name: Destroy
+
+# Environments cost money while they exist. dev and staging are destroyed every
+# night; any environment can be destroyed by hand. ECR images (infra/shared) and the
+# bootstrap stack stay. prod is never destroyed by the schedule.
+on:
+  schedule:
+    - cron: "0 21 * * *" # 22:00 / 23:00 in Budapest
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to destroy
+        type: choice
+        options: [dev, staging, prod]
+        default: dev
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    name: Destroy ${{ matrix.env }}
+    if: vars.AWS_ACCOUNT_ID != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        env: ${{ github.event_name == 'schedule' && fromJSON('["dev","staging"]') || fromJSON(format('["{0}"]', inputs.environment)) }}
+    environment: ${{ matrix.env }}
+    concurrency:
+      group: deploy-${{ matrix.env }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_DIR: infra/envs/${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.16.5
+          terraform_wrapper: false
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-${{ matrix.env }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: terraform destroy
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+        run: |
+          terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
+          # Lambda functions in a VPC release their network interfaces slowly; destroy may take 20+ minutes.
+          terraform -chdir="${TF_DIR}" destroy -input=false -auto-approve -lock-timeout=120s

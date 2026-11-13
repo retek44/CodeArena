@@ -48,7 +48,11 @@ func run(logger *slog.Logger) error {
 	deps := httpapi.Deps{Logger: logger, Build: httpapi.BuildInfo{Version: version, Commit: commit}}
 
 	// Without DATABASE_URL only the health routes run (container smoke test).
-	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+	if os.Getenv("DATABASE_URL") != "" || os.Getenv("DB_HOST") != "" {
+		dbURL, err := store.DatabaseURLFromEnv()
+		if err != nil {
+			return err
+		}
 		st, err := store.Open(ctx, dbURL)
 		if err != nil {
 			return err
@@ -78,7 +82,7 @@ func run(logger *slog.Logger) error {
 			logger.Warn("SUBMISSIONS_QUEUE_URL is not set: submissions stay queued (no outbox relay)")
 		}
 	} else {
-		logger.Warn("DATABASE_URL is not set: serving health routes only")
+		logger.Warn("no database configured (DATABASE_URL or DB_HOST): serving health routes only")
 	}
 
 	addr := net.JoinHostPort("", envOr("PORT", "8080"))

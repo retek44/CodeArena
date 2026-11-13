@@ -65,7 +65,11 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	st, err := store.Open(ctx, os.Getenv("DATABASE_URL"))
+	dbURL, err := store.DatabaseURLFromEnv()
+	if err != nil {
+		return err
+	}
+	st, err := store.Open(ctx, dbURL)
 	if err != nil {
 		return err
 	}

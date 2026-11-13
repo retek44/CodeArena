@@ -4,8 +4,8 @@ variable "region" {
   default     = "eu-central-1"
 }
 
-variable "runner_python_image_tag" {
-  description = "Tag of the Python runner image in ECR. Null skips the runner function."
+variable "image_tag" {
+  description = "Git SHA of the images to deploy. Null creates only the base."
   type        = string
   default     = null
 }

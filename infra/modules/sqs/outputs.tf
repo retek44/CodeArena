@@ -12,3 +12,13 @@ output "dlq_arn" {
   description = "Dead-letter queue ARN (alarm on visible messages in phase 7)."
   value       = aws_sqs_queue.dlq.arn
 }
+
+output "queue_name" {
+  description = "Queue name (CloudWatch metric dimension for worker autoscaling)."
+  value       = aws_sqs_queue.this.name
+}
+
+output "visibility_timeout_seconds" {
+  description = "Visibility timeout; the worker lease must match it."
+  value       = aws_sqs_queue.this.visibility_timeout_seconds
+}

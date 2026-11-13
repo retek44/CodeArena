@@ -1,0 +1,7 @@
+# syntax=docker/dockerfile:1
+# One-off migration task: applies backend/migrations before a deploy (expand/contract).
+FROM arigaio/atlas:1.3.0
+COPY migrations /migrations
+COPY deploy/atlas.hcl /atlas.hcl
+ENV DB_SSLMODE=require
+CMD ["migrate", "apply", "--env", "deploy", "--config", "file:///atlas.hcl"]

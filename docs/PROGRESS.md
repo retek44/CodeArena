@@ -136,12 +136,26 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 
 ## Phase 5 – CD
 
-- [ ] `main.yml`: shared → dev → staging → approval → prod
-- [ ] Network and runner modules wired into staging and prod
+- [x] `infra/modules/app`: one module per environment (dev, staging, prod differ only in variables);
+      base without image tag, full stack with it
+- [x] `infra/modules/postgres`: RDS PostgreSQL 18 (t4g.micro, isolated subnets, TLS forced, password
+      managed by RDS in Secrets Manager, never in state)
+- [x] `infra/modules/backend`: ECS Fargate arm64 (API service + worker on Fargate Spot), ALB reachable
+      only from CloudFront, circuit breaker and 5xx-alarm rollback, worker scaling 0..N on queue depth,
+      migration task, least-privilege task roles with the workload boundary
+- [x] `infra/modules/frontend-cdn`: private S3 + CloudFront (OAC), `/api/*` to the ALB, SPA routing
+      function, CSP/HSTS security headers; ADR-0012
+- [x] Migration image (`backend/Dockerfile.migrate`, Atlas) and DB settings from parts (`DB_*`)
+- [x] `deploy.yml` (manual): shared ECR apply → arm64 images with SBOM and keyless cosign signature,
+      built once per commit → expand migration task → full apply → wait for rollout → SPA build with
+      Cognito settings → S3 + invalidation → smoke test
+- [x] `destroy.yml`: nightly destroy of dev and staging, manual destroy of any environment
+- [x] PR workflow: Terraform plan for shared, dev, staging, prod (needs the repo variables)
+- [ ] **(manual)** GitHub repo variables and environments (`docs/SETUP.md` 4.), then the first dev deploy
+- [ ] Seed problems in deployed environments (admin endpoint or seed task)
 - [ ] Preview environments per PR (`infra/preview`) + cleanup workflow
-- [ ] Migrations as a one-off ECS task
-- [ ] ECS blue/green with lifecycle hook tests, Lambda canary, CloudWatch alarm rollback
-- [ ] semantic-release
+- [ ] ECS blue/green with test-listener hooks, Lambda canary (CodeDeploy)
+- [ ] staging → approval → prod promotion in one workflow; semantic-release
 
 ## Phase 6 – Contests
 
