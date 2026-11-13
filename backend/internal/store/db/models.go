@@ -9,6 +9,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type OutboxMessage struct {
+	ID          int64
+	Topic       string
+	Payload     []byte
+	CreatedAt   pgtype.Timestamptz
+	AvailableAt pgtype.Timestamptz
+	SentAt      pgtype.Timestamptz
+	Attempts    int64
+	LastError   pgtype.Text
+}
+
 type Problem struct {
 	ID            int64
 	Slug          string

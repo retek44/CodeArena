@@ -6,6 +6,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 )
 
+// OutboxMessage is the predicate function for outboxmessage builders.
+type OutboxMessage func(*sql.Selector)
+
 // Problem is the predicate function for problem builders.
 type Problem func(*sql.Selector)
 

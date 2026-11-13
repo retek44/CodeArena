@@ -30,6 +30,13 @@ func TestMain(m *testing.M) {
 	os.Exit(storetest.Main(m))
 }
 
+// lease is how long a running submission belongs to its worker.
+const lease = 5 * time.Minute
+
+func claim(id uuid.UUID) db.ClaimSubmissionParams {
+	return db.ClaimSubmissionParams{ID: id, Lease: pgtype.Interval{Microseconds: lease.Microseconds(), Valid: true}}
+}
+
 func newStore(t *testing.T) *store.Store {
 	t.Helper()
 	st, _ := storetest.New(t)
@@ -86,7 +93,7 @@ func TestClaimSubmissionWinsExactlyOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := st.Queries.ClaimSubmission(context.WithoutCancel(t.Context()), sub.ID)
+			_, err := st.Queries.ClaimSubmission(context.WithoutCancel(t.Context()), claim(sub.ID))
 			mu.Lock()
 			defer mu.Unlock()
 			switch {
@@ -125,7 +132,7 @@ func TestCompleteSubmissionOnlyFromRunning(t *testing.T) {
 	if n, err := st.Queries.CompleteSubmission(ctx, params); err != nil || n != 0 {
 		t.Fatalf("complete while queued: rows=%d err=%v, want 0 rows", n, err)
 	}
-	if _, err := st.Queries.ClaimSubmission(ctx, sub.ID); err != nil {
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID)); err != nil {
 		t.Fatalf("claim: %v", err)
 	}
 	if n, err := st.Queries.CompleteSubmission(ctx, params); err != nil || n != 1 {
@@ -203,7 +210,7 @@ func TestRequeueAndStuckSubmissions(t *testing.T) {
 	sub := newSubmission(t, st, seed(t, st), "key-stuck")
 	ctx := t.Context()
 
-	if _, err := st.Queries.ClaimSubmission(ctx, sub.ID); err != nil {
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID)); err != nil {
 		t.Fatalf("claim: %v", err)
 	}
 	// Pretend the worker stopped reporting ten minutes ago.
@@ -225,14 +232,52 @@ func TestRequeueAndStuckSubmissions(t *testing.T) {
 	if n, err := st.Queries.RequeueSubmission(ctx, sub.ID); err != nil || n != 1 {
 		t.Fatalf("requeue: rows=%d err=%v", n, err)
 	}
-	if _, err := st.Queries.ClaimSubmission(ctx, sub.ID); err != nil {
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID)); err != nil {
 		t.Fatalf("claim after requeue: %v", err)
 	}
 	if got := st.Ent.Submission.GetX(ctx, sub.ID); got.Attempt != 2 {
 		t.Errorf("attempt = %d, want 2", got.Attempt)
 	}
 
-	if _, err := st.Queries.ClaimSubmission(ctx, uuid.New()); !errors.Is(err, pgx.ErrNoRows) {
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(uuid.New())); !errors.Is(err, pgx.ErrNoRows) {
 		t.Errorf("claim unknown id: err = %v, want pgx.ErrNoRows", err)
+	}
+}
+
+func TestClaimAfterLeaseExpiry(t *testing.T) {
+	st := newStore(t)
+	sub := newSubmission(t, st, seed(t, st), "key-lease")
+	ctx := t.Context()
+
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID)); err != nil {
+		t.Fatalf("first claim: %v", err)
+	}
+	// Another worker while the lease is valid: no row.
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("claim during lease: err = %v, want pgx.ErrNoRows", err)
+	}
+
+	// The first worker crashed: its lease runs out.
+	if _, err := st.Pool.Exec(ctx, `UPDATE submissions SET updated_at = now() - interval '6 minutes' WHERE id = $1`, sub.ID); err != nil {
+		t.Fatal(err)
+	}
+	row, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID))
+	if err != nil {
+		t.Fatalf("claim after lease expiry: %v", err)
+	}
+	if row.Attempt != 2 {
+		t.Errorf("attempt = %d, want 2", row.Attempt)
+	}
+
+	// A finished submission is never claimed again, however old.
+	params := db.CompleteSubmissionParams{ID: sub.ID, Verdict: "AC"}
+	if _, err := st.Queries.CompleteSubmission(ctx, params); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Pool.Exec(ctx, `UPDATE submissions SET updated_at = now() - interval '1 day' WHERE id = $1`, sub.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.Queries.ClaimSubmission(ctx, claim(sub.ID)); !errors.Is(err, pgx.ErrNoRows) {
+		t.Errorf("claim of a done submission: err = %v, want pgx.ErrNoRows", err)
 	}
 }

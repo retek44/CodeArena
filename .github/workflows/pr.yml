@@ -42,6 +42,8 @@ jobs:
           filters: |
             go:
               - 'backend/**'
+              - 'docker-compose.yml'
+              - 'docker/**'
               # API integration tests validate responses against the contract.
               - 'contracts/**'
               - '.golangci.yml'
@@ -322,6 +324,33 @@ jobs:
         if: failure()
         run: docker logs runner
 
+  e2e:
+    name: End-to-end (docker compose)
+    needs: changes
+    if: >-
+      needs.changes.outputs.go == 'true'
+      || needs.changes.outputs.runner == 'true'
+      || github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      # API -> outbox -> ElasticMQ -> worker -> runner container -> PostgreSQL
+      - name: Start the stack
+        run: docker compose up -d --build --wait
+      - name: Golden solutions end to end
+        working-directory: backend
+        run: go test -tags e2e -count=1 -v ./e2e/
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
+
   terraform:
     name: Terraform static checks
     needs: changes
@@ -422,7 +451,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [actionlint, secrets, sast, openapi, go, database, api-image, runner-python, terraform, terraform-plan]
+    needs: [actionlint, secrets, sast, openapi, go, database, e2e, api-image, runner-python, terraform, terraform-plan]
     runs-on: ubuntu-latest
     steps:
       - name: All jobs passed or were skipped

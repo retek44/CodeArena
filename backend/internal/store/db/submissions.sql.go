@@ -19,9 +19,15 @@ SET status = 'running',
     attempt = attempt + 1,
     updated_at = now()
 WHERE id = $1
-  AND status = 'queued'
+  AND (status = 'queued'
+       OR (status = 'running' AND updated_at < now() - $2::interval))
 RETURNING id, user_id, problem_id, problem_version, language, source, attempt
 `
+
+type ClaimSubmissionParams struct {
+	ID    uuid.UUID
+	Lease pgtype.Interval
+}
 
 type ClaimSubmissionRow struct {
 	ID             uuid.UUID
@@ -35,10 +41,11 @@ type ClaimSubmissionRow struct {
 
 // Hot-path queries (ADR-0004). sqlc generates internal/store/db from this file.
 // Ent's UpdateDefault does not run here, so every UPDATE sets updated_at itself.
-// Moves a queued submission to running. SQS delivers at least once, so the same
-// message can arrive twice; only the first claim returns a row.
-func (q *Queries) ClaimSubmission(ctx context.Context, id uuid.UUID) (ClaimSubmissionRow, error) {
-	row := q.db.QueryRow(ctx, claimSubmission, id)
+// Moves a submission to running and takes a lease on it. SQS delivers at least once,
+// so the same message can arrive twice; only one claim returns a row. A running
+// submission whose lease expired (its worker crashed) can be claimed again.
+func (q *Queries) ClaimSubmission(ctx context.Context, arg ClaimSubmissionParams) (ClaimSubmissionRow, error) {
+	row := q.db.QueryRow(ctx, claimSubmission, arg.ID, arg.Lease)
 	var i ClaimSubmissionRow
 	err := row.Scan(
 		&i.ID,

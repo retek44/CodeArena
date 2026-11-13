@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
@@ -78,6 +79,7 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
+			outboxmessage.Table:    outboxmessage.ValidColumn,
 			problem.Table:          problem.ValidColumn,
 			submission.Table:       submission.ValidColumn,
 			submissionresult.Table: submissionresult.ValidColumn,

@@ -27,6 +27,12 @@ module "network" {
   availability_zones = ["${var.region}a", "${var.region}b"]
 }
 
+module "submissions_queue" {
+  source = "../../modules/sqs"
+
+  name = "${local.name_prefix}-submissions"
+}
+
 module "cognito" {
   source = "../../modules/cognito"
 

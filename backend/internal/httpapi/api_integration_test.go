@@ -396,6 +396,10 @@ func TestCreateSubmissionIsIdempotent(t *testing.T) {
 	if n := a.store.Ent.Submission.Query().CountX(t.Context()); n != 2 {
 		t.Errorf("%d submissions stored, want 2", n)
 	}
+	// Transactional outbox: exactly one message per stored submission, none for replays or conflicts.
+	if n := a.store.Ent.OutboxMessage.Query().CountX(t.Context()); n != 2 {
+		t.Errorf("%d outbox messages, want 2", n)
+	}
 }
 
 func TestGetSubmissionIsPrivate(t *testing.T) {

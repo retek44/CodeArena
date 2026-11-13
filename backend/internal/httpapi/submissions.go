@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/store/ent"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
@@ -131,7 +132,14 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := s.Store.Ent.Submission.Create().
+	// The submission and its outbox message commit together (ADR-0011): no submission
+	// without a message to the judge, and no message for a rolled-back submission.
+	tx, err := s.Store.Ent.Tx(ctx)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	created, err := tx.Submission.Create().
 		SetUserID(principal.UserID).
 		SetProblemID(p.ID).
 		SetProblemVersion(p.Version).
@@ -142,7 +150,16 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		// Same clock as the rate limit window, so Retry-After never exceeds the window.
 		SetCreatedAt(s.Now()).
 		Save(ctx)
+	if err == nil {
+		err = outbox.AddSubmissionCreated(ctx, tx, created.ID)
+	}
+	if err == nil {
+		err = tx.Commit()
+	} else {
+		_ = tx.Rollback()
+	}
 	if ent.IsConstraintError(err) {
+		// A concurrent request with the same Idempotency-Key won the race.
 		s.replaySubmission(w, r, principal.UserID, key, hash)
 		return
 	}
@@ -151,7 +168,6 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Phase 3 publishes the submission to SQS (transactional outbox); until then it stays queued.
 	created.Edges.Problem = p
 	w.Header().Set("Location", "/api/submissions/"+created.ID.String())
 	s.writeJSON(w, http.StatusAccepted, toSubmissionJSON(created))

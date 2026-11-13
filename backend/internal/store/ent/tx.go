@@ -12,6 +12,8 @@ import (
 // Tx is a transactional client that is created by calling Client.Tx().
 type Tx struct {
 	config
+	// OutboxMessage is the client for interacting with the OutboxMessage builders.
+	OutboxMessage *OutboxMessageClient
 	// Problem is the client for interacting with the Problem builders.
 	Problem *ProblemClient
 	// Submission is the client for interacting with the Submission builders.
@@ -155,6 +157,7 @@ func (tx *Tx) Client() *Client {
 }
 
 func (tx *Tx) init() {
+	tx.OutboxMessage = NewOutboxMessageClient(tx.config)
 	tx.Problem = NewProblemClient(tx.config)
 	tx.Submission = NewSubmissionClient(tx.config)
 	tx.SubmissionResult = NewSubmissionResultClient(tx.config)
@@ -170,7 +173,7 @@ func (tx *Tx) init() {
 // of them in order to commit or rollback the transaction.
 //
 // If a closed transaction is embedded in one of the generated entities, and the entity
-// applies a query, for example: Problem.QueryXXX(), the query will be executed
+// applies a query, for example: OutboxMessage.QueryXXX(), the query will be executed
 // through the driver which created this transaction.
 //
 // Note that txDriver is not goroutine safe.

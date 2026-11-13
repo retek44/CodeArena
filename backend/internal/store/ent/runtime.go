@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/schema"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
@@ -19,6 +20,40 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	outboxmessageFields := schema.OutboxMessage{}.Fields()
+	_ = outboxmessageFields
+	// outboxmessageDescTopic is the schema descriptor for topic field.
+	outboxmessageDescTopic := outboxmessageFields[0].Descriptor()
+	// outboxmessage.TopicValidator is a validator for the "topic" field. It is called by the builders before save.
+	outboxmessage.TopicValidator = func() func(string) error {
+		validators := outboxmessageDescTopic.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(topic string) error {
+			for _, fn := range fns {
+				if err := fn(topic); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// outboxmessageDescCreatedAt is the schema descriptor for created_at field.
+	outboxmessageDescCreatedAt := outboxmessageFields[2].Descriptor()
+	// outboxmessage.DefaultCreatedAt holds the default value on creation for the created_at field.
+	outboxmessage.DefaultCreatedAt = outboxmessageDescCreatedAt.Default.(func() time.Time)
+	// outboxmessageDescAvailableAt is the schema descriptor for available_at field.
+	outboxmessageDescAvailableAt := outboxmessageFields[3].Descriptor()
+	// outboxmessage.DefaultAvailableAt holds the default value on creation for the available_at field.
+	outboxmessage.DefaultAvailableAt = outboxmessageDescAvailableAt.Default.(func() time.Time)
+	// outboxmessageDescAttempts is the schema descriptor for attempts field.
+	outboxmessageDescAttempts := outboxmessageFields[5].Descriptor()
+	// outboxmessage.DefaultAttempts holds the default value on creation for the attempts field.
+	outboxmessage.DefaultAttempts = outboxmessageDescAttempts.Default.(int)
+	// outboxmessage.AttemptsValidator is a validator for the "attempts" field. It is called by the builders before save.
+	outboxmessage.AttemptsValidator = outboxmessageDescAttempts.Validators[0].(func(int) error)
 	problemFields := schema.Problem{}.Fields()
 	_ = problemFields
 	// problemDescSlug is the schema descriptor for slug field.

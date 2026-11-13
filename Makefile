@@ -28,8 +28,9 @@ run-api: ## Run the API locally
 	cd backend && go run ./cmd/api
 
 .PHONY: image
-image: ## Build the API container image
-	docker build -t codearena-api:local backend
+image: ## Build the API and worker container images
+	docker build -t codearena-api:local --build-arg CMD=api backend
+	docker build -t codearena-worker:local --build-arg CMD=worker backend
 
 # --- Database (ADR-0004) -----------------------------------------------------
 
@@ -112,8 +113,12 @@ judge: ## Judge one solution locally (SRC=..., PROBLEM=...)
 # --- Local stack --------------------------------------------------------------
 
 .PHONY: local-up
-local-up: ## Start local dependencies (Postgres, Valkey, API)
+local-up: ## Start the full local stack (Postgres, ElasticMQ, runner, API, worker; migrations and seed)
 	docker compose up -d --build --wait
+
+.PHONY: e2e
+e2e: ## End-to-end test against the local stack (make local-up first)
+	cd backend && go test -tags e2e -count=1 -v ./e2e/
 
 .PHONY: local-down
 local-down: ## Stop local dependencies and delete their data

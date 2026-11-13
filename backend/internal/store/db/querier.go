@@ -8,15 +8,19 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
 	// Hot-path queries (ADR-0004). sqlc generates internal/store/db from this file.
 	// Ent's UpdateDefault does not run here, so every UPDATE sets updated_at itself.
-	// Moves a queued submission to running. SQS delivers at least once, so the same
-	// message can arrive twice; only the first claim returns a row.
-	ClaimSubmission(ctx context.Context, id uuid.UUID) (ClaimSubmissionRow, error)
+	// Moves a submission to running and takes a lease on it. SQS delivers at least once,
+	// so the same message can arrive twice; only one claim returns a row. A running
+	// submission whose lease expired (its worker crashed) can be claimed again.
+	ClaimSubmission(ctx context.Context, arg ClaimSubmissionParams) (ClaimSubmissionRow, error)
 	CompleteSubmission(ctx context.Context, arg CompleteSubmissionParams) (int64, error)
+	// Housekeeping: sent rows are only kept for a short audit window.
+	DeleteSentOutbox(ctx context.Context, olderThan pgtype.Interval) (int64, error)
 	// Gives up after the retry budget: the user sees IE (internal error).
 	FailSubmission(ctx context.Context, id uuid.UUID) (int64, error)
 	// One statement for all test cases; a retried worker inserts nothing twice.
@@ -24,6 +28,13 @@ type Querier interface {
 	InsertSubmissionResults(ctx context.Context, arg InsertSubmissionResultsParams) error
 	// Running submissions whose worker stopped reporting (input for a requeue job).
 	ListStuckSubmissions(ctx context.Context, arg ListStuckSubmissionsParams) ([]ListStuckSubmissionsRow, error)
+	// Transactional outbox (ADR-0011). The relay runs these inside one transaction.
+	// SKIP LOCKED lets several relays (one per API task) work in parallel without
+	// publishing the same row twice.
+	LockPendingOutbox(ctx context.Context, maxRows int32) ([]LockPendingOutboxRow, error)
+	// Backs off before the next attempt; the error is kept for debugging.
+	MarkOutboxFailed(ctx context.Context, arg MarkOutboxFailedParams) error
+	MarkOutboxSent(ctx context.Context, ids []int64) error
 	// Returns a running submission to the queue after a worker or runner failure.
 	RequeueSubmission(ctx context.Context, id uuid.UUID) (int64, error)
 }

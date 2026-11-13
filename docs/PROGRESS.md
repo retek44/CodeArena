@@ -103,8 +103,16 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 
 - [x] One `backend` Go module (`cmd/api`, `cmd/judge`, `cmd/migratediff`; worker next), no `go.work` (ADR-0010)
 
-- [ ] SQS queue + DLQ, worker on Fargate, claim with conditional update
-- [ ] Lambda invoker in the worker (AWS SDK), replacing the HTTP invoker in AWS
+- [x] Transactional outbox (`outbox_messages`, relay with `FOR UPDATE SKIP LOCKED`, exponential backoff); ADR-0011
+- [x] Lease-based claim: duplicate deliveries are no-ops, a crashed worker's submission is taken over
+- [x] `cmd/worker`: SQS consumer (long polling, bounded concurrency, graceful shutdown), retry budget then IE
+- [x] Lambda invoker (AWS SDK) and HTTP invoker (runner container) behind one interface
+- [x] `infra/modules/sqs`: queue + DLQ (redrive after 5 receives, SSE, long polling), wired into dev
+- [x] Local stack in docker compose: migrations, seed, ElasticMQ, runner, API, worker
+- [x] Tests: outbox relay (incl. 4 concurrent relays), worker outcomes, SQS consumer against ElasticMQ,
+      E2E with all golden solutions through the whole chain (CI job "End-to-end")
+- [ ] Worker on ECS Fargate (task definition, IAM, autoscaling on queue backlog) – with the phase 5 deploy
+- [ ] Stuck-submission sweeper (`ListStuckSubmissions` → requeue + outbox) and DLQ alarm (phase 7)
 - [ ] Checkers: float tolerance, custom
 - [ ] More golden problems and languages in the verdict matrix
 - [ ] Queue-backlog autoscaling, scale to zero

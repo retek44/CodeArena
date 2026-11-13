@@ -2,14 +2,16 @@
 -- Ent's UpdateDefault does not run here, so every UPDATE sets updated_at itself.
 
 -- name: ClaimSubmission :one
--- Moves a queued submission to running. SQS delivers at least once, so the same
--- message can arrive twice; only the first claim returns a row.
+-- Moves a submission to running and takes a lease on it. SQS delivers at least once,
+-- so the same message can arrive twice; only one claim returns a row. A running
+-- submission whose lease expired (its worker crashed) can be claimed again.
 UPDATE submissions
 SET status = 'running',
     attempt = attempt + 1,
     updated_at = now()
-WHERE id = $1
-  AND status = 'queued'
+WHERE id = sqlc.arg(id)
+  AND (status = 'queued'
+       OR (status = 'running' AND updated_at < now() - sqlc.arg(lease)::interval))
 RETURNING id, user_id, problem_id, problem_version, language, source, attempt;
 
 -- name: CompleteSubmission :execrows

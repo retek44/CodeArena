@@ -8,6 +8,11 @@ output "vpc_id" {
   value       = module.network.vpc_id
 }
 
+output "submissions_queue_url" {
+  description = "SUBMISSIONS_QUEUE_URL for the API and the worker."
+  value       = module.submissions_queue.queue_url
+}
+
 output "cognito_issuer" {
   description = "API setting COGNITO_ISSUER."
   value       = module.cognito.issuer

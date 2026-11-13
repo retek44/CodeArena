@@ -1,4 +1,18 @@
-# Local dependencies. Phase 3 adds an AWS emulator (LocalStack or similar) for SQS, S3 and EventBridge.
+# Full local stack: the same flow as in AWS, with local stand-ins.
+#   API -> outbox -> ElasticMQ (SQS) -> worker -> runner container (Lambda emulator) -> PostgreSQL
+#
+#   docker compose up -d --build --wait      (make local-up)
+#   go test -tags e2e ./e2e/                 (from backend/, make e2e)
+
+x-aws-local: &aws-local
+  # ElasticMQ accepts any credentials; these are not secrets.
+  AWS_REGION: eu-central-1
+  AWS_ACCESS_KEY_ID: local
+  AWS_SECRET_ACCESS_KEY: local
+  AWS_ENDPOINT_URL_SQS: http://elasticmq:9324
+  SUBMISSIONS_QUEUE_URL: http://elasticmq:9324/000000000000/codearena-submissions
+  DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -18,32 +32,90 @@ services:
       timeout: 3s
       retries: 10
 
-  valkey:
-    image: valkey/valkey:8-alpine
+  # Applies backend/migrations, like the one-off ECS task in the pipeline.
+  migrate:
+    image: arigaio/atlas:1.3.0
+    command: >-
+      migrate apply --dir file:///migrations
+      --url postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
+    volumes:
+      - ./backend/migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Loads the golden problems (idempotent).
+  seed:
+    build:
+      context: backend
+      args:
+        CMD: seed
+    command: ["-dir", "/golden"]
+    environment:
+      DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
+    volumes:
+      - ./tests/golden:/golden:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  elasticmq:
+    image: softwaremill/elasticmq-native:1.7.1
     ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      - "9324:9324"
+    volumes:
+      - ./docker/elasticmq/elasticmq.conf:/opt/elasticmq.conf:ro
+
+  # Python runner with the same restrictions as Lambda: non-root, read-only root, /tmp only.
+  runner:
+    build:
+      context: runners
+      dockerfile: python/Dockerfile
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=256m
+    mem_limit: 1g
+    restart: unless-stopped
 
   api:
     build:
       context: backend
+      args:
+        CMD: api
     environment:
+      <<: *aws-local
       PORT: "8080"
-      # Apply migrations first: make migrate-apply
-      DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
       # Local only: trusts the X-Dev-User header instead of a Cognito token.
       AUTH_MODE: dev
     ports:
       - "8080:8080"
     depends_on:
-      postgres:
-        condition: service_healthy
-      valkey:
-        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+      elasticmq:
+        condition: service_started
+
+  worker:
+    build:
+      context: backend
+      args:
+        CMD: worker
+    environment:
+      <<: *aws-local
+      RUNNER_MODE: http
+      RUNNER_URL: http://runner:8080/2015-03-31/functions/function/invocations
+      # The Lambda emulator serves one invocation at a time (a real Lambda scales out),
+      # so locally the worker judges one submission at a time.
+      WORKER_CONCURRENCY: "1"
+      # Must match defaultVisibilityTimeout in docker/elasticmq/elasticmq.conf.
+      WORKER_LEASE: 30s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      elasticmq:
+        condition: service_started
+      runner:
+        condition: service_started
 
 volumes:
   postgres-data:

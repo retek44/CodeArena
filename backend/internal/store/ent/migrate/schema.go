@@ -3,11 +3,39 @@
 package migrate
 
 import (
+	"entgo.io/ent/dialect/entsql"
 	"entgo.io/ent/dialect/sql/schema"
 	"entgo.io/ent/schema/field"
 )
 
 var (
+	// OutboxMessagesColumns holds the columns for the "outbox_messages" table.
+	OutboxMessagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt, Increment: true},
+		{Name: "topic", Type: field.TypeString, Size: 64},
+		{Name: "payload", Type: field.TypeBytes, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "available_at", Type: field.TypeTime},
+		{Name: "sent_at", Type: field.TypeTime, Nullable: true},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 2147483647},
+	}
+	// OutboxMessagesTable holds the schema information for the "outbox_messages" table.
+	OutboxMessagesTable = &schema.Table{
+		Name:       "outbox_messages",
+		Columns:    OutboxMessagesColumns,
+		PrimaryKey: []*schema.Column{OutboxMessagesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "outboxmessage_available_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{OutboxMessagesColumns[4], OutboxMessagesColumns[0]},
+				Annotation: &entsql.IndexAnnotation{
+					Where: "sent_at IS NULL",
+				},
+			},
+		},
+	}
 	// ProblemsColumns holds the columns for the "problems" table.
 	ProblemsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeInt, Increment: true},
@@ -198,6 +226,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		OutboxMessagesTable,
 		ProblemsTable,
 		SubmissionsTable,
 		SubmissionResultsTable,

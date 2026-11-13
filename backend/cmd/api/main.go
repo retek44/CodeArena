@@ -13,8 +13,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+
 	"github.com/retek44/CodeArena/backend/internal/auth"
 	"github.com/retek44/CodeArena/backend/internal/httpapi"
+	"github.com/retek44/CodeArena/backend/internal/outbox"
+	"github.com/retek44/CodeArena/backend/internal/queue"
 	"github.com/retek44/CodeArena/backend/internal/store"
 )
 
@@ -56,6 +61,22 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		deps.Auth = auth
+
+		// The outbox relay publishes new submissions to the judge queue (ADR-0011).
+		if queueURL := os.Getenv("SUBMISSIONS_QUEUE_URL"); queueURL != "" {
+			awsCfg, err := config.LoadDefaultConfig(ctx)
+			if err != nil {
+				return fmt.Errorf("load AWS config: %w", err)
+			}
+			relay := &outbox.Relay{
+				Pool:      st.Pool,
+				Publisher: &queue.Publisher{Client: sqs.NewFromConfig(awsCfg), QueueURLs: map[string]string{outbox.TopicSubmissionCreated: queueURL}},
+				Logger:    logger,
+			}
+			go relay.Run(ctx)
+		} else {
+			logger.Warn("SUBMISSIONS_QUEUE_URL is not set: submissions stay queued (no outbox relay)")
+		}
 	} else {
 		logger.Warn("DATABASE_URL is not set: serving health routes only")
 	}

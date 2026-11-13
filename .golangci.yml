@@ -5,6 +5,7 @@ run:
   # Lint the integration tests too.
   build-tags:
     - integration
+    - e2e
 
 linters:
   default: standard
