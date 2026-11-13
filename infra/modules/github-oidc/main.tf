@@ -13,9 +13,12 @@ data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
 locals {
-  account_id   = data.aws_caller_identity.current.account_id
-  partition    = data.aws_partition.current.partition
-  repo         = "${var.github_owner}/${var.github_repo}"
+  account_id = data.aws_caller_identity.current.account_id
+  partition  = data.aws_partition.current.partition
+  # GitHub puts the immutable owner and repository IDs into the sub claim
+  # ("repo:owner@123/name@456:..."). A deleted and re-created repository with the same
+  # name gets a new ID, so it cannot assume these roles.
+  repo         = "${var.github_owner}@${var.github_owner_id}/${var.github_repo}@${var.github_repository_id}"
   oidc_host    = "token.actions.githubusercontent.com"
   provider_arn = var.create_provider ? aws_iam_openid_connect_provider.github[0].arn : data.aws_iam_openid_connect_provider.github[0].arn
 

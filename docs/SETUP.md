@@ -60,7 +60,7 @@ pre-commit install --install-hooks -t pre-commit -t commit-msg
 
 ```bash
 cd infra/bootstrap
-cp terraform.tfvars.example terraform.tfvars   # set github_owner and your email
+cp terraform.tfvars.example terraform.tfvars   # set github_owner, the two GitHub IDs and your email
 terraform init
 terraform apply
 ```
@@ -100,6 +100,11 @@ in `infra/envs/<env>` (the Makefile does this for you).
 1. Create the repository `<owner>/CodeArena` (public, so Actions minutes are free and the
    project is visible). The name must match `github_owner` / `github_repo` exactly,
    because the OIDC trust policy compares the `sub` claim case-sensitively.
+   GitHub also puts the immutable owner and repository IDs into the claim
+   (`repo:owner@123/name@456:...`); `github_owner_id` and `github_repository_id` in
+   `terraform.tfvars` must match `curl -s https://api.github.com/repos/OWNER/REPO`
+   (`.owner.id`, `.id`). Without them every CI login fails with
+   "Not authorized to perform sts:AssumeRoleWithWebIdentity".
 2. The Go module path is `github.com/retek44/CodeArena/backend`; a fork renames it in `backend/go.mod` and the imports.
 3. Push `main`.
 4. **Settings → Secrets and variables → Actions → Variables:**

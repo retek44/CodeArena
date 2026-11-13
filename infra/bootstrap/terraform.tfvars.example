@@ -1,6 +1,9 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
 github_owner               = "your-github-username"
 github_repo                = "CodeArena"
+# curl -s https://api.github.com/repos/OWNER/REPO  ->  .owner.id and .id
+github_owner_id            = 0
+github_repository_id       = 0
 budget_notification_emails = ["you@example.com"]
 
 # Optional overrides

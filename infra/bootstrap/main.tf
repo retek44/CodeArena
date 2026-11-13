@@ -133,12 +133,14 @@ resource "aws_s3_bucket_policy" "tfstate" {
 module "github_oidc" {
   source = "../modules/github-oidc"
 
-  project          = var.project
-  github_owner     = var.github_owner
-  github_repo      = var.github_repo
-  environments     = var.environments
-  create_provider  = var.create_github_oidc_provider
-  state_bucket_arn = aws_s3_bucket.tfstate.arn
+  project              = var.project
+  github_owner         = var.github_owner
+  github_repo          = var.github_repo
+  github_owner_id      = var.github_owner_id
+  github_repository_id = var.github_repository_id
+  environments         = var.environments
+  create_provider      = var.create_github_oidc_provider
+  state_bucket_arn     = aws_s3_bucket.tfstate.arn
 }
 
 module "budget" {

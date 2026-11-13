@@ -13,6 +13,16 @@ variable "github_repo" {
   type        = string
 }
 
+variable "github_owner_id" {
+  description = "Numeric ID of the owner (https://api.github.com/repos/OWNER/REPO -> owner.id)."
+  type        = number
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of the repository (https://api.github.com/repos/OWNER/REPO -> id)."
+  type        = number
+}
+
 variable "environments" {
   description = "GitHub Environments that get a deploy role."
   type        = list(string)

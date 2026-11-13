@@ -21,6 +21,16 @@ variable "github_repo" {
   default     = "CodeArena"
 }
 
+variable "github_owner_id" {
+  description = "Numeric ID of the repository owner; GitHub puts it into the OIDC sub claim."
+  type        = number
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of the repository; GitHub puts it into the OIDC sub claim."
+  type        = number
+}
+
 variable "environments" {
   description = "Deployment targets. Each one gets a GitHub OIDC deploy role bound to the GitHub Environment of the same name. \"shared\" holds account-wide resources (ECR repositories)."
   type        = list(string)
