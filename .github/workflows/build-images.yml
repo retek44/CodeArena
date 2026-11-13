@@ -1,7 +1,7 @@
 name: Build images
 
 # Reusable: builds the four images of the calling commit once (arm64), with SBOM,
-# provenance and a keyless cosign signature. Tags are the git SHA and immutable, so
+# provenance (not for the Lambda image) and a keyless cosign signature. Tags are the git SHA and immutable, so
 # every environment runs exactly the same bytes.
 on:
   workflow_call:
@@ -77,6 +77,9 @@ jobs:
             context: runners
             file: runners/python/Dockerfile
             args: ""
+            # Lambda accepts only a single image manifest: an image index with
+            # attestation manifests fails with "media type ... is not supported".
+            lambda: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
@@ -107,7 +110,8 @@ jobs:
           build-contexts: ${{ matrix.contexts }}
           platforms: linux/arm64
           push: true
-          provenance: mode=max
+          provenance: ${{ matrix.lambda && 'false' || 'mode=max' }}
+          sbom: false
           build-args: |
             ${{ matrix.args }}
             VERSION=${{ github.sha }}
