@@ -154,6 +154,17 @@ fe-check: ## Frontend: API types, lint, type check, unit tests, build
 fe-e2e: ## Playwright browser tests against the local stack (make local-up first)
 	cd frontend && npx playwright test
 
+FFMPEG_IMAGE := jrottenberg/ffmpeg:7.1-alpine
+
+.PHONY: demo-video
+demo-video: ## Record the README demo (docs/media/demo.gif, frontend/test-results/demo.mp4); make local-up first
+	cd frontend && npx playwright test --config playwright.demo.config.ts
+	docker run --rm -v "$(CURDIR):/work" -w /work $(FFMPEG_IMAGE) -y -loglevel error -i frontend/test-results/demo.webm \
+		-vf "fps=8,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle" \
+		docs/media/demo.gif
+	docker run --rm -v "$(CURDIR):/work" -w /work $(FFMPEG_IMAGE) -y -loglevel error -i frontend/test-results/demo.webm \
+		-c:v libx264 -pix_fmt yuv420p -crf 26 -movflags +faststart frontend/test-results/demo.mp4
+
 # --- Local stack --------------------------------------------------------------
 
 .PHONY: local-up

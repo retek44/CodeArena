@@ -11,7 +11,8 @@ const deployedUrl = process.env.E2E_BASE_URL;
 
 export default defineConfig({
   testDir: deployedUrl ? "e2e/deployed" : "e2e",
-  testIgnore: deployedUrl ? [] : ["deployed/**"],
+  // e2e/demo records the README video (playwright.demo.config.ts), it is not a test.
+  testIgnore: deployedUrl ? [] : ["deployed/**", "demo/**"],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: true,

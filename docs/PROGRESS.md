@@ -251,4 +251,7 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 - [x] LLM eval in `nightly.yml` (`tests/llm-eval`): wrong golden solutions + prompt-injection cases
       through the dev Lambda, deterministic checks + LLM-as-judge (Sonnet 5.5, forced tool use)
 - [ ] **(manual)** Bedrock model access for Claude Haiku 5.5 and Sonnet 5.5 (`docs/SETUP.md` 1.5)
-- [ ] README with diagrams, demo video, final ADRs
+- [x] README with Mermaid diagrams (architecture, one submission, contest lifecycle, delivery pipeline,
+      safe rollout), test layer table, ADR index; demo GIF recorded by Playwright against the local stack
+      (`make demo-video`: `frontend/e2e/demo`, captions, ffmpeg in Docker; not part of the regression suite)
+- [ ] Problem statements render as plain text; PLAN.md asks for Markdown (sanitized)
