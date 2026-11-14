@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 SHELL := bash
 
-TF_DIRS := infra/bootstrap infra/shared $(wildcard infra/envs/*) $(wildcard infra/modules/*)
+TF_DIRS := infra/bootstrap infra/shared $(wildcard infra/envs/*) $(wildcard infra/preview/*) $(wildcard infra/modules/*)
 RUNNER_IMAGE := codearena-runner-python:local
 RUNNER_URL ?= http://localhost:9000/2015-03-31/functions/function/invocations
 RUNNER_IMAGE_CPP := codearena-runner-cpp:local

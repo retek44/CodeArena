@@ -576,7 +576,7 @@ jobs:
         run: terraform fmt -check -recursive -diff infra
       - name: terraform validate
         run: |
-          for dir in infra/bootstrap infra/shared infra/envs/*/ infra/modules/*/; do
+          for dir in infra/bootstrap infra/shared infra/envs/*/ infra/preview/*/ infra/modules/*/; do
             echo "::group::validate ${dir}"
             terraform -chdir="${dir}" init -backend=false -input=false
             terraform -chdir="${dir}" validate

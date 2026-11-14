@@ -176,7 +176,11 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       docker compose uses the same image; problem statements from `statement.md`
 - [x] `terraform test` with mocked providers for `infra/modules/app` (plan-only, no AWS): caught a
       `for_each` over unknown security group IDs that `validate` missed
-- [ ] Preview environments per PR (`infra/preview`) + cleanup workflow
+- [x] Preview environments per PR (ADR-0019): label `preview` -> `infra/preview/pr` (app module,
+      own RDS/ALB/CloudFront/Cognito, state `preview/pr-<n>/`) in the free shared VPC `infra/preview/base`;
+      `preview.yml` deploys with `deploy-environment.yml` and comments the URL, `destroy-preview.yml` on close
+      or unlabel, nightly sweep of stale previews in `destroy.yml`
+- [ ] Verify a preview on AWS (label a PR, check the comment, close it, check the destroy)
 - [ ] ECS blue/green with test-listener hooks, Lambda canary (CodeDeploy)
 - [x] Reusable workflows: `build-images.yml` (once per commit) and `deploy-environment.yml`;
       `deploy.yml` deploys one environment, `release.yml` promotes main dev → staging → prod

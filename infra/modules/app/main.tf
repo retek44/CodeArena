@@ -34,12 +34,28 @@ moved {
   to   = module.runner["python"]
 }
 
+# Own VPC, or an existing one (preview environments share infra/preview/base: an
+# account has five VPCs per region by default, ADR-0019).
 module "network" {
   source = "../network"
+  count  = var.network == null ? 1 : 0
 
   name_prefix        = local.name_prefix
   cidr_block         = var.cidr_block
   availability_zones = ["${local.region}a", "${local.region}b"]
+}
+
+moved {
+  from = module.network
+  to   = module.network[0]
+}
+
+locals {
+  network = var.network != null ? var.network : {
+    vpc_id              = module.network[0].vpc_id
+    public_subnet_ids   = module.network[0].public_subnet_ids
+    isolated_subnet_ids = module.network[0].isolated_subnet_ids
+  }
 }
 
 # Operational alarms of the environment go to one topic; an e-mail subscription is optional.
@@ -93,8 +109,8 @@ module "runner" {
   name_prefix              = local.name_prefix
   language                 = each.key
   image_uri                = "${data.aws_ecr_repository.this["codearena-runner-${each.key}"].repository_url}:${var.image_tag}"
-  vpc_id                   = module.network.vpc_id
-  subnet_ids               = module.network.isolated_subnet_ids
+  vpc_id                   = local.network.vpc_id
+  subnet_ids               = local.network.isolated_subnet_ids
   permissions_boundary_arn = local.boundary_arn
 }
 
@@ -105,8 +121,8 @@ module "contests" {
 
   name_prefix              = local.name_prefix
   permissions_boundary_arn = local.boundary_arn
-  vpc_id                   = module.network.vpc_id
-  subnet_ids               = module.network.isolated_subnet_ids
+  vpc_id                   = local.network.vpc_id
+  subnet_ids               = local.network.isolated_subnet_ids
   task                     = module.backend[0].contest
   state_machine_name       = local.contest_machine_name
   schedule_group           = local.contest_schedule_group
@@ -137,8 +153,8 @@ module "postgres" {
   count  = local.deploy ? 1 : 0
 
   name_prefix               = local.name_prefix
-  vpc_id                    = module.network.vpc_id
-  subnet_ids                = module.network.isolated_subnet_ids
+  vpc_id                    = local.network.vpc_id
+  subnet_ids                = local.network.isolated_subnet_ids
   client_security_group_ids = module.backend[0].security_group_ids
   instance_class            = var.db_instance_class
   backup_retention_days     = var.protect_data ? 7 : 1
@@ -151,8 +167,8 @@ module "backend" {
   count  = local.deploy ? 1 : 0
 
   name_prefix              = local.name_prefix
-  vpc_id                   = module.network.vpc_id
-  public_subnet_ids        = module.network.public_subnet_ids
+  vpc_id                   = local.network.vpc_id
+  public_subnet_ids        = local.network.public_subnet_ids
   permissions_boundary_arn = local.boundary_arn
   api_desired_count        = var.api_desired_count
   worker_max_count         = var.worker_max_count

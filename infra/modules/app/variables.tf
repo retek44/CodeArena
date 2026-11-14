@@ -15,8 +15,24 @@ variable "image_tag" {
 }
 
 variable "cidr_block" {
-  description = "VPC CIDR; distinct per environment."
+  description = "VPC CIDR; distinct per environment. Unused with network."
   type        = string
+  default     = null
+}
+
+variable "network" {
+  description = "Existing VPC to deploy into instead of creating one (preview environments, ADR-0019)."
+  type = object({
+    vpc_id              = string
+    public_subnet_ids   = list(string)
+    isolated_subnet_ids = list(string)
+  })
+  default = null
+
+  validation {
+    condition     = var.network != null || var.cidr_block != null
+    error_message = "Set cidr_block for an own VPC, or network to use an existing one."
+  }
 }
 
 variable "db_instance_class" {

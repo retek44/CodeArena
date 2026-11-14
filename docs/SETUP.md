@@ -149,6 +149,9 @@ in `infra/envs/<env>` (the Makefile does this for you).
      automatic analysis), and create a token. Without the secret the SonarCloud job skips.
 5. **Settings → Environments:** create `shared`, `preview`, `dev`, `staging`, `prod`.
    For `prod`, add yourself as required reviewer and allow only the `main` branch.
+   `shared` and `preview` must allow pull request branches (no branch restriction): the
+   preview workflow builds images and deploys from the PR.
+   **Issues → Labels:** create the label `preview` (it turns on the preview environment).
 6. **Settings → General → Pull Requests:** allow squash merge only,
    default commit message = PR title.
 7. **Settings → Rules → Rulesets** for `main`: require a pull request, require the status
@@ -176,8 +179,14 @@ nothing deploys on push.
   The URL is in the run summary.
 - **Promotion:** Actions → Release (from `main`) → dev → staging → prod, same images; prod
   waits for the reviewer of the `prod` environment.
+- **Preview of a pull request:** add the label `preview` (only to PRs from this
+  repository). The pipeline builds the images, deploys `codearena-pr-<n>` into the shared
+  preview VPC, runs the post-deploy tests and comments the URL in the PR. Every push
+  redeploys; closing the PR or removing the label destroys it (ADR-0019). About 20 minutes
+  for the first deploy; it costs like dev (RDS, ALB, Valkey, Fargate) while it exists.
 - **Destroy:** Actions → Destroy → environment. dev and staging are also destroyed every
-  night at 21:00 UTC; prod never automatically.
+  night at 21:00 UTC; prod never automatically. The same run destroys previews whose PR is
+  closed or has lost the label.
 - **Release notes:** every merge to `main` updates the release PR of release-please
   (version + `CHANGELOG.md` from the Conventional Commit titles). Merging it tags `vX.Y.Z` and
   publishes a GitHub Release with an SPDX SBOM.

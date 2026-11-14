@@ -230,3 +230,45 @@ run "tracing_off" {
     error_message = "Without tracing there is no collector sidecar."
   }
 }
+
+# Preview environments (ADR-0019) deploy into the shared preview VPC.
+run "preview_in_existing_network" {
+  command = plan
+
+  variables {
+    env        = "pr-42"
+    cidr_block = null
+    image_tag  = "0123456789abcdef0123456789abcdef01234567"
+    network = {
+      vpc_id              = "vpc-0preview"
+      public_subnet_ids   = ["subnet-0pub-a", "subnet-0pub-b"]
+      isolated_subnet_ids = ["subnet-0iso-a", "subnet-0iso-b"]
+    }
+    hints_enabled = false
+  }
+
+  assert {
+    condition     = length(module.network) == 0
+    error_message = "A preview creates no VPC of its own."
+  }
+
+  assert {
+    condition     = toset(output.deploy.task_subnet_ids) == toset(["subnet-0pub-a", "subnet-0pub-b"])
+    error_message = "Preview tasks run in the shared VPC's public subnets."
+  }
+
+  assert {
+    condition     = module.backend[0].cluster_name == "codearena-pr-42"
+    error_message = "Preview resources carry the codearena-pr-<n> prefix."
+  }
+}
+
+run "needs_a_network" {
+  command = plan
+
+  variables {
+    cidr_block = null
+  }
+
+  expect_failures = [var.network]
+}

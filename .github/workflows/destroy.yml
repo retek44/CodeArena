@@ -2,7 +2,8 @@ name: Destroy
 
 # Environments cost money while they exist. dev and staging are destroyed every
 # night; any environment can be destroyed by hand. ECR images (infra/shared) and the
-# bootstrap stack stay. prod is never destroyed by the schedule.
+# bootstrap stack stay. prod is never destroyed by the schedule. The schedule also
+# destroys preview environments of closed pull requests (ADR-0019).
 on:
   schedule:
     - cron: "0 21 * * *" # 22:00 / 23:00 in Budapest
@@ -53,3 +54,58 @@ jobs:
           terraform -chdir="${TF_DIR}" init -input=false -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="region=${AWS_REGION}"
           # Lambda functions in a VPC release their network interfaces slowly; destroy may take 20+ minutes.
           terraform -chdir="${TF_DIR}" destroy -input=false -auto-approve -lock-timeout=120s
+
+  # Preview environments whose pull request is closed or lost the "preview" label,
+  # in case preview.yml did not destroy them (failed run, workflow disabled).
+  stale-previews:
+    name: Find stale previews
+    if: vars.AWS_ACCOUNT_ID != '' && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: read
+    outputs:
+      prs: ${{ steps.find.outputs.prs }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-plan
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: List previews of closed or unlabelled pull requests
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          keys=$(aws s3api list-objects-v2 --bucket "${TF_STATE_BUCKET}" --prefix preview/pr- \
+            --query 'Contents[].Key' --output text)
+          stale=()
+          for key in ${keys}; do
+            [[ "${key}" =~ ^preview/pr-([0-9]+)/terraform\.tfstate$ ]] || continue
+            pr="${BASH_REMATCH[1]}"
+            open_and_labelled=$(gh pr view "${pr}" --json state,labels \
+              --jq '.state == "OPEN" and ([.labels[].name] | index("preview") != null)')
+            if [ "${open_and_labelled}" != "true" ]; then
+              stale+=("\"${pr}\"")
+            fi
+          done
+          prs="[$(IFS=,; echo "${stale[*]}")]"
+          echo "Stale previews: ${prs}"
+          echo "prs=${prs}" >> "$GITHUB_OUTPUT"
+
+  destroy-previews:
+    name: Destroy stale previews
+    needs: stale-previews
+    if: needs.stale-previews.outputs.prs != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        pr: ${{ fromJSON(needs.stale-previews.outputs.prs) }}
+    uses: ./.github/workflows/destroy-preview.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      pr_number: ${{ matrix.pr }}
