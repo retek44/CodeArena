@@ -156,6 +156,7 @@ module "backend" {
   permissions_boundary_arn = local.boundary_arn
   api_desired_count        = var.api_desired_count
   worker_max_count         = var.worker_max_count
+  tracing                  = var.tracing
   runner_function_arns     = { for lang, runner in module.runner : lang => runner.function_arn }
   hint_function_arn        = one(module.hint[*].function_arn)
 

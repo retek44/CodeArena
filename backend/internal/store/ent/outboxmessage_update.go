@@ -185,6 +185,9 @@ func (_u *OutboxMessageUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	if _u.mutation.LastErrorCleared() {
 		_spec.ClearField(outboxmessage.FieldLastError, field.TypeString)
 	}
+	if _u.mutation.TraceParentCleared() {
+		_spec.ClearField(outboxmessage.FieldTraceParent, field.TypeString)
+	}
 	_spec.AddModifiers(_u.modifiers...)
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -392,6 +395,9 @@ func (_u *OutboxMessageUpdateOne) sqlSave(ctx context.Context) (_node *OutboxMes
 	}
 	if _u.mutation.LastErrorCleared() {
 		_spec.ClearField(outboxmessage.FieldLastError, field.TypeString)
+	}
+	if _u.mutation.TraceParentCleared() {
+		_spec.ClearField(outboxmessage.FieldTraceParent, field.TypeString)
 	}
 	_spec.AddModifiers(_u.modifiers...)
 	_node = &OutboxMessage{config: _u.config}

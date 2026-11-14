@@ -17,9 +17,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/queue"
+	"github.com/retek44/CodeArena/backend/internal/telemetry"
 )
 
 const elasticMQImage = "softwaremill/elasticmq-native:1.7.1"
@@ -122,4 +129,63 @@ func TestPublishAndConsumeWithRetry(t *testing.T) {
 	if len(out.Messages) != 0 {
 		t.Errorf("%d messages left after Ack, want 0", len(out.Messages))
 	}
+}
+
+// The consumer continues the producer's trace from the message attributes (ADR-0018).
+func TestTraceContextCrossesTheQueue(t *testing.T) {
+	spans := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(telemetry.Propagator())
+	t.Cleanup(func() {
+		otel.SetTracerProvider(noop.NewTracerProvider())
+		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator())
+	})
+
+	client := newSQS(t)
+	url := createQueue(t, client, "30")
+	ctx, producer := provider.Tracer("test").Start(t.Context(), "submission.created send")
+	pub := &queue.Publisher{Client: client, QueueURLs: map[string]string{outbox.TopicSubmissionCreated: url}}
+	if err := pub.Publish(ctx, outbox.Message{ID: 1, Topic: outbox.TopicSubmissionCreated, Payload: []byte(`{"v":1}`)}); err != nil {
+		t.Fatalf("publish: %v", err)
+	}
+	producer.End()
+
+	got := make(chan trace.SpanContext, 1)
+	runCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	consumer := &queue.Consumer{
+		Client:   client,
+		QueueURL: url,
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Handler: func(ctx context.Context, _ queue.Delivery) queue.Decision {
+			got <- trace.SpanContextFromContext(ctx)
+			return queue.Ack
+		},
+	}
+	stopped := make(chan error, 1)
+	go func() { stopped <- consumer.Run(runCtx) }()
+
+	var handled trace.SpanContext
+	select {
+	case handled = <-got:
+	case <-time.After(30 * time.Second):
+		t.Fatal("message not consumed")
+	}
+	cancel()
+	<-stopped
+
+	if handled.TraceID() != producer.SpanContext().TraceID() {
+		t.Errorf("handler trace %s, want the producer's %s", handled.TraceID(), producer.SpanContext().TraceID())
+	}
+	for _, s := range spans.Ended() {
+		if s.Name() != "submissions process" {
+			continue
+		}
+		if s.Parent().SpanID() != producer.SpanContext().SpanID() || s.SpanKind() != trace.SpanKindConsumer {
+			t.Errorf("consumer span parent %s kind %s, want child of %s", s.Parent().SpanID(), s.SpanKind(), producer.SpanContext().SpanID())
+		}
+		return
+	}
+	t.Error("no consumer span recorded")
 }

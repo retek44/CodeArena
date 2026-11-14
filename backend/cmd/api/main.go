@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -29,6 +30,7 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/realtime"
 	"github.com/retek44/CodeArena/backend/internal/store"
 	"github.com/retek44/CodeArena/backend/internal/sweeper"
+	"github.com/retek44/CodeArena/backend/internal/telemetry"
 )
 
 // Set at build time: -ldflags "-X main.version=... -X main.commit=...".
@@ -40,7 +42,7 @@ var (
 const shutdownTimeout = 20 * time.Second
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(telemetry.NewLogHandler(slog.NewJSONHandler(os.Stdout, nil)))
 
 	if err := run(logger); err != nil {
 		logger.Error("api stopped", "error", err)
@@ -53,6 +55,12 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	shutdownTracing, err := telemetry.Setup(ctx, "codearena-api", version)
+	if err != nil {
+		return err
+	}
+	defer flushTraces(shutdownTracing, logger)
+
 	deps := httpapi.Deps{Logger: logger, Build: httpapi.BuildInfo{Version: version, Commit: commit}}
 
 	// Without DATABASE_URL only the health routes run (container smoke test).
@@ -61,7 +69,7 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return err
 		}
-		st, err := store.Open(ctx, dbURL)
+		st, err := store.Open(ctx, dbURL, store.WithTracer(telemetry.NewQueryTracer()))
 		if err != nil {
 			return err
 		}
@@ -89,9 +97,9 @@ func run(logger *slog.Logger) error {
 
 		// The outbox relay publishes new submissions to the judge queue (ADR-0011).
 		if queueURL := os.Getenv("SUBMISSIONS_QUEUE_URL"); queueURL != "" {
-			awsCfg, err := config.LoadDefaultConfig(ctx)
+			awsCfg, err := awsConfig(ctx)
 			if err != nil {
-				return fmt.Errorf("load AWS config: %w", err)
+				return err
 			}
 			relay := &outbox.Relay{
 				Pool:      st.Pool,
@@ -116,7 +124,7 @@ func run(logger *slog.Logger) error {
 	addr := net.JoinHostPort("", envOr("PORT", "8080"))
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           httpapi.NewHandler(deps),
+		Handler:           telemetry.HTTPHandler(httpapi.NewHandler(deps)),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -158,9 +166,9 @@ func newHinter(ctx context.Context) (hint.Hinter, error) {
 	if fn == "" {
 		return nil, nil
 	}
-	cfg, err := config.LoadDefaultConfig(ctx)
+	cfg, err := awsConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("load AWS config: %w", err)
+		return nil, err
 	}
 	return &hint.Lambda{Client: lambda.NewFromConfig(cfg), Function: fn}, nil
 }
@@ -172,9 +180,9 @@ func newTicketer(ctx context.Context) (realtime.Ticketer, error) {
 	if url == "" || table == "" {
 		return nil, nil
 	}
-	cfg, err := config.LoadDefaultConfig(ctx)
+	cfg, err := awsConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("load AWS config: %w", err)
+		return nil, err
 	}
 	return &realtime.DynamoDB{Client: dynamodb.NewFromConfig(cfg), Table: table, URL: url}, nil
 }
@@ -257,4 +265,23 @@ func valkeyCache(logger *slog.Logger) valkey.Client {
 		return nil
 	}
 	return client
+}
+
+// awsConfig loads the AWS SDK configuration with tracing of every call.
+func awsConfig(ctx context.Context) (aws.Config, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load AWS config: %w", err)
+	}
+	telemetry.InstrumentAWS(&cfg)
+	return cfg, nil
+}
+
+// flushTraces sends the spans still buffered; ECS gives a stopping task 30 seconds.
+func flushTraces(shutdown func(context.Context) error, logger *slog.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := shutdown(ctx); err != nil {
+		logger.Warn("flush traces", "error", err)
+	}
 }

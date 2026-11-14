@@ -3,7 +3,7 @@
 -- name: LockPendingOutbox :many
 -- SKIP LOCKED lets several relays (one per API task) work in parallel without
 -- publishing the same row twice.
-SELECT id, topic, payload, attempts
+SELECT id, topic, payload, attempts, trace_parent
 FROM outbox_messages
 WHERE sent_at IS NULL
   AND available_at <= now()

@@ -40,11 +40,15 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/queue"
 	"github.com/retek44/CodeArena/backend/internal/runner"
 	"github.com/retek44/CodeArena/backend/internal/store"
+	"github.com/retek44/CodeArena/backend/internal/telemetry"
 	"github.com/retek44/CodeArena/backend/internal/worker"
 )
 
+// Set at build time: -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	logger := slog.New(telemetry.NewLogHandler(slog.NewJSONHandler(os.Stdout, nil)))
 	if err := run(logger); err != nil {
 		logger.Error("worker stopped", "error", err)
 		os.Exit(1)
@@ -55,6 +59,18 @@ func run(logger *slog.Logger) error {
 	// ECS sends SIGTERM before it stops a task; messages in flight are finished.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	shutdownTracing, err := telemetry.Setup(ctx, "codearena-worker", version)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracing(flushCtx); err != nil {
+			logger.Warn("flush traces", "error", err)
+		}
+	}()
 
 	queueURL := os.Getenv("SUBMISSIONS_QUEUE_URL")
 	if queueURL == "" {
@@ -77,7 +93,7 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	st, err := store.Open(ctx, dbURL)
+	st, err := store.Open(ctx, dbURL, store.WithTracer(telemetry.NewQueryTracer()))
 	if err != nil {
 		return err
 	}
@@ -87,6 +103,7 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("load AWS config: %w", err)
 	}
+	telemetry.InstrumentAWS(&awsCfg)
 	invoker, err := newInvoker(awsCfg, lease)
 	if err != nil {
 		return err
@@ -125,7 +142,7 @@ func newInvoker(cfg aws.Config, timeout time.Duration) (runner.Invoker, error) {
 		if url == "" {
 			return nil, errors.New("RUNNER_URL is required when RUNNER_MODE=http")
 		}
-		client := &http.Client{Timeout: timeout}
+		client := &http.Client{Timeout: timeout, Transport: telemetry.HTTPTransport(http.DefaultTransport)}
 		invokers := runner.ByLanguage{"python": &runner.HTTPInvoker{URL: url, Client: client}}
 		if cpp := os.Getenv("RUNNER_URL_CPP"); cpp != "" {
 			invokers["cpp"] = &runner.HTTPInvoker{URL: cpp, Client: client}

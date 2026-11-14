@@ -199,3 +199,34 @@ run "contest_lifecycle_wired" {
     error_message = "The state machine runs the contest lifecycle task."
   }
 }
+
+run "tracing_sidecars_by_default" {
+  command = plan
+
+  variables {
+    image_tag = "0123456789abcdef0123456789abcdef01234567"
+  }
+
+  assert {
+    condition = alltrue([
+      for service in ["api", "worker"] :
+      length(module.backend[0].tracing_sidecars[service]) == 1 &&
+      startswith(module.backend[0].tracing_sidecars[service][0], "public.ecr.aws/aws-observability/aws-otel-collector:")
+    ])
+    error_message = "The API and the worker get an ADOT collector sidecar."
+  }
+}
+
+run "tracing_off" {
+  command = plan
+
+  variables {
+    image_tag = "0123456789abcdef0123456789abcdef01234567"
+    tracing   = { enabled = false, sample_ratio = 1 }
+  }
+
+  assert {
+    condition     = alltrue([for containers in values(module.backend[0].tracing_sidecars) : length(containers) == 0])
+    error_message = "Without tracing there is no collector sidecar."
+  }
+}

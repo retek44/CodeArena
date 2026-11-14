@@ -45,6 +45,12 @@ func (OutboxMessage) Fields() []ent.Field {
 		field.Text("last_error").
 			Optional().
 			Nillable(),
+		// W3C traceparent of the request that wrote the message: the relay publishes
+		// inside the same trace (ADR-0018). Empty when tracing is off.
+		field.String("trace_parent").
+			MaxLen(128).
+			Optional().
+			Immutable(),
 	}
 }
 

@@ -54,6 +54,7 @@ type OutboxMessage struct {
 	SentAt      pgtype.Timestamptz
 	Attempts    int64
 	LastError   pgtype.Text
+	TraceParent pgtype.Text
 }
 
 type Problem struct {

@@ -220,7 +220,10 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       (no custom-metric cost)
 - [x] Synthetics canary (prod): sign in -> submit -> AC every 30 minutes, fresh random password per run,
       failure alarm to the alerts topic
-- [ ] OpenTelemetry traces (ADOT) across API -> SQS -> worker -> runner
+- [x] OpenTelemetry traces (ADR-0018): one trace per submission, API -> outbox (`trace_parent` column)
+      -> SQS (message attributes) -> worker -> runner Lambda (X-Amzn-Trace-Id) -> EventBridge -> WebSocket
+      Lambda; ADOT collector sidecar exports to X-Ray, sqlc-named DB spans, `trace_id` in JSON logs,
+      submission ID as X-Ray annotation; locally `make local-traces` (Jaeger)
 - [x] `nightly.yml`: mutation testing (Gremlins on the Go judge logic with an efficacy threshold, Stryker on
       the SPA with a break threshold; scores in the job summary) and Terraform drift detection (plans
       every running stack with its deployed image tag, opens or updates a `drift` issue)

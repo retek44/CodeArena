@@ -34,6 +34,7 @@ import (
 	entproblem "github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/testcase"
+	"github.com/retek44/CodeArena/backend/internal/telemetry"
 )
 
 // Outcome describes what happened to a submission.
@@ -77,19 +78,20 @@ type Processor struct {
 func (p *Processor) Handle(ctx context.Context, d queue.Delivery) queue.Decision {
 	var msg outbox.SubmissionCreated
 	if err := json.Unmarshal(d.Body, &msg); err != nil || msg.Version != 1 || msg.SubmissionID == uuid.Nil {
-		p.Logger.Error("drop malformed message", "body", truncate(string(d.Body), 200), "error", err)
+		p.Logger.ErrorContext(ctx, "drop malformed message", "body", truncate(string(d.Body), 200), "error", err)
 		return queue.Ack
 	}
 
+	telemetry.TagSubmission(ctx, msg.SubmissionID.String())
 	start := time.Now()
 	outcome, err := p.Process(ctx, msg.SubmissionID)
 	log := p.Logger.With("submission_id", msg.SubmissionID, "outcome", outcome,
 		"receive_count", d.ReceiveCount, "duration_ms", time.Since(start).Milliseconds())
 	if err != nil {
-		log.Error("process submission", "error", err)
+		log.ErrorContext(ctx, "process submission", "error", err)
 		return queue.Retry
 	}
-	log.Info("processed submission")
+	log.InfoContext(ctx, "processed submission")
 
 	switch outcome {
 	case Busy, Requeued:
@@ -115,7 +117,7 @@ func (p *Processor) Process(ctx context.Context, id uuid.UUID) (Outcome, error) 
 	prob, err := p.loadProblem(ctx, int(claimed.ProblemID), int(claimed.ProblemVersion))
 	if err != nil {
 		// Broken problem data cannot be fixed by retrying.
-		p.Logger.Error("load problem", "submission_id", id, "error", err)
+		p.Logger.ErrorContext(ctx, "load problem", "submission_id", id, "error", err)
 		return p.fail(ctx, id, claimed.UserID)
 	}
 
@@ -128,7 +130,7 @@ func (p *Processor) Process(ctx context.Context, id uuid.UUID) (Outcome, error) 
 		err = errors.New("runner skipped test cases (time budget)")
 	}
 	if err != nil {
-		p.Logger.Warn("judging attempt failed", "submission_id", id, "attempt", claimed.Attempt, "error", err)
+		p.Logger.WarnContext(ctx, "judging attempt failed", "submission_id", id, "attempt", claimed.Attempt, "error", err)
 		if int(claimed.Attempt) >= p.MaxAttempts {
 			return p.fail(ctx, id, claimed.UserID)
 		}
@@ -149,7 +151,7 @@ func (p *Processor) Process(ctx context.Context, id uuid.UUID) (Outcome, error) 
 		}
 	}
 	// One line per verdict: the dashboard counts verdicts by language from these logs.
-	p.Logger.Info("submission judged", "submission_id", id, "verdict", string(result.Verdict),
+	p.Logger.InfoContext(ctx, "submission judged", "submission_id", id, "verdict", string(result.Verdict),
 		"language", claimed.Language, "problem", prob.Slug, "attempt", claimed.Attempt)
 	return Judged, nil
 }
@@ -189,7 +191,7 @@ func (p *Processor) contestJudged(ctx context.Context, contestID int, userID str
 	defer cancel()
 	c, err := p.Store.Ent.Contest.Get(ctx, contestID)
 	if err != nil {
-		p.Logger.Warn("load contest", "contest_id", contestID, "error", err)
+		p.Logger.WarnContext(ctx, "load contest", "contest_id", contestID, "error", err)
 		return
 	}
 	now := time.Now()
@@ -199,13 +201,13 @@ func (p *Processor) contestJudged(ctx context.Context, contestID int, userID str
 	times := contest.Times{ID: c.ID, StartsAt: c.StartsAt, FreezeAt: c.FreezeAt, EndsAt: c.EndsAt}
 	if p.Leaderboard != nil {
 		if err := p.Leaderboard.Record(ctx, times, userID, now); err != nil {
-			p.Logger.Warn("record leaderboard", "contest", c.Slug, "error", err)
+			p.Logger.WarnContext(ctx, "record leaderboard", "contest", c.Slug, "error", err)
 		}
 	}
 	// While frozen the public board does not change: no update reveals late solves.
 	if p.Events != nil && times.PhaseAt(now) != contest.Frozen {
 		if err := p.Events.ContestUpdated(ctx, events.DetailTypeLeaderboard, events.ContestUpdated{Contest: c.Slug}); err != nil {
-			p.Logger.Warn("publish leaderboard event", "contest", c.Slug, "error", err)
+			p.Logger.WarnContext(ctx, "publish leaderboard event", "contest", c.Slug, "error", err)
 		}
 	}
 }
@@ -219,7 +221,7 @@ func (p *Processor) publish(ctx context.Context, e events.SubmissionUpdated) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if err := p.Events.SubmissionUpdated(ctx, e); err != nil {
-		p.Logger.Warn("publish event", "submission_id", e.SubmissionID, "status", e.Status, "error", err)
+		p.Logger.WarnContext(ctx, "publish event", "submission_id", e.SubmissionID, "status", e.Status, "error", err)
 	}
 }
 

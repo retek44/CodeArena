@@ -107,7 +107,7 @@ func (s *server) createHint(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	resp, err := s.Hinter.Hint(hintCtx, req)
 	if err != nil {
-		s.Logger.Error("hint", "submission_id", sub.ID, "error", err)
+		s.Logger.ErrorContext(ctx, "hint", "submission_id", sub.ID, "error", err)
 		s.writeProblem(w, http.StatusServiceUnavailable, "the hint service is not available, try again later")
 		return
 	}
@@ -132,7 +132,7 @@ func (s *server) createHint(w http.ResponseWriter, r *http.Request) {
 		s.internalError(w, r, err)
 		return
 	}
-	s.Logger.Info("hint created", "submission_id", sub.ID, "status", stored.Status, "model", stored.Model)
+	s.Logger.InfoContext(ctx, "hint created", "submission_id", sub.ID, "status", stored.Status, "model", stored.Model)
 	s.writeJSON(w, http.StatusOK, toHintJSON(stored))
 }
 

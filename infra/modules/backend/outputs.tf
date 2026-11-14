@@ -84,3 +84,8 @@ output "log_group_names" {
   description = "CloudWatch log groups by component (api, worker, migrate, seed)."
   value       = { for name, group in aws_cloudwatch_log_group.service : name => group.name }
 }
+
+output "tracing_sidecars" {
+  description = "ADOT collector image per traced service (empty lists when tracing is off)."
+  value       = { for service, containers in local.adot_container : service => [for c in containers : c.image] }
+}

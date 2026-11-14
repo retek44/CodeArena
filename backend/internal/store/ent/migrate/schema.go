@@ -141,6 +141,7 @@ var (
 		{Name: "sent_at", Type: field.TypeTime, Nullable: true},
 		{Name: "attempts", Type: field.TypeInt, Default: 0},
 		{Name: "last_error", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "trace_parent", Type: field.TypeString, Nullable: true, Size: 128},
 	}
 	// OutboxMessagesTable holds the schema information for the "outbox_messages" table.
 	OutboxMessagesTable = &schema.Table{

@@ -126,3 +126,23 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "tracing" {
+  description = "OpenTelemetry tracing (ADR-0018): an ADOT collector sidecar exports the API and worker spans to X-Ray. sample_ratio is the share of new traces kept (1 = all)."
+  type = object({
+    enabled      = bool
+    sample_ratio = number
+  })
+  default = { enabled = true, sample_ratio = 1 }
+
+  validation {
+    condition     = var.tracing.sample_ratio >= 0 && var.tracing.sample_ratio <= 1
+    error_message = "tracing.sample_ratio must be between 0 and 1."
+  }
+}
+
+variable "adot_image" {
+  description = "AWS Distro for OpenTelemetry collector image (multi-arch, pinned by digest)."
+  type        = string
+  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0@sha256:955e240b27d7fd3c7995fd937db4b963975948eb553f656d8c37a564e5b5e07d"
+}

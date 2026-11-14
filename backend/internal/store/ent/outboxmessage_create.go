@@ -104,6 +104,20 @@ func (_c *OutboxMessageCreate) SetNillableLastError(v *string) *OutboxMessageCre
 	return _c
 }
 
+// SetTraceParent sets the "trace_parent" field.
+func (_c *OutboxMessageCreate) SetTraceParent(v string) *OutboxMessageCreate {
+	_c.mutation.SetTraceParent(v)
+	return _c
+}
+
+// SetNillableTraceParent sets the "trace_parent" field if the given value is not nil.
+func (_c *OutboxMessageCreate) SetNillableTraceParent(v *string) *OutboxMessageCreate {
+	if v != nil {
+		_c.SetTraceParent(*v)
+	}
+	return _c
+}
+
 // Mutation returns the OutboxMessageMutation object of the builder.
 func (_c *OutboxMessageCreate) Mutation() *OutboxMessageMutation {
 	return _c.mutation
@@ -180,6 +194,11 @@ func (_c *OutboxMessageCreate) check() error {
 			return &ValidationError{Name: "attempts", err: fmt.Errorf(`ent: validator failed for field "OutboxMessage.attempts": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.TraceParent(); ok {
+		if err := outboxmessage.TraceParentValidator(v); err != nil {
+			return &ValidationError{Name: "trace_parent", err: fmt.Errorf(`ent: validator failed for field "OutboxMessage.trace_parent": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -234,6 +253,10 @@ func (_c *OutboxMessageCreate) createSpec() (*OutboxMessage, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.LastError(); ok {
 		_spec.SetField(outboxmessage.FieldLastError, field.TypeString, value)
 		_node.LastError = &value
+	}
+	if value, ok := _c.mutation.TraceParent(); ok {
+		_spec.SetField(outboxmessage.FieldTraceParent, field.TypeString, value)
+		_node.TraceParent = value
 	}
 	return _node, _spec
 }
@@ -372,6 +395,9 @@ func (u *OutboxMessageUpsertOne) UpdateNewValues() *OutboxMessageUpsertOne {
 		}
 		if _, exists := u.create.mutation.CreatedAt(); exists {
 			s.SetIgnore(outboxmessage.FieldCreatedAt)
+		}
+		if _, exists := u.create.mutation.TraceParent(); exists {
+			s.SetIgnore(outboxmessage.FieldTraceParent)
 		}
 	}))
 	return u
@@ -665,6 +691,9 @@ func (u *OutboxMessageUpsertBulk) UpdateNewValues() *OutboxMessageUpsertBulk {
 			}
 			if _, exists := b.mutation.CreatedAt(); exists {
 				s.SetIgnore(outboxmessage.FieldCreatedAt)
+			}
+			if _, exists := b.mutation.TraceParent(); exists {
+				s.SetIgnore(outboxmessage.FieldTraceParent)
 			}
 		}
 	}))

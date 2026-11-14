@@ -33,17 +33,6 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      # Says which token release-please gets (never the value): the error "GitHub Actions
-      # is not permitted to create or approve pull requests" means GITHUB_TOKEN was used.
-      - name: Token check
-        env:
-          HAS_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN != '' }}
-        run: |
-          if [ "${HAS_TOKEN}" = "true" ]; then
-            echo "Using the RELEASE_PLEASE_TOKEN secret."
-          else
-            echo "::warning::RELEASE_PLEASE_TOKEN is not visible to this run (repository Actions secret missing); falling back to GITHUB_TOKEN."
-          fi
       - id: release
         uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
         with:

@@ -15,9 +15,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/retek44/CodeArena/backend/internal/store/db"
 	"github.com/retek44/CodeArena/backend/internal/store/ent"
+	"github.com/retek44/CodeArena/backend/internal/telemetry"
 )
 
 // TopicSubmissionCreated announces a new submission to the judge workers.
@@ -36,10 +41,19 @@ func AddSubmissionCreated(ctx context.Context, tx *ent.Tx, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+	telemetry.TagSubmission(ctx, id.String())
 	return tx.OutboxMessage.Create().
 		SetTopic(TopicSubmissionCreated).
 		SetPayload(payload).
+		SetTraceParent(traceParent(ctx)).
 		Exec(ctx)
+}
+
+// traceParent returns the W3C traceparent of the context's span ("" without one).
+func traceParent(ctx context.Context) string {
+	carrier := propagation.MapCarrier{}
+	propagation.TraceContext{}.Inject(ctx, carrier)
+	return carrier.Get("traceparent")
 }
 
 // Message is one pending outbox row.
@@ -116,7 +130,7 @@ func (r *Relay) RelayOnce(ctx context.Context) (int, error) {
 
 	var sent []int64
 	for _, row := range rows {
-		err := r.Publisher.Publish(ctx, Message{ID: row.ID, Topic: row.Topic, Payload: row.Payload})
+		err := r.publish(ctx, row)
 		if err == nil {
 			sent = append(sent, row.ID)
 			continue
@@ -140,6 +154,22 @@ func (r *Relay) RelayOnce(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("commit: %w", err)
 	}
 	return len(sent), nil
+}
+
+// publish sends one row inside the trace of the request that wrote it.
+func (r *Relay) publish(ctx context.Context, row db.LockPendingOutboxRow) error {
+	parent := propagation.TraceContext{}.Extract(ctx, propagation.MapCarrier{"traceparent": row.TraceParent.String})
+	ctx, span := telemetry.Tracer().Start(parent, row.Topic+" send",
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(semconv.MessagingOperationTypeSend, semconv.MessagingDestinationName(row.Topic)))
+	defer span.End()
+
+	err := r.Publisher.Publish(ctx, Message{ID: row.ID, Topic: row.Topic, Payload: row.Payload})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "publish failed")
+	}
+	return err
 }
 
 // Backoff is the delay before the next publish attempt: 2^attempt seconds, at most 5 minutes.

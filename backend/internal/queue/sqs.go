@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path"
 	"strconv"
 	"sync"
 	"time"
@@ -13,8 +14,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/retek44/CodeArena/backend/internal/outbox"
+	"github.com/retek44/CodeArena/backend/internal/telemetry"
 )
 
 // API is the subset of the SQS client the package uses (fakes in tests).
@@ -37,15 +44,41 @@ func (p *Publisher) Publish(ctx context.Context, m outbox.Message) error {
 	if !ok {
 		return fmt.Errorf("no queue for topic %q", m.Topic)
 	}
+	attrs := map[string]types.MessageAttributeValue{
+		"topic":     {DataType: aws.String("String"), StringValue: aws.String(m.Topic)},
+		"outbox_id": {DataType: aws.String("Number"), StringValue: aws.String(strconv.FormatInt(m.ID, 10))},
+	}
+	// The consumer continues the trace from these attributes (traceparent, X-Amzn-Trace-Id).
+	otel.GetTextMapPropagator().Inject(ctx, MessageAttributes(attrs))
 	_, err := p.Client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(url),
-		MessageBody: aws.String(string(m.Payload)),
-		MessageAttributes: map[string]types.MessageAttributeValue{
-			"topic":     {DataType: aws.String("String"), StringValue: aws.String(m.Topic)},
-			"outbox_id": {DataType: aws.String("Number"), StringValue: aws.String(strconv.FormatInt(m.ID, 10))},
-		},
+		QueueUrl:          aws.String(url),
+		MessageBody:       aws.String(string(m.Payload)),
+		MessageAttributes: attrs,
 	})
 	return err
+}
+
+// MessageAttributes carries the trace context in SQS message attributes
+// (propagation.TextMapCarrier). SQS allows 10 attributes per message.
+type MessageAttributes map[string]types.MessageAttributeValue
+
+// Get returns the string value of an attribute.
+func (a MessageAttributes) Get(key string) string {
+	return aws.ToString(a[key].StringValue)
+}
+
+// Set stores a string attribute.
+func (a MessageAttributes) Set(key, value string) {
+	a[key] = types.MessageAttributeValue{DataType: aws.String("String"), StringValue: aws.String(value)}
+}
+
+// Keys lists the attribute names.
+func (a MessageAttributes) Keys() []string {
+	keys := make([]string, 0, len(a))
+	for k := range a {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 // Decision tells the consumer what to do with a message after handling it.
@@ -92,6 +125,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 			MaxNumberOfMessages:         int32(min(concurrency, 10)), //nolint:gosec // at most 10
 			WaitTimeSeconds:             20,
 			MessageSystemAttributeNames: []types.MessageSystemAttributeName{types.MessageSystemAttributeNameApproximateReceiveCount},
+			MessageAttributeNames:       otel.GetTextMapPropagator().Fields(),
 		})
 		if ctx.Err() != nil {
 			return nil //nolint:nilerr // shutting down
@@ -121,7 +155,25 @@ func (c *Consumer) Run(ctx context.Context) error {
 
 func (c *Consumer) handle(ctx context.Context, m types.Message) {
 	count, _ := strconv.Atoi(m.Attributes[string(types.MessageSystemAttributeNameApproximateReceiveCount)])
+
+	// One span per delivery, a child of the producer's span: the submission stays one trace.
+	ctx = otel.GetTextMapPropagator().Extract(ctx, MessageAttributes(m.MessageAttributes))
+	queue := path.Base(c.QueueURL)
+	ctx, span := telemetry.Tracer().Start(ctx, queue+" process",
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			semconv.MessagingSystemAWSSQS,
+			semconv.MessagingOperationTypeProcess,
+			semconv.MessagingDestinationName(queue),
+			semconv.MessagingMessageID(aws.ToString(m.MessageId)),
+			attribute.Int("codearena.receive_count", count),
+		))
+	defer span.End()
+
 	decision := c.Handler(ctx, Delivery{Body: []byte(aws.ToString(m.Body)), ReceiveCount: count})
+	if decision == Retry {
+		span.SetStatus(codes.Error, "retry")
+	}
 
 	switch decision {
 	case Ack:

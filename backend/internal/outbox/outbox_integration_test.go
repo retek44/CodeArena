@@ -14,6 +14,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/store"
@@ -177,4 +182,51 @@ func TestBackoffGrowsAndIsCapped(t *testing.T) {
 			t.Errorf("Backoff(%d) = %v, want %v", attempt, got, want)
 		}
 	}
+}
+
+// spanCapture is a Publisher that remembers the span context of each publish.
+type spanCapture struct{ got []trace.SpanContext }
+
+func (c *spanCapture) Publish(ctx context.Context, _ outbox.Message) error {
+	c.got = append(c.got, trace.SpanContextFromContext(ctx))
+	return nil
+}
+
+// The relay publishes inside the trace of the request that wrote the message (ADR-0018).
+func TestRelayContinuesTheRequestTrace(t *testing.T) {
+	spans := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() { otel.SetTracerProvider(noop.NewTracerProvider()) })
+
+	st, _ := storetest.New(t)
+	ctx, request := provider.Tracer("test").Start(t.Context(), "POST /api/submissions")
+	tx, err := st.Ent.Tx(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.AddSubmissionCreated(ctx, tx, uuid.New()); err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	request.End()
+
+	pub := &spanCapture{}
+	if sent, err := newRelay(st, pub, 10).RelayOnce(t.Context()); err != nil || sent != 1 {
+		t.Fatalf("RelayOnce = %d, %v; want 1", sent, err)
+	}
+	if pub.got[0].TraceID() != request.SpanContext().TraceID() {
+		t.Errorf("published in trace %s, want the request's %s", pub.got[0].TraceID(), request.SpanContext().TraceID())
+	}
+	for _, s := range spans.Ended() {
+		if s.Name() == "submission.created send" {
+			if s.Parent().SpanID() != request.SpanContext().SpanID() || s.SpanKind() != trace.SpanKindProducer {
+				t.Errorf("send span parent %s kind %s, want producer child of the request", s.Parent().SpanID(), s.SpanKind())
+			}
+			return
+		}
+	}
+	t.Error("no send span recorded")
 }

@@ -27,6 +27,8 @@ const (
 	FieldAttempts = "attempts"
 	// FieldLastError holds the string denoting the last_error field in the database.
 	FieldLastError = "last_error"
+	// FieldTraceParent holds the string denoting the trace_parent field in the database.
+	FieldTraceParent = "trace_parent"
 	// Table holds the table name of the outboxmessage in the database.
 	Table = "outbox_messages"
 )
@@ -41,6 +43,7 @@ var Columns = []string{
 	FieldSentAt,
 	FieldAttempts,
 	FieldLastError,
+	FieldTraceParent,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -64,6 +67,8 @@ var (
 	DefaultAttempts int
 	// AttemptsValidator is a validator for the "attempts" field. It is called by the builders before save.
 	AttemptsValidator func(int) error
+	// TraceParentValidator is a validator for the "trace_parent" field. It is called by the builders before save.
+	TraceParentValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the OutboxMessage queries.
@@ -102,4 +107,9 @@ func ByAttempts(opts ...sql.OrderTermOption) OrderOption {
 // ByLastError orders the results by the last_error field.
 func ByLastError(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLastError, opts...).ToFunc()
+}
+
+// ByTraceParent orders the results by the trace_parent field.
+func ByTraceParent(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTraceParent, opts...).ToFunc()
 }

@@ -2771,6 +2771,7 @@ type OutboxMessageMutation struct {
 	attempts      *int
 	addattempts   *int
 	last_error    *string
+	trace_parent  *string
 	clearedFields map[string]struct{}
 	done          bool
 	oldValue      func(context.Context) (*OutboxMessage, error)
@@ -3173,6 +3174,55 @@ func (m *OutboxMessageMutation) ResetLastError() {
 	delete(m.clearedFields, outboxmessage.FieldLastError)
 }
 
+// SetTraceParent sets the "trace_parent" field.
+func (m *OutboxMessageMutation) SetTraceParent(s string) {
+	m.trace_parent = &s
+}
+
+// TraceParent returns the value of the "trace_parent" field in the mutation.
+func (m *OutboxMessageMutation) TraceParent() (r string, exists bool) {
+	v := m.trace_parent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTraceParent returns the old "trace_parent" field's value of the OutboxMessage entity.
+// If the OutboxMessage object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *OutboxMessageMutation) OldTraceParent(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTraceParent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTraceParent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTraceParent: %w", err)
+	}
+	return oldValue.TraceParent, nil
+}
+
+// ClearTraceParent clears the value of the "trace_parent" field.
+func (m *OutboxMessageMutation) ClearTraceParent() {
+	m.trace_parent = nil
+	m.clearedFields[outboxmessage.FieldTraceParent] = struct{}{}
+}
+
+// TraceParentCleared returns if the "trace_parent" field was cleared in this mutation.
+func (m *OutboxMessageMutation) TraceParentCleared() bool {
+	_, ok := m.clearedFields[outboxmessage.FieldTraceParent]
+	return ok
+}
+
+// ResetTraceParent resets all changes to the "trace_parent" field.
+func (m *OutboxMessageMutation) ResetTraceParent() {
+	m.trace_parent = nil
+	delete(m.clearedFields, outboxmessage.FieldTraceParent)
+}
+
 // Where appends a list predicates to the OutboxMessageMutation builder.
 func (m *OutboxMessageMutation) Where(ps ...predicate.OutboxMessage) {
 	m.predicates = append(m.predicates, ps...)
@@ -3207,7 +3257,7 @@ func (m *OutboxMessageMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *OutboxMessageMutation) Fields() []string {
-	fields := make([]string, 0, 7)
+	fields := make([]string, 0, 8)
 	if m.topic != nil {
 		fields = append(fields, outboxmessage.FieldTopic)
 	}
@@ -3228,6 +3278,9 @@ func (m *OutboxMessageMutation) Fields() []string {
 	}
 	if m.last_error != nil {
 		fields = append(fields, outboxmessage.FieldLastError)
+	}
+	if m.trace_parent != nil {
+		fields = append(fields, outboxmessage.FieldTraceParent)
 	}
 	return fields
 }
@@ -3251,6 +3304,8 @@ func (m *OutboxMessageMutation) Field(name string) (ent.Value, bool) {
 		return m.Attempts()
 	case outboxmessage.FieldLastError:
 		return m.LastError()
+	case outboxmessage.FieldTraceParent:
+		return m.TraceParent()
 	}
 	return nil, false
 }
@@ -3274,6 +3329,8 @@ func (m *OutboxMessageMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldAttempts(ctx)
 	case outboxmessage.FieldLastError:
 		return m.OldLastError(ctx)
+	case outboxmessage.FieldTraceParent:
+		return m.OldTraceParent(ctx)
 	}
 	return nil, fmt.Errorf("unknown OutboxMessage field %s", name)
 }
@@ -3332,6 +3389,13 @@ func (m *OutboxMessageMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetLastError(v)
 		return nil
+	case outboxmessage.FieldTraceParent:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTraceParent(v)
+		return nil
 	}
 	return fmt.Errorf("unknown OutboxMessage field %s", name)
 }
@@ -3383,6 +3447,9 @@ func (m *OutboxMessageMutation) ClearedFields() []string {
 	if m.FieldCleared(outboxmessage.FieldLastError) {
 		fields = append(fields, outboxmessage.FieldLastError)
 	}
+	if m.FieldCleared(outboxmessage.FieldTraceParent) {
+		fields = append(fields, outboxmessage.FieldTraceParent)
+	}
 	return fields
 }
 
@@ -3402,6 +3469,9 @@ func (m *OutboxMessageMutation) ClearField(name string) error {
 		return nil
 	case outboxmessage.FieldLastError:
 		m.ClearLastError()
+		return nil
+	case outboxmessage.FieldTraceParent:
+		m.ClearTraceParent()
 		return nil
 	}
 	return fmt.Errorf("unknown OutboxMessage nullable field %s", name)
@@ -3431,6 +3501,9 @@ func (m *OutboxMessageMutation) ResetField(name string) error {
 		return nil
 	case outboxmessage.FieldLastError:
 		m.ResetLastError()
+		return nil
+	case outboxmessage.FieldTraceParent:
+		m.ResetTraceParent()
 		return nil
 	}
 	return fmt.Errorf("unknown OutboxMessage field %s", name)

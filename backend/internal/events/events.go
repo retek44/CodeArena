@@ -17,6 +17,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/contrib/propagators/aws/xray"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // EventBridge envelope of the judge's events.
@@ -95,14 +97,21 @@ func (p *EventBridge) put(ctx context.Context, detailType string, at time.Time, 
 	if err != nil {
 		return err
 	}
-	out, err := p.Client.PutEvents(ctx, &eventbridge.PutEventsInput{Entries: []types.PutEventsRequestEntry{{
+	entry := types.PutEventsRequestEntry{
 		EventBusName: aws.String(p.Bus),
 		Source:       aws.String(Source),
 		DetailType:   aws.String(detailType),
 		Detail:       aws.String(string(detail)),
 		Time:         aws.Time(at),
 		Resources:    []string{},
-	}}})
+	}
+	// The WebSocket Lambda (active tracing) continues the submission's trace (ADR-0018).
+	carrier := propagation.MapCarrier{}
+	xray.Propagator{}.Inject(ctx, carrier)
+	if header := carrier.Get("X-Amzn-Trace-Id"); header != "" {
+		entry.TraceHeader = aws.String(header)
+	}
+	out, err := p.Client.PutEvents(ctx, &eventbridge.PutEventsInput{Entries: []types.PutEventsRequestEntry{entry}})
 	if err != nil {
 		return fmt.Errorf("put event: %w", err)
 	}

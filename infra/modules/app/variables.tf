@@ -25,6 +25,15 @@ variable "db_instance_class" {
   default     = "db.t4g.micro"
 }
 
+variable "tracing" {
+  description = "OpenTelemetry tracing of the API and worker to X-Ray (ADR-0018); sample_ratio is the share of new traces kept."
+  type = object({
+    enabled      = bool
+    sample_ratio = number
+  })
+  default = { enabled = true, sample_ratio = 1 }
+}
+
 variable "api_desired_count" {
   description = "API tasks."
   type        = number

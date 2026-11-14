@@ -4,6 +4,8 @@
 #
 #   docker compose up -d --build --wait      (make local-up)
 #   go test -tags e2e ./e2e/                 (from backend/, make e2e)
+#
+#   Traces (ADR-0018): make local-traces, then open Jaeger on http://localhost:16686.
 
 x-aws-local: &aws-local
   # ElasticMQ accepts any credentials; these are not secrets.
@@ -15,6 +17,8 @@ x-aws-local: &aws-local
   DATABASE_URL: postgres://codearena:codearena@postgres:5432/codearena?sslmode=disable
   # Leaderboard cache (ElastiCache Serverless for Valkey in AWS, with TLS).
   VALKEY_URL: redis://valkey:6379
+  # Empty: no spans are recorded. make local-traces sets http://jaeger:4318.
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
 
 services:
   postgres:
@@ -147,6 +151,13 @@ services:
         condition: service_started
       valkey:
         condition: service_healthy
+
+  # Stand-in for the ADOT collector + X-Ray: receives OTLP and shows the traces.
+  jaeger:
+    image: jaegertracing/jaeger:2.22.0
+    profiles: [tracing]
+    ports:
+      - "16686:16686"
 
 volumes:
   postgres-data:

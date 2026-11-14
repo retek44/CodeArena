@@ -24,6 +24,6 @@ func (s *server) writeProblem(w http.ResponseWriter, status int, detail string) 
 
 // internalError logs the cause and returns a generic 500; internals never reach the client.
 func (s *server) internalError(w http.ResponseWriter, r *http.Request, err error) {
-	s.Logger.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
+	s.Logger.ErrorContext(r.Context(), "request failed", "method", r.Method, "path", r.URL.Path, "error", err)
 	s.writeProblem(w, http.StatusInternalServerError, "")
 }

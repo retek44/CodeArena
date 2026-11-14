@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/retek44/CodeArena/backend/internal/events"
 )
@@ -49,6 +50,29 @@ func TestEventBridgePublishesTheContract(t *testing.T) {
 	if detail["v"] != float64(1) || detail["submission_id"] != id.String() || detail["user_id"] != "alice" ||
 		detail["status"] != "done" || detail["verdict"] != "WA" || detail["at"] == "" {
 		t.Errorf("detail = %v", detail)
+	}
+}
+
+func TestEventBridgeSendsTheTraceHeader(t *testing.T) {
+	t.Parallel()
+	bus := &fakeBus{}
+	p := &events.EventBridge{Client: bus, Bus: "codearena-dev"}
+	tid, _ := trace.TraceIDFromHex("6a1f2c3d4e5f60718293a4b5c6d7e8f9")
+	sid, _ := trace.SpanIDFromHex("0102030405060708")
+	ctx := trace.ContextWithSpanContext(t.Context(), trace.NewSpanContext(trace.SpanContextConfig{TraceID: tid, SpanID: sid, TraceFlags: trace.FlagsSampled}))
+
+	if err := p.SubmissionUpdated(ctx, events.SubmissionUpdated{SubmissionID: uuid.New(), UserID: "alice", Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := aws.ToString(bus.in.Entries[0].TraceHeader), "Root=1-6a1f2c3d-4e5f60718293a4b5c6d7e8f9;Parent=0102030405060708;Sampled=1"; got != want {
+		t.Errorf("TraceHeader = %q, want %q", got, want)
+	}
+
+	if err := p.SubmissionUpdated(t.Context(), events.SubmissionUpdated{SubmissionID: uuid.New(), UserID: "alice", Status: "done"}); err != nil {
+		t.Fatal(err)
+	}
+	if bus.in.Entries[0].TraceHeader != nil {
+		t.Errorf("TraceHeader without a span = %q, want none", aws.ToString(bus.in.Entries[0].TraceHeader))
 	}
 }
 

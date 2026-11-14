@@ -84,7 +84,10 @@ migrate-validate: ## Check migration files against atlas.sum
 # Usage: make migrate-lint LATEST=1 (number of newest migrations to check)
 .PHONY: migrate-lint
 migrate-lint: ## Lint the newest migrations (destructive / data-dependent changes fail)
-	docker run --rm -v "$(CURDIR)/backend":/backend $(ATLAS_COMMUNITY_IMAGE) migrate lint 		--config file:///backend/lint.atlas.hcl --dir file:///backend/migrations 		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable" 		--latest $(or $(LATEST),1)
+	docker run --rm -v "$(CURDIR)/backend":/backend $(ATLAS_COMMUNITY_IMAGE) migrate lint \
+		--config file:///backend/lint.atlas.hcl --dir file:///backend/migrations \
+		--dev-url "postgres://codearena:codearena@$(DOCKER_DB_HOST)/atlas_dev?sslmode=disable" \
+		--latest $(or $(LATEST),1)
 
 # --- Runner -------------------------------------------------------------------
 
@@ -115,7 +118,8 @@ runner-up: runner-image ## Start the runner on :9000, restricted like Lambda
 		-p 9000:8080 $(RUNNER_IMAGE)
 	-docker rm -f codearena-runner-cpp >/dev/null 2>&1
 	# The C++ program runs from /tmp (allowed in Lambda); Docker tmpfs is noexec by default.
-	docker run -d --name codearena-runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \n		-p 9001:8080 $(RUNNER_IMAGE_CPP)
+	docker run -d --name codearena-runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
+		-p 9001:8080 $(RUNNER_IMAGE_CPP)
 
 .PHONY: runner-down
 runner-down: ## Stop the runner containers
@@ -156,13 +160,17 @@ fe-e2e: ## Playwright browser tests against the local stack (make local-up first
 local-up: ## Start the full local stack (Postgres, ElasticMQ, runner, API, worker; migrations and seed)
 	docker compose up -d --build --wait
 
+.PHONY: local-traces
+local-traces: ## Local stack with tracing: spans go to Jaeger (http://localhost:16686)
+	OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile tracing up -d --build --wait
+
 .PHONY: e2e
 e2e: ## End-to-end test against the local stack (make local-up first)
 	cd backend && go test -tags e2e -count=1 -v ./e2e/
 
 .PHONY: local-down
 local-down: ## Stop local dependencies and delete their data
-	docker compose down -v
+	docker compose --profile tracing down -v
 
 # --- Terraform ----------------------------------------------------------------
 

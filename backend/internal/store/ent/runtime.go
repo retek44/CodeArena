@@ -112,6 +112,10 @@ func init() {
 	outboxmessage.DefaultAttempts = outboxmessageDescAttempts.Default.(int)
 	// outboxmessage.AttemptsValidator is a validator for the "attempts" field. It is called by the builders before save.
 	outboxmessage.AttemptsValidator = outboxmessageDescAttempts.Validators[0].(func(int) error)
+	// outboxmessageDescTraceParent is the schema descriptor for trace_parent field.
+	outboxmessageDescTraceParent := outboxmessageFields[7].Descriptor()
+	// outboxmessage.TraceParentValidator is a validator for the "trace_parent" field. It is called by the builders before save.
+	outboxmessage.TraceParentValidator = outboxmessageDescTraceParent.Validators[0].(func(string) error)
 	problemFields := schema.Problem{}.Fields()
 	_ = problemFields
 	// problemDescSlug is the schema descriptor for slug field.

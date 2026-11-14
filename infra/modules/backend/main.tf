@@ -152,7 +152,7 @@ resource "aws_ecs_task_definition" "api" {
     cpu_architecture        = "ARM64"
   }
 
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name                   = "api"
     image                  = var.images.api
     essential              = true
@@ -173,7 +173,7 @@ resource "aws_ecs_task_definition" "api" {
       ], var.realtime == null ? [] : [
       { name = "WS_URL", value = var.realtime.ws_url },
       { name = "WS_TABLE", value = var.realtime.table },
-    ], local.valkey_env)
+    ], local.valkey_env, local.otel_env)
     secrets = local.database_secret
     logConfiguration = {
       logDriver = "awslogs"
@@ -183,7 +183,7 @@ resource "aws_ecs_task_definition" "api" {
         awslogs-stream-prefix = "api"
       }
     }
-  }])
+  }], local.adot_container["api"]))
 }
 
 resource "aws_ecs_service" "api" {
@@ -257,7 +257,7 @@ resource "aws_ecs_task_definition" "worker" {
     cpu_architecture        = "ARM64"
   }
 
-  container_definitions = jsonencode([{
+  container_definitions = jsonencode(concat([{
     name                   = "worker"
     image                  = var.images.worker
     essential              = true
@@ -274,7 +274,7 @@ resource "aws_ecs_task_definition" "worker" {
       { name = "WORKER_CONCURRENCY", value = "4" },
       ], var.realtime == null ? [] : [
       { name = "EVENT_BUS_NAME", value = var.realtime.bus },
-    ], local.valkey_env)
+    ], local.valkey_env, local.otel_env)
     secrets = local.database_secret
     logConfiguration = {
       logDriver = "awslogs"
@@ -284,7 +284,7 @@ resource "aws_ecs_task_definition" "worker" {
         awslogs-stream-prefix = "worker"
       }
     }
-  }])
+  }], local.adot_container["worker"]))
 }
 
 resource "aws_ecs_service" "worker" {

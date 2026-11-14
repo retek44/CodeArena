@@ -27,7 +27,7 @@ func (q *Queries) DeleteSentOutbox(ctx context.Context, olderThan pgtype.Interva
 
 const lockPendingOutbox = `-- name: LockPendingOutbox :many
 
-SELECT id, topic, payload, attempts
+SELECT id, topic, payload, attempts, trace_parent
 FROM outbox_messages
 WHERE sent_at IS NULL
   AND available_at <= now()
@@ -37,10 +37,11 @@ FOR UPDATE SKIP LOCKED
 `
 
 type LockPendingOutboxRow struct {
-	ID       int64
-	Topic    string
-	Payload  []byte
-	Attempts int64
+	ID          int64
+	Topic       string
+	Payload     []byte
+	Attempts    int64
+	TraceParent pgtype.Text
 }
 
 // Transactional outbox (ADR-0011). The relay runs these inside one transaction.
@@ -60,6 +61,7 @@ func (q *Queries) LockPendingOutbox(ctx context.Context, maxRows int32) ([]LockP
 			&i.Topic,
 			&i.Payload,
 			&i.Attempts,
+			&i.TraceParent,
 		); err != nil {
 			return nil, err
 		}

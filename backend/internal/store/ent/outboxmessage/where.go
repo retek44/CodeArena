@@ -89,6 +89,11 @@ func LastError(v string) predicate.OutboxMessage {
 	return predicate.OutboxMessage(sql.FieldEQ(FieldLastError, v))
 }
 
+// TraceParent applies equality check predicate on the "trace_parent" field. It's identical to TraceParentEQ.
+func TraceParent(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldEQ(FieldTraceParent, v))
+}
+
 // TopicEQ applies the EQ predicate on the "topic" field.
 func TopicEQ(v string) predicate.OutboxMessage {
 	return predicate.OutboxMessage(sql.FieldEQ(FieldTopic, v))
@@ -437,6 +442,81 @@ func LastErrorEqualFold(v string) predicate.OutboxMessage {
 // LastErrorContainsFold applies the ContainsFold predicate on the "last_error" field.
 func LastErrorContainsFold(v string) predicate.OutboxMessage {
 	return predicate.OutboxMessage(sql.FieldContainsFold(FieldLastError, v))
+}
+
+// TraceParentEQ applies the EQ predicate on the "trace_parent" field.
+func TraceParentEQ(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldEQ(FieldTraceParent, v))
+}
+
+// TraceParentNEQ applies the NEQ predicate on the "trace_parent" field.
+func TraceParentNEQ(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldNEQ(FieldTraceParent, v))
+}
+
+// TraceParentIn applies the In predicate on the "trace_parent" field.
+func TraceParentIn(vs ...string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldIn(FieldTraceParent, vs...))
+}
+
+// TraceParentNotIn applies the NotIn predicate on the "trace_parent" field.
+func TraceParentNotIn(vs ...string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldNotIn(FieldTraceParent, vs...))
+}
+
+// TraceParentGT applies the GT predicate on the "trace_parent" field.
+func TraceParentGT(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldGT(FieldTraceParent, v))
+}
+
+// TraceParentGTE applies the GTE predicate on the "trace_parent" field.
+func TraceParentGTE(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldGTE(FieldTraceParent, v))
+}
+
+// TraceParentLT applies the LT predicate on the "trace_parent" field.
+func TraceParentLT(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldLT(FieldTraceParent, v))
+}
+
+// TraceParentLTE applies the LTE predicate on the "trace_parent" field.
+func TraceParentLTE(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldLTE(FieldTraceParent, v))
+}
+
+// TraceParentContains applies the Contains predicate on the "trace_parent" field.
+func TraceParentContains(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldContains(FieldTraceParent, v))
+}
+
+// TraceParentHasPrefix applies the HasPrefix predicate on the "trace_parent" field.
+func TraceParentHasPrefix(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldHasPrefix(FieldTraceParent, v))
+}
+
+// TraceParentHasSuffix applies the HasSuffix predicate on the "trace_parent" field.
+func TraceParentHasSuffix(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldHasSuffix(FieldTraceParent, v))
+}
+
+// TraceParentIsNil applies the IsNil predicate on the "trace_parent" field.
+func TraceParentIsNil() predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldIsNull(FieldTraceParent))
+}
+
+// TraceParentNotNil applies the NotNil predicate on the "trace_parent" field.
+func TraceParentNotNil() predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldNotNull(FieldTraceParent))
+}
+
+// TraceParentEqualFold applies the EqualFold predicate on the "trace_parent" field.
+func TraceParentEqualFold(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldEqualFold(FieldTraceParent, v))
+}
+
+// TraceParentContainsFold applies the ContainsFold predicate on the "trace_parent" field.
+func TraceParentContainsFold(v string) predicate.OutboxMessage {
+	return predicate.OutboxMessage(sql.FieldContainsFold(FieldTraceParent, v))
 }
 
 // And groups predicates with the AND operator between them.

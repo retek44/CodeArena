@@ -30,7 +30,9 @@ type OutboxMessage struct {
 	// Attempts holds the value of the "attempts" field.
 	Attempts int `json:"attempts,omitempty"`
 	// LastError holds the value of the "last_error" field.
-	LastError    *string `json:"last_error,omitempty"`
+	LastError *string `json:"last_error,omitempty"`
+	// TraceParent holds the value of the "trace_parent" field.
+	TraceParent  string `json:"trace_parent,omitempty"`
 	selectValues sql.SelectValues
 }
 
@@ -43,7 +45,7 @@ func (*OutboxMessage) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case outboxmessage.FieldID, outboxmessage.FieldAttempts:
 			values[i] = new(sql.NullInt64)
-		case outboxmessage.FieldTopic, outboxmessage.FieldLastError:
+		case outboxmessage.FieldTopic, outboxmessage.FieldLastError, outboxmessage.FieldTraceParent:
 			values[i] = new(sql.NullString)
 		case outboxmessage.FieldCreatedAt, outboxmessage.FieldAvailableAt, outboxmessage.FieldSentAt:
 			values[i] = new(sql.NullTime)
@@ -112,6 +114,12 @@ func (_m *OutboxMessage) assignValues(columns []string, values []any) error {
 				_m.LastError = new(string)
 				*_m.LastError = value.String
 			}
+		case outboxmessage.FieldTraceParent:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field trace_parent", values[i])
+			} else if value.Valid {
+				_m.TraceParent = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -172,6 +180,9 @@ func (_m *OutboxMessage) String() string {
 		builder.WriteString("last_error=")
 		builder.WriteString(*v)
 	}
+	builder.WriteString(", ")
+	builder.WriteString("trace_parent=")
+	builder.WriteString(_m.TraceParent)
 	builder.WriteByte(')')
 	return builder.String()
 }
