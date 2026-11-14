@@ -11,7 +11,6 @@ import (
 	entcontest "github.com/retek44/CodeArena/backend/internal/store/ent/contest"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/user"
 )
 
 type contestSummaryJSON struct {
@@ -154,8 +153,7 @@ func (s *server) registerForContest(w http.ResponseWriter, r *http.Request) {
 		s.writeProblem(w, http.StatusConflict, "the contest has ended")
 		return
 	}
-	err = s.Store.Ent.User.Create().SetID(principal.UserID).SetUsername(principal.Username).
-		OnConflictColumns(user.FieldID).Ignore().Exec(ctx)
+	err = s.ensureUser(ctx, principal)
 	if err == nil {
 		err = s.Store.Ent.ContestParticipant.Create().SetContestID(c.ID).SetUserID(principal.UserID).SetRegisteredAt(now).
 			OnConflictColumns(contestparticipant.FieldContestID, contestparticipant.FieldUserID).Ignore().Exec(ctx)

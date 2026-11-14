@@ -23,7 +23,6 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/user"
 )
 
 const (
@@ -114,13 +113,8 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.Store.Ent.User.Create().
-		SetID(principal.UserID).
-		SetUsername(principal.Username).
-		OnConflictColumns(user.FieldID).
-		Ignore().
-		Exec(ctx); err != nil {
-		s.internalError(w, r, fmt.Errorf("ensure user: %w", err))
+	if err := s.ensureUser(ctx, principal); err != nil {
+		s.internalError(w, r, err)
 		return
 	}
 

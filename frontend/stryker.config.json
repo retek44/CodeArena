@@ -1,12 +1,13 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing of the SPA (nightly.yml). Run: npx -p @stryker-mutator/core@10.1.1 -p @stryker-mutator/vitest-runner@10.1.1 stryker run",
+  "_comment": "Mutation testing of the SPA (nightly.yml). Run: npx stryker run (versions pinned in package.json)",
   "testRunner": "vitest",
   "vitest": { "configFile": "vite.config.ts" },
   "mutate": [
     "src/**/*.{ts,tsx}",
     "!src/**/*.test.{ts,tsx}",
     "!src/test/**",
+    "!src/api/pact/**",
     "!src/api/schema.d.ts",
     "!src/main.tsx",
     "!src/vite-env.d.ts"

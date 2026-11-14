@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -524,6 +525,37 @@ func TestSubmissionRateLimit(t *testing.T) {
 
 	if n := a.store.Ent.Submission.Query().CountX(t.Context()); n != 4 {
 		t.Errorf("%d submissions stored, want 4 (alice 3, bob 1)", n)
+	}
+}
+
+// A new user's first requests can arrive together (two tabs; the e2e test submits the
+// Python and C++ solution of one user in parallel). Creating the user row must not turn
+// the race into a 500.
+func TestConcurrentFirstSubmissionsOfANewUser(t *testing.T) {
+	a := newAPI(t)
+	a.problem("a-plus-b", problem.DifficultyEasy, true)
+
+	const rounds, parallel = 10, 6
+	for round := range rounds {
+		user := fmt.Sprintf("race-%d", round)
+		codes := make([]int, parallel)
+		var wg sync.WaitGroup
+		for i := range parallel {
+			wg.Go(func() {
+				rec := a.do(request{method: http.MethodPost, path: "/api/submissions", user: user,
+					key: fmt.Sprintf("race-%d-%d", round, i), body: validSubmission()})
+				codes[i] = rec.Code
+			})
+		}
+		wg.Wait()
+		for i, code := range codes {
+			if code != http.StatusAccepted {
+				t.Errorf("user %s request %d: status %d, want 202", user, i, code)
+			}
+		}
+	}
+	if n := a.store.Ent.User.Query().CountX(t.Context()); n != rounds {
+		t.Errorf("%d users stored, want %d", n, rounds)
 	}
 }
 

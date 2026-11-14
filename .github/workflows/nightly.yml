@@ -19,7 +19,6 @@ permissions:
 env:
   TF_VERSION: 1.16.5
   GREMLINS_VERSION: v0.6.0
-  STRYKER_VERSION: 10.1.1
   BOTO3_VERSION: 1.44.2
 
 jobs:
@@ -66,7 +65,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - name: Stryker
-        run: npx --yes -p "@stryker-mutator/core@${STRYKER_VERSION}" -p "@stryker-mutator/vitest-runner@${STRYKER_VERSION}" stryker run
+        # Pinned in package.json: Stryker must resolve typescript and vitest from the
+        # project's node_modules, which an npx cache directory cannot see.
+        run: npx stryker run
       - name: Score summary
         if: always()
         run: |
