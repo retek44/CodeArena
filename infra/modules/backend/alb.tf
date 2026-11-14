@@ -52,9 +52,29 @@ resource "aws_lb" "this" {
   idle_timeout               = 30
 }
 
+# Blue/green (ADR-0020): ECS registers the new tasks in whichever of the two target
+# groups is idle, tests them through the test rule, then moves the production rule.
 resource "aws_lb_target_group" "api" {
   #checkov:skip=CKV_AWS_378:ALB to task traffic stays inside the VPC; TLS terminates at CloudFront (ADR-0012).
   name                 = "${var.name_prefix}-api"
+  port                 = 8080
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = var.vpc_id
+  deregistration_delay = 15
+
+  health_check {
+    path                = "/healthz"
+    matcher             = "200"
+    interval            = 15
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+}
+
+resource "aws_lb_target_group" "api_alt" {
+  #checkov:skip=CKV_AWS_378:ALB to task traffic stays inside the VPC; TLS terminates at CloudFront (ADR-0012).
+  name                 = "${var.name_prefix}-api-alt"
   port                 = 8080
   protocol             = "HTTP"
   target_type          = "ip"
@@ -100,7 +120,67 @@ resource "aws_lb_listener_rule" "api" {
   }
 
   action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.api.arn
+    type = "forward"
+
+    forward {
+      target_group {
+        arn    = aws_lb_target_group.api.arn
+        weight = 100
+      }
+      target_group {
+        arn    = aws_lb_target_group.api_alt.arn
+        weight = 0
+      }
+    }
+  }
+
+  # ECS moves the weights during every deployment; Terraform must not move them back.
+  lifecycle {
+    ignore_changes = [action]
+  }
+}
+
+# Test traffic: requests through CloudFront that also carry the secret test header reach
+# the new (green) tasks during a deployment. The deployment hook sends them.
+resource "random_password" "test_traffic" {
+  length  = 48
+  special = false
+}
+
+resource "aws_lb_listener_rule" "api_test" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 5
+
+  condition {
+    http_header {
+      http_header_name = "X-Origin-Verify"
+      values           = [random_password.origin_verify.result]
+    }
+  }
+
+  condition {
+    http_header {
+      http_header_name = "X-Codearena-Test-Traffic"
+      values           = [random_password.test_traffic.result]
+    }
+  }
+
+  action {
+    type = "forward"
+
+    forward {
+      target_group {
+        arn    = aws_lb_target_group.api.arn
+        weight = 100
+      }
+      target_group {
+        arn    = aws_lb_target_group.api_alt.arn
+        weight = 0
+      }
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [action]
   }
 }

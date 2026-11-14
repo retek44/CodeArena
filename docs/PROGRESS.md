@@ -181,7 +181,13 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       `preview.yml` deploys with `deploy-environment.yml` and comments the URL, `destroy-preview.yml` on close
       or unlabel, nightly sweep of stale previews in `destroy.yml`
 - [ ] Verify a preview on AWS (label a PR, check the comment, close it, check the destroy)
-- [ ] ECS blue/green with test-listener hooks, Lambda canary (CodeDeploy)
+- [x] ECS blue/green with a test-listener smoke-test hook, Lambda canary (ADR-0020): native ECS
+      `BLUE_GREEN` for the API in every environment (second target group, test listener rule behind a
+      secret header, `lambdas/deploy-hook` at `POST_TEST_TRAFFIC_SHIFT` calls the API through CloudFront,
+      5-minute bake in prod); runners invoked through a `live` alias, prod shifts new versions with
+      CodeDeploy `LambdaCanary10Percent5Minutes` after the same hook judged A + B with them, alarm rollback;
+      the pipeline fails on a rolled-back API deployment
+- [ ] Verify blue/green and the runner canary on AWS (first deployment, forced rollback, prod canary)
 - [x] Reusable workflows: `build-images.yml` (once per commit) and `deploy-environment.yml`;
       `deploy.yml` deploys one environment, `release.yml` promotes main dev → staging → prod
       (prod waits for the environment reviewer)

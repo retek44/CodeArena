@@ -29,17 +29,16 @@ variable "cognito" {
 variable "dashboard" {
   description = "Names and dimensions the dashboard shows."
   type = object({
-    alb_arn_suffix          = string
-    target_group_arn_suffix = string
-    cluster_name            = string
-    api_service_name        = string
-    worker_service_name     = string
-    queue_name              = string
-    dlq_name                = string
-    db_identifier           = string
-    runner_function_names   = map(string)
-    worker_log_group        = string
-    api_log_group           = string
+    alb_arn_suffix        = string
+    cluster_name          = string
+    api_service_name      = string
+    worker_service_name   = string
+    queue_name            = string
+    dlq_name              = string
+    db_identifier         = string
+    runner_function_names = map(string)
+    worker_log_group      = string
+    api_log_group         = string
   })
 }
 

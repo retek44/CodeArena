@@ -30,9 +30,9 @@ locals {
         region = local.region
         view   = "timeSeries"
         metrics = [
-          ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", local.d.alb_arn_suffix, "TargetGroup", local.d.target_group_arn_suffix, { stat = "Sum" }],
-          ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", local.d.alb_arn_suffix, "TargetGroup", local.d.target_group_arn_suffix, { stat = "Sum" }],
-          ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", local.d.alb_arn_suffix, "TargetGroup", local.d.target_group_arn_suffix, { stat = "p95", yAxis = "right" }],
+          ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", local.d.alb_arn_suffix, { stat = "Sum" }],
+          ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", local.d.alb_arn_suffix, { stat = "Sum" }],
+          ["AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", local.d.alb_arn_suffix, { stat = "p95", yAxis = "right" }],
         ]
       }
     },

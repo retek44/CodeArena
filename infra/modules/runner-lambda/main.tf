@@ -63,6 +63,8 @@ resource "aws_lambda_function" "runner" {
   #checkov:skip=CKV_AWS_173:The function has no environment variables.
   function_name = local.function_name
   description   = "CodeArena runner (${var.language})"
+  # Every image change publishes a version; the worker calls the "live" alias.
+  publish       = true
   role          = aws_iam_role.runner.arn
   package_type  = "Image"
   image_uri     = var.image_uri
@@ -90,4 +92,78 @@ resource "aws_lambda_function" "runner" {
     aws_iam_role_policy_attachment.vpc_access,
     aws_cloudwatch_log_group.runner,
   ]
+}
+
+# --- Alias the worker invokes, and the optional canary (ADR-0020) -------------------
+# Without a canary Terraform points the alias at the new version. With one, CodeDeploy
+# owns the alias: the pipeline starts a deployment that sends 10 % of the invocations
+# to the new version for 5 minutes, after the BeforeAllowTraffic hook has judged an
+# accepted solution with it, and rolls back when the alias reports function errors.
+
+resource "aws_lambda_alias" "live" {
+  count = var.canary == null ? 1 : 0
+
+  name             = "live"
+  function_name    = aws_lambda_function.runner.function_name
+  function_version = aws_lambda_function.runner.version
+}
+
+resource "aws_lambda_alias" "live_canary" {
+  count = var.canary == null ? 0 : 1
+
+  name             = "live"
+  function_name    = aws_lambda_function.runner.function_name
+  function_version = aws_lambda_function.runner.version
+
+  lifecycle {
+    ignore_changes = [function_version, routing_config]
+  }
+}
+
+locals {
+  alias = one(concat(aws_lambda_alias.live[*], aws_lambda_alias.live_canary[*]))
+}
+
+resource "aws_cloudwatch_metric_alarm" "canary_errors" {
+  count = var.canary == null ? 0 : 1
+
+  alarm_name          = "${local.function_name}-live-errors"
+  alarm_description   = "Runner crashed (function error) behind the live alias; CodeDeploy rolls the canary back."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  statistic           = "Sum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.runner.function_name
+    Resource     = "${aws_lambda_function.runner.function_name}:live"
+  }
+}
+
+resource "aws_codedeploy_deployment_group" "runner" {
+  count = var.canary == null ? 0 : 1
+
+  app_name               = var.canary.app_name
+  deployment_group_name  = local.function_name # the hook finds the function by this name
+  service_role_arn       = var.canary.service_role_arn
+  deployment_config_name = "CodeDeployDefault.LambdaCanary10Percent5Minutes"
+
+  deployment_style {
+    deployment_type   = "BLUE_GREEN"
+    deployment_option = "WITH_TRAFFIC_CONTROL"
+  }
+
+  auto_rollback_configuration {
+    enabled = true
+    events  = ["DEPLOYMENT_FAILURE", "DEPLOYMENT_STOP_ON_ALARM"]
+  }
+
+  alarm_configuration {
+    enabled = true
+    alarms  = [aws_cloudwatch_metric_alarm.canary_errors[0].alarm_name]
+  }
 }

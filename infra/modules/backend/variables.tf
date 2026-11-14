@@ -146,3 +146,14 @@ variable "adot_image" {
   type        = string
   default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0@sha256:955e240b27d7fd3c7995fd937db4b963975948eb553f656d8c37a564e5b5e07d"
 }
+
+variable "deploy_hook_function_arn" {
+  description = "Lambda that smoke-tests the green API tasks through the test listener rule (ECS lifecycle hook)."
+  type        = string
+}
+
+variable "bake_time_minutes" {
+  description = "Minutes the blue tasks stay after production traffic moved to green; a rollback in this window is instant."
+  type        = number
+  default     = 0
+}

@@ -206,6 +206,27 @@ resource "aws_ecs_service" "api" {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
     container_port   = 8080
+
+    advanced_configuration {
+      alternate_target_group_arn = aws_lb_target_group.api_alt.arn
+      production_listener_rule   = aws_lb_listener_rule.api.arn
+      test_listener_rule         = aws_lb_listener_rule.api_test.arn
+      role_arn                   = aws_iam_role.ecs_load_balancers.arn
+    }
+  }
+
+  # Blue/green (ADR-0020): green tasks start next to blue, the hook smoke-tests them
+  # through the test rule, then the production rule moves to green at once; blue stays
+  # for the bake time, so a rollback is a rule change, not a new deployment.
+  deployment_configuration {
+    strategy             = "BLUE_GREEN"
+    bake_time_in_minutes = var.bake_time_minutes
+
+    lifecycle_hook {
+      hook_target_arn  = var.deploy_hook_function_arn
+      role_arn         = aws_iam_role.ecs_hooks.arn
+      lifecycle_stages = ["POST_TEST_TRAFFIC_SHIFT"]
+    }
   }
 
   # A deployment that does not become healthy, or trips the 5xx alarm, rolls back by itself.
@@ -220,7 +241,12 @@ resource "aws_ecs_service" "api" {
     rollback    = true
   }
 
-  depends_on = [aws_lb_listener_rule.api]
+  depends_on = [
+    aws_lb_listener_rule.api,
+    aws_lb_listener_rule.api_test,
+    aws_iam_role_policy_attachment.ecs_load_balancers,
+    aws_iam_role_policy.ecs_hooks,
+  ]
 }
 
 resource "aws_cloudwatch_metric_alarm" "api_5xx" {
@@ -235,9 +261,9 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   treat_missing_data  = "notBreaching"
 
+  # Whole load balancer: blue/green moves the traffic between two target groups.
   dimensions = {
     LoadBalancer = aws_lb.this.arn_suffix
-    TargetGroup  = aws_lb_target_group.api.arn_suffix
   }
 }
 

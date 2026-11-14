@@ -45,6 +45,16 @@ output "deploy" {
     hint_function_name             = one(module.hint[*].function_name)
     ws_url                         = module.realtime[0].ws_url
     contest_state_machine_arn      = module.contests[0].state_machine_arn
+    # CodeDeploy canary of the runners (null: Terraform moved the aliases already).
+    runner_canary = local.runner_canary ? {
+      application = aws_codedeploy_app.runner[0].name
+      hook        = module.deploy_hook[0].function_name
+      runners = { for lang, runner in module.runner : lang => {
+        function         = runner.function_name
+        deployment_group = runner.deployment_group
+        version          = runner.version
+      } }
+    } : null
   } : null
 }
 

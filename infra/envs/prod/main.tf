@@ -22,4 +22,8 @@ module "app" {
   api_desired_count  = 2
   worker_max_count   = 4
   canary_enabled     = true
+
+  # ADR-0020: old API tasks stay 5 minutes after the switch; runners go out as a canary.
+  api_bake_time_minutes = 5
+  runner_canary         = true
 }

@@ -424,7 +424,7 @@ jobs:
       - name: mypy
         run: mypy
       - name: Unit and contract tests
-        run: pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests tests/llm-eval --cov=runners/core/codearena_runner --cov=lambdas/hint/codearena_hint --cov=lambdas/ws/codearena_ws --cov-report=xml:coverage.xml --cov-report=term
+        run: pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests lambdas/deploy-hook/tests tests/llm-eval --cov=runners/core/codearena_runner --cov=lambdas/hint/codearena_hint --cov=lambdas/ws/codearena_ws --cov=lambdas/deploy-hook/codearena_deploy_hook --cov-report=xml:coverage.xml --cov-report=term
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-coverage

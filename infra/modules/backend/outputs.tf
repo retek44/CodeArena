@@ -75,9 +75,10 @@ output "alb_arn_suffix" {
   value       = aws_lb.this.arn_suffix
 }
 
-output "api_target_group_arn_suffix" {
-  description = "API target group ARN suffix (CloudWatch dimension TargetGroup)."
-  value       = aws_lb_target_group.api.arn_suffix
+output "test_traffic_header" {
+  description = "Value of X-Codearena-Test-Traffic that routes a request to the green tasks during a deployment."
+  value       = random_password.test_traffic.result
+  sensitive   = true
 }
 
 output "log_group_names" {
@@ -88,4 +89,13 @@ output "log_group_names" {
 output "tracing_sidecars" {
   description = "ADOT collector image per traced service (empty lists when tracing is off)."
   value       = { for service, containers in local.adot_container : service => [for c in containers : c.image] }
+}
+
+output "api_deployment" {
+  description = "Deployment settings of the API service (ADR-0020; pinned by the app module tests)."
+  value = {
+    strategy          = aws_ecs_service.api.deployment_configuration[0].strategy
+    bake_time_minutes = tonumber(aws_ecs_service.api.deployment_configuration[0].bake_time_in_minutes)
+    hook_stages       = sort(flatten([for h in aws_ecs_service.api.deployment_configuration[0].lifecycle_hook : h.lifecycle_stages]))
+  }
 }

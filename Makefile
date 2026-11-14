@@ -99,12 +99,12 @@ py-lint: ## ruff + mypy for the Python runner and the hint Lambda
 
 .PHONY: py-test
 py-test: ## Runner unit and contract tests (Linux; on Windows use py-test-docker)
-	pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests tests/llm-eval
+	pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests lambdas/deploy-hook/tests tests/llm-eval
 
 .PHONY: py-test-docker
 py-test-docker: ## Runner lint and tests inside a Linux container
 	docker run --rm -v "$(CURDIR)":/src -w /src python:3.13-slim sh -c \
-		'pip install -q -r requirements-dev.txt && ruff check runners lambdas tests/llm-eval && mypy && pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests tests/llm-eval'
+		'pip install -q -r requirements-dev.txt && ruff check runners lambdas tests/llm-eval && mypy && pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests lambdas/deploy-hook/tests tests/llm-eval'
 
 .PHONY: runner-image
 runner-image: ## Build the Python and C++ runner images

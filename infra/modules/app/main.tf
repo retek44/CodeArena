@@ -112,6 +112,97 @@ module "runner" {
   vpc_id                   = local.network.vpc_id
   subnet_ids               = local.network.isolated_subnet_ids
   permissions_boundary_arn = local.boundary_arn
+
+  canary = local.runner_canary ? {
+    app_name         = aws_codedeploy_app.runner[0].name
+    service_role_arn = aws_iam_role.codedeploy[0].arn
+  } : null
+}
+
+# --- Deployment safety (ADR-0020) -------------------------------------------------------
+# API: ECS blue/green with a smoke test through the test listener rule (every environment).
+# Runners: CodeDeploy canary, 10 % for 5 minutes (runner_canary, prod).
+
+locals {
+  runner_canary       = local.deploy && var.runner_canary
+  site_parameter_name = "/${local.name_prefix}/deploy-hook"
+}
+
+resource "aws_codedeploy_app" "runner" {
+  count = local.runner_canary ? 1 : 0
+
+  name             = "${local.name_prefix}-runners"
+  compute_platform = "Lambda"
+}
+
+data "aws_iam_policy_document" "codedeploy_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["codedeploy.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "codedeploy" {
+  count = local.runner_canary ? 1 : 0
+
+  name                 = "${local.name_prefix}-codedeploy"
+  assume_role_policy   = data.aws_iam_policy_document.codedeploy_assume.json
+  permissions_boundary = local.boundary_arn
+}
+
+resource "aws_iam_role_policy_attachment" "codedeploy" {
+  count = local.runner_canary ? 1 : 0
+
+  role       = aws_iam_role.codedeploy[0].name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSCodeDeployRoleForLambda"
+}
+
+# The managed policy only allows hooks named CodeDeployHook_*.
+data "aws_iam_policy_document" "codedeploy_hook" {
+  count = local.runner_canary ? 1 : 0
+
+  statement {
+    sid       = "InvokeDeployHook"
+    actions   = ["lambda:InvokeFunction"]
+    resources = [module.deploy_hook[0].function_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "codedeploy_hook" {
+  count = local.runner_canary ? 1 : 0
+
+  name   = "deploy-hook"
+  role   = aws_iam_role.codedeploy[0].id
+  policy = data.aws_iam_policy_document.codedeploy_hook[0].json
+}
+
+module "deploy_hook" {
+  source = "../deploy-hook"
+  count  = local.deploy ? 1 : 0
+
+  name_prefix              = local.name_prefix
+  permissions_boundary_arn = local.boundary_arn
+  site_parameter_name      = local.site_parameter_name
+  runner_function_arns     = { for lang, runner in module.runner : lang => runner.function_arn }
+  codedeploy_app_name      = one(aws_codedeploy_app.runner[*].name)
+}
+
+# Where the hook sends test traffic: the site, and the header value the test listener
+# rule matches. Written after the CDN exists; the hook waits for it on a first deployment.
+resource "aws_ssm_parameter" "deploy_hook" {
+  #checkov:skip=CKV_AWS_337:The AWS managed key is enough; a customer managed key costs 1 USD a month per environment.
+  count = local.deploy ? 1 : 0
+
+  name = local.site_parameter_name
+  type = "SecureString"
+  value = jsonencode({
+    site_url    = local.site_url
+    test_header = module.backend[0].test_traffic_header
+  })
 }
 
 # Contests: Valkey leaderboard cache, lifecycle state machine, schedules (ADR-0016).
@@ -173,7 +264,9 @@ module "backend" {
   api_desired_count        = var.api_desired_count
   worker_max_count         = var.worker_max_count
   tracing                  = var.tracing
-  runner_function_arns     = { for lang, runner in module.runner : lang => runner.function_arn }
+  runner_function_arns     = { for lang, runner in module.runner : lang => runner.alias_arn }
+  deploy_hook_function_arn = module.deploy_hook[0].function_arn
+  bake_time_minutes        = var.api_bake_time_minutes
   hint_function_arn        = one(module.hint[*].function_arn)
 
   valkey_url = module.contests[0].valkey_url
@@ -262,16 +355,15 @@ module "observability" {
   }
 
   dashboard = {
-    alb_arn_suffix          = module.backend[0].alb_arn_suffix
-    target_group_arn_suffix = module.backend[0].api_target_group_arn_suffix
-    cluster_name            = module.backend[0].cluster_name
-    api_service_name        = module.backend[0].api_service_name
-    worker_service_name     = module.backend[0].worker_service_name
-    queue_name              = module.submissions_queue.queue_name
-    dlq_name                = module.submissions_queue.dlq_name
-    db_identifier           = module.postgres[0].identifier
-    runner_function_names   = { for lang, runner in module.runner : lang => runner.function_name }
-    worker_log_group        = module.backend[0].log_group_names["worker"]
-    api_log_group           = module.backend[0].log_group_names["api"]
+    alb_arn_suffix        = module.backend[0].alb_arn_suffix
+    cluster_name          = module.backend[0].cluster_name
+    api_service_name      = module.backend[0].api_service_name
+    worker_service_name   = module.backend[0].worker_service_name
+    queue_name            = module.submissions_queue.queue_name
+    dlq_name              = module.submissions_queue.dlq_name
+    db_identifier         = module.postgres[0].identifier
+    runner_function_names = { for lang, runner in module.runner : lang => runner.function_name }
+    worker_log_group      = module.backend[0].log_group_names["worker"]
+    api_log_group         = module.backend[0].log_group_names["api"]
   }
 }

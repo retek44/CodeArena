@@ -51,3 +51,12 @@ variable "log_retention_days" {
   type        = number
   default     = 14
 }
+
+variable "canary" {
+  description = "CodeDeploy application and service role for a canary of new versions; null: Terraform moves the alias at once."
+  type = object({
+    app_name         = string
+    service_role_arn = string
+  })
+  default = null
+}

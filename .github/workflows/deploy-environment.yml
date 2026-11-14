@@ -111,11 +111,15 @@ jobs:
             echo "COGNITO=$(terraform -chdir="${TF_DIR}" output -json cognito)"
             echo "DEPLOY=$(terraform -chdir="${TF_DIR}" output -json deploy)"
           } >> "$GITHUB_ENV"
-      - name: Wait for the API rollout (ECS rolls back by itself on failure)
-        run: |
-          aws ecs wait services-stable \
-            --cluster "$(echo "${DEPLOY}" | jq -r .cluster)" \
-            --services "$(echo "${DEPLOY}" | jq -r .api_service)"
+      # ECS blue/green (ADR-0020): green tasks, smoke test through the test listener rule
+      # (deploy hook Lambda), switch, bake time. A failed hook or the 5xx alarm rolls back,
+      # and then this step fails.
+      - name: Wait for the API blue/green deployment
+        run: bash .github/scripts/wait-api-deployment.sh
+      # Prod: CodeDeploy canary of the runner Lambdas (the hook judges A + B, then 10 % for
+      # 5 minutes). Other environments: Terraform moved the aliases already.
+      - name: Runner canary
+        run: bash .github/scripts/runner-canary.sh
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

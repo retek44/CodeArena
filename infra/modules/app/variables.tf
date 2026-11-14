@@ -56,6 +56,23 @@ variable "api_desired_count" {
   default     = 1
 }
 
+variable "api_bake_time_minutes" {
+  description = "Blue/green bake time of the API: minutes the old tasks stay after the switch, ready for an instant rollback."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.api_bake_time_minutes >= 0 && var.api_bake_time_minutes <= 1440
+    error_message = "ECS accepts 0 to 1440 minutes."
+  }
+}
+
+variable "runner_canary" {
+  description = "Shift runner Lambda versions with a CodeDeploy canary (10 % for 5 minutes, smoke test first) instead of at once."
+  type        = bool
+  default     = false
+}
+
 variable "worker_max_count" {
   description = "Maximum worker tasks (scales to zero when idle)."
   type        = number

@@ -125,3 +125,49 @@ resource "aws_iam_role" "job" {
   assume_role_policy   = data.aws_iam_policy_document.ecs_tasks_assume.json
   permissions_boundary = var.permissions_boundary_arn
 }
+
+# --- ECS blue/green (ADR-0020) ---------------------------------------------------------
+
+data "aws_iam_policy_document" "ecs_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs.amazonaws.com"]
+    }
+  }
+}
+
+# ECS moves the listener rule weights between the two target groups.
+resource "aws_iam_role" "ecs_load_balancers" {
+  name                 = "${var.name_prefix}-ecs-load-balancers"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  permissions_boundary = var.permissions_boundary_arn
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_load_balancers" {
+  role       = aws_iam_role.ecs_load_balancers.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonECSInfrastructureRolePolicyForLoadBalancers"
+}
+
+# ECS invokes the deployment hook.
+resource "aws_iam_role" "ecs_hooks" {
+  name                 = "${var.name_prefix}-ecs-hooks"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  permissions_boundary = var.permissions_boundary_arn
+}
+
+data "aws_iam_policy_document" "ecs_hooks" {
+  statement {
+    sid       = "InvokeDeployHook"
+    actions   = ["lambda:InvokeFunction"]
+    resources = [var.deploy_hook_function_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "ecs_hooks" {
+  name   = "deploy-hook"
+  role   = aws_iam_role.ecs_hooks.id
+  policy = data.aws_iam_policy_document.ecs_hooks.json
+}

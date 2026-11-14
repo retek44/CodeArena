@@ -272,3 +272,80 @@ run "needs_a_network" {
 
   expect_failures = [var.network]
 }
+
+run "api_blue_green_with_smoke_test_hook" {
+  command = plan
+
+  variables {
+    image_tag = "0123456789abcdef0123456789abcdef01234567"
+  }
+
+  assert {
+    condition     = module.backend[0].api_deployment.strategy == "BLUE_GREEN"
+    error_message = "The API deploys blue/green in every environment (ADR-0020)."
+  }
+
+  assert {
+    condition     = join(",", module.backend[0].api_deployment.hook_stages) == "POST_TEST_TRAFFIC_SHIFT"
+    error_message = "The deploy hook smoke-tests green after test traffic reaches it, before production traffic moves."
+  }
+
+  assert {
+    condition     = module.backend[0].api_deployment.bake_time_minutes == 0
+    error_message = "Only prod keeps the old tasks for a bake time."
+  }
+
+  assert {
+    condition     = aws_ssm_parameter.deploy_hook[0].name == "/codearena-dev/deploy-hook"
+    error_message = "The hook reads the site and the test header from this parameter."
+  }
+
+  assert {
+    condition     = output.deploy.runner_canary == null && length(aws_codedeploy_app.runner) == 0
+    error_message = "Without runner_canary Terraform moves the runner aliases; no CodeDeploy."
+  }
+}
+
+run "runner_canary_when_enabled" {
+  command = plan
+
+  variables {
+    env                   = "prod"
+    image_tag             = "0123456789abcdef0123456789abcdef01234567"
+    runner_canary         = true
+    api_bake_time_minutes = 5
+  }
+
+  assert {
+    condition = (
+      output.deploy.runner_canary.application == "codearena-prod-runners" &&
+      output.deploy.runner_canary.hook == "codearena-prod-deploy-hook"
+    )
+    error_message = "The pipeline needs the CodeDeploy application and the hook name."
+  }
+
+  assert {
+    condition = {
+      for lang, r in output.deploy.runner_canary.runners : lang => r.deployment_group
+      } == {
+      python = "codearena-prod-runner-python"
+      cpp    = "codearena-prod-runner-cpp"
+    }
+    error_message = "One deployment group per runner, named after the function (the hook relies on it)."
+  }
+
+  assert {
+    condition     = module.backend[0].api_deployment.bake_time_minutes == 5
+    error_message = "api_bake_time_minutes reaches the ECS service."
+  }
+}
+
+run "rejects_a_too_long_bake_time" {
+  command = plan
+
+  variables {
+    api_bake_time_minutes = 1441
+  }
+
+  expect_failures = [var.api_bake_time_minutes]
+}

@@ -14,7 +14,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["codearena_runner", "codearena_hint", "codearena_ws"]
+known-first-party = ["codearena_runner", "codearena_hint", "codearena_ws", "codearena_deploy_hook"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S101", "S603", "S607", "PLR0915"]
@@ -25,12 +25,12 @@ known-first-party = ["codearena_runner", "codearena_hint", "codearena_ws"]
 python_version = "3.13"
 strict = true
 warn_unreachable = true
-mypy_path = "runners/core:lambdas/hint:lambdas/ws"
-packages = ["codearena_runner", "codearena_hint", "codearena_ws"]
+mypy_path = "runners/core:lambdas/hint:lambdas/ws:lambdas/deploy-hook"
+packages = ["codearena_runner", "codearena_hint", "codearena_ws", "codearena_deploy_hook"]
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers"
-pythonpath = ["runners/core", "lambdas/hint", "lambdas/ws"]
+pythonpath = ["runners/core", "lambdas/hint", "lambdas/ws", "lambdas/deploy-hook"]
 markers = ["sandbox: needs a running runner container (RUNNER_URL)"]
 
 # boto3 comes with the Lambda runtime; the hint tests inject a stub client.
