@@ -92,7 +92,7 @@ jobs:
           for i in $(seq 1 "${VUS}"); do
             username="load-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${i}@example.invalid"
             password="Ci$(openssl rand -hex 16)Aa1"
-            echo "::add-mask::${password}"
+            echo "::add-mask::${password}" # nosemgrep: yaml.github-actions.security.audit.unsafe-add-mask-workflow-command.unsafe-add-mask-workflow-command -- generated here, never user input
             aws cognito-idp admin-create-user --user-pool-id "${pool_id}" --username "${username}" \
               --user-attributes Name=email,Value="${username}" Name=email_verified,Value=true \
               --message-action SUPPRESS >/dev/null
@@ -101,7 +101,7 @@ jobs:
             token=$(aws cognito-idp admin-initiate-auth --user-pool-id "${pool_id}" --client-id "${client_id}" \
               --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters "USERNAME=${username},PASSWORD=${password}" \
               --query AuthenticationResult.AccessToken --output text)
-            echo "::add-mask::${token}"
+            echo "::add-mask::${token}" # nosemgrep: yaml.github-actions.security.audit.unsafe-add-mask-workflow-command.unsafe-add-mask-workflow-command -- Cognito token of the test user
             tokens+=("${token}")
           done
           echo "users_created=true" >> "$GITHUB_OUTPUT"

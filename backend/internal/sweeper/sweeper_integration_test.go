@@ -143,7 +143,9 @@ func TestSweepRequeuesOnlyStuckSubmissions(t *testing.T) {
 	}
 
 	ids := e.announced()
-	if len(ids) != 2 || !(ids[0] == silentWorker && ids[1] == lostMessage || ids[0] == lostMessage && ids[1] == silentWorker) {
+	inOrder := len(ids) == 2 && ids[0] == silentWorker && ids[1] == lostMessage
+	reversed := len(ids) == 2 && ids[0] == lostMessage && ids[1] == silentWorker
+	if !inOrder && !reversed {
 		t.Errorf("announced %v, want exactly %s and %s", ids, silentWorker, lostMessage)
 	}
 

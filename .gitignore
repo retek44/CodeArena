@@ -25,6 +25,8 @@ frontend/coverage/
 
 # Node
 node_modules/
+# Synthetics needs the canary script under nodejs/node_modules (it is source, not a dependency).
+!infra/modules/observability/canary/nodejs/node_modules/
 dist/
 
 # Python

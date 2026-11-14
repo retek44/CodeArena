@@ -134,7 +134,7 @@ jobs:
           client_id=$(jq -r .client_id <<<"${COGNITO}")
           username="ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}@example.invalid"
           password="Ci$(openssl rand -hex 16)Aa1"
-          echo "::add-mask::${password}"
+          echo "::add-mask::${password}" # nosemgrep: yaml.github-actions.security.audit.unsafe-add-mask-workflow-command.unsafe-add-mask-workflow-command -- generated here, never user input
           echo "pool_id=${pool_id}" >> "$GITHUB_OUTPUT"
           echo "username=${username}" >> "$GITHUB_OUTPUT"
           aws cognito-idp admin-create-user --user-pool-id "${pool_id}" --username "${username}" \
@@ -145,7 +145,7 @@ jobs:
           token=$(aws cognito-idp admin-initiate-auth --user-pool-id "${pool_id}" --client-id "${client_id}" \
             --auth-flow ADMIN_USER_PASSWORD_AUTH --auth-parameters "USERNAME=${username},PASSWORD=${password}" \
             --query AuthenticationResult.AccessToken --output text)
-          echo "::add-mask::${token}"
+          echo "::add-mask::${token}" # nosemgrep: yaml.github-actions.security.audit.unsafe-add-mask-workflow-command.unsafe-add-mask-workflow-command -- Cognito token of the test user
           echo "E2E_ACCESS_TOKEN=${token}" >> "$GITHUB_ENV"
       # Edge checks (anonymous): SPA, routing function, security headers, no API caching,
       # HTTPS redirect, ALB not reachable around CloudFront. Signed in: real judge runs

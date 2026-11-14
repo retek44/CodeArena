@@ -19,9 +19,9 @@ locals {
 
 # --- State: tickets, connections, subscriptions ----------------------------------------
 
-resource "aws_dynamodb_table" "ws" {
+resource "aws_dynamodb_table" "ws" { # nosemgrep: terraform.aws.security.aws-dynamodb-table-unencrypted.aws-dynamodb-table-unencrypted -- AWS managed key; a customer key costs per month for short-lived tickets
   #checkov:skip=CKV_AWS_28:Tickets and connections live at most two hours; a backup has nothing to restore.
-  #checkov:skip=CKV_AWS_119:Encrypted with the AWS owned key; the items hold random tickets, connection IDs and user IDs only.
+  #checkov:skip=CKV_AWS_119:Encrypted with the AWS managed key; the items hold random tickets, connection IDs and user IDs only.
   #checkov:skip=CKV2_AWS_16:On-demand capacity scales by itself; there is nothing to auto scale.
   name         = "${var.name_prefix}-ws"
   billing_mode = "PAY_PER_REQUEST"
@@ -41,6 +41,11 @@ resource "aws_dynamodb_table" "ws" {
   ttl {
     attribute_name = "expires_at"
     enabled        = true
+  }
+
+  # AWS managed key (aws/dynamodb): no key to manage, no monthly key charge.
+  server_side_encryption {
+    enabled = true
   }
 }
 
@@ -140,6 +145,13 @@ resource "aws_iam_role_policy_attachment" "logs" {
   policy_arn = "${local.managed}/service-role/AWSLambdaBasicExecutionRole"
 }
 
+resource "aws_iam_role_policy_attachment" "xray" {
+  for_each = local.functions
+
+  role       = aws_iam_role.function[each.key].name
+  policy_arn = "${local.managed}/AWSXRayDaemonWriteAccess"
+}
+
 data "aws_iam_policy_document" "function" {
   for_each = local.functions
 
@@ -170,7 +182,6 @@ resource "aws_lambda_function" "this" {
   #checkov:skip=CKV_AWS_116:Invoked synchronously by API Gateway, or by EventBridge with its own retry policy.
   #checkov:skip=CKV_AWS_272:Code signing would need a signing profile per environment; the zip is built from reviewed code in the pipeline.
   #checkov:skip=CKV_AWS_173:The environment holds a table name and an endpoint, no secrets.
-  #checkov:skip=CKV_AWS_50:X-Ray adds little to two short functions; the judge traces live in the worker.
   for_each = local.functions
 
   function_name    = "${var.name_prefix}-${each.key}"
@@ -196,7 +207,11 @@ resource "aws_lambda_function" "this" {
     log_group  = aws_cloudwatch_log_group.function[each.key].name
   }
 
-  depends_on = [aws_iam_role_policy_attachment.logs, aws_cloudwatch_log_group.function]
+  tracing_config {
+    mode = "Active"
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.logs, aws_iam_role_policy_attachment.xray, aws_cloudwatch_log_group.function]
 }
 
 # --- WebSocket API ----------------------------------------------------------------------------

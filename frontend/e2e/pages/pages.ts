@@ -1,5 +1,8 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+/** window.__codeArenaEditor of src/components/CodeEditor.tsx (E2E code does not import the app). */
+const EDITOR_KEY = "__codeArenaEditor";
+
 // Page objects: tests describe what a user does; selectors live here.
 // Locators use roles and accessible names, so they double as accessibility checks.
 
@@ -43,13 +46,29 @@ export class ProblemPage {
     await this.page.getByLabel("Language").selectOption({ label });
   }
 
-  /** Replaces the editor content. insertText bypasses Monaco's auto-indent and auto-close. */
+  /**
+   * Replaces the editor content through the Monaco instance the app exposes in development
+   * auth mode (src/components/CodeEditor.tsx). Typing is not reliable across browsers:
+   * Firefox duplicates inserted text, auto-close and auto-indent change it in others.
+   */
   async setSource(source: string) {
-    const lines = this.page.locator(".monaco-editor .view-lines");
-    await lines.click();
-    await this.page.keyboard.press("ControlOrMeta+A");
-    await this.page.keyboard.press("Delete");
-    await this.page.keyboard.insertText(source);
+    await expect(this.page.locator(".monaco-editor")).toBeVisible();
+    await this.page.waitForFunction((key) => key in window, EDITOR_KEY);
+    await this.page.evaluate(
+      ([key, text]) => {
+        const editor = (window as unknown as Record<string, { setValue(v: string): void }>)[key];
+        editor?.setValue(text);
+      },
+      [EDITOR_KEY, source] as const,
+    );
+    await expect
+      .poll(() =>
+        this.page.evaluate(
+          (key) => (window as unknown as Record<string, { getValue(): string }>)[key]?.getValue(),
+          EDITOR_KEY,
+        ),
+      )
+      .toBe(source);
   }
 
   async submit(): Promise<SubmissionPage> {
