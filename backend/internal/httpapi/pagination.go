@@ -31,21 +31,30 @@ func parseLimit(q url.Values) (int, error) {
 	return n, nil
 }
 
-// Problem cursors carry the last problem ID: "p:<id>".
-func encodeProblemCursor(id int) string {
-	return base64.RawURLEncoding.EncodeToString([]byte("p:" + strconv.Itoa(id)))
+// Problem cursors carry the sort key of the last problem: "p:<difficulty rank>:<id>",
+// for keyset pagination on (difficulty rank, id). The rank is 0 (easy) to 2 (hard).
+func encodeProblemCursor(rank, id int) string {
+	return base64.RawURLEncoding.EncodeToString([]byte("p:" + strconv.Itoa(rank) + ":" + strconv.Itoa(id)))
 }
 
-func decodeProblemCursor(c string) (int, error) {
+func decodeProblemCursor(c string) (rank, id int, err error) {
 	raw, err := decodeCursor(c, "p:")
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	id, err := strconv.Atoi(raw)
+	rawRank, rawID, ok := strings.Cut(raw, ":")
+	if !ok {
+		return 0, 0, errBadCursor
+	}
+	rank, err = strconv.Atoi(rawRank)
+	if err != nil || rank < 0 || rank > maxDifficultyRank {
+		return 0, 0, errBadCursor
+	}
+	id, err = strconv.Atoi(rawID)
 	if err != nil || id < 1 {
-		return 0, errBadCursor
+		return 0, 0, errBadCursor
 	}
-	return id, nil
+	return rank, id, nil
 }
 
 // Submission cursors carry the sort key of the last item: "s:<unix nanos>:<uuid>",

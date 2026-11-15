@@ -1,0 +1,8 @@
+{
+  "slug": "typo-distance",
+  "title": "Typo Distance",
+  "difficulty": "hard",
+  "time_ms": 2000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

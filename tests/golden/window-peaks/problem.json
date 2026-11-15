@@ -1,0 +1,8 @@
+{
+  "slug": "window-peaks",
+  "title": "Window Peaks",
+  "difficulty": "hard",
+  "time_ms": 1000,
+  "memory_mb": 128,
+  "checker": "exact"
+}

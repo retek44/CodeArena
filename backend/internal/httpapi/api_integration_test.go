@@ -267,6 +267,47 @@ func TestListProblemsPaginatesPublishedOnly(t *testing.T) {
 	}
 }
 
+func TestListProblemsEasiestFirst(t *testing.T) {
+	a := newAPI(t)
+	for _, p := range []struct {
+		slug       string
+		difficulty problem.Difficulty
+	}{
+		{"hard-1", problem.DifficultyHard},
+		{"easy-1", problem.DifficultyEasy},
+		{"medium-1", problem.DifficultyMedium},
+		{"easy-2", problem.DifficultyEasy},
+		{"hard-2", problem.DifficultyHard},
+		{"medium-2", problem.DifficultyMedium},
+	} {
+		a.problem(p.slug, p.difficulty, true)
+	}
+
+	// Pages of two cross every difficulty boundary, so the cursor must carry the rank.
+	var slugs []string
+	path := "/api/problems?limit=2"
+	for pages := 0; ; pages++ {
+		if pages > 5 {
+			t.Fatal("pagination does not terminate")
+		}
+		rec := a.do(request{method: http.MethodGet, path: path})
+		expectStatus(t, rec, http.StatusOK)
+		body := decode[page[problemSummary]](t, rec)
+		for _, p := range body.Items {
+			slugs = append(slugs, p.Slug)
+		}
+		if body.NextCursor == nil {
+			break
+		}
+		path = "/api/problems?limit=2&cursor=" + *body.NextCursor
+	}
+
+	want := []string{"easy-1", "easy-2", "medium-1", "medium-2", "hard-1", "hard-2"}
+	if strings.Join(slugs, ",") != strings.Join(want, ",") {
+		t.Errorf("slugs = %v, want %v (easy, medium, hard; then in the order added)", slugs, want)
+	}
+}
+
 func TestListProblemsFiltersAndValidates(t *testing.T) {
 	a := newAPI(t)
 	a.problem("easy-one", problem.DifficultyEasy, true)

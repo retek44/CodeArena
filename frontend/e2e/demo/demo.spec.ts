@@ -72,7 +72,15 @@ test("CodeArena demo", async ({ page }) => {
 
   const problems = new ProblemsPage(page);
   await problems.open();
-  await caption(page, "Problems, each checked by golden solutions in five languages");
+  await caption(page, "Twenty problems, easiest first");
+  // Scroll down the list to the hard ones, then back up.
+  for (let step = 0; step < 6; step++) {
+    await page.mouse.wheel(0, 120);
+    await pause(page, 250);
+  }
+  await caption(page, "Each one checked by golden solutions in five languages");
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "smooth" }));
+  await pause(page, 800);
   const difficulty = page.getByLabel("Difficulty");
   await difficulty.selectOption("hard");
   await caption(page, "Filter by difficulty");

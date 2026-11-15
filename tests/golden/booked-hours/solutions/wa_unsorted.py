@@ -1,0 +1,13 @@
+# Merges in input order without sorting first.
+import sys
+
+data = sys.stdin.buffer.read().split()
+n = int(data[0])
+bookings = [(int(data[1 + 2 * i]), int(data[2 + 2 * i])) for i in range(n)]
+merged = []
+for s, e in bookings:
+    if merged and merged[-1][0] <= s <= merged[-1][1]:
+        merged[-1][1] = max(merged[-1][1], e)
+    else:
+        merged.append([s, e])
+sys.stdout.write("".join(f"{s} {e}\n" for s, e in merged))

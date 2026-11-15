@@ -140,6 +140,12 @@ LANGUAGES: dict[str, Language] = {
         # and with a limit between about 1100 and 1200 MB its first heap arena does not fit
         # (runtime: out of memory, 0 in use). 1536 keeps every limit (16-512 MB) above that.
         address_space_overhead_mb=1536,
+        # The compiler and linker are Go programs too, with the same erratic limits: at
+        # 800 MB some compiles fail (it depends on address space layout randomisation),
+        # between about 1150 and 1300 MB most do, so 1024 MB failed now and then in CI.
+        # From 1536 MB up every compile passed; resident memory stays capped by the
+        # memory watchdog.
+        compile_address_space_mb=4096,
         artifacts=("main",),
         env=(("GOMAXPROCS", "2"),),
     ),

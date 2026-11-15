@@ -85,6 +85,7 @@ paths:
       tags: [problems]
       operationId: listProblems
       summary: List published problems
+      description: Easiest first (easy, medium, hard), then in the order the problems were added.
       security: []
       parameters:
         - $ref: "#/components/parameters/Cursor"

@@ -1,0 +1,8 @@
+{
+  "slug": "exact-change",
+  "title": "Exact Change",
+  "difficulty": "medium",
+  "time_ms": 2000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

@@ -1,0 +1,8 @@
+{
+  "slug": "stock-profit",
+  "title": "Buy Low Sell High",
+  "difficulty": "easy",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

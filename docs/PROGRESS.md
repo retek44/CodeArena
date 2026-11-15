@@ -277,4 +277,10 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       (97 golden solutions in the judge and E2E suites); duplicate Example sections removed from the
       statements (the SPA shows the sample test case)
 - [x] Demo re-recorded with the new frontend (`docs/media/demo.gif`)
+- [x] Ten more golden problems in the style of interview classics, statements written for the
+      project: `mirror-words`, `stock-profit`, `missing-ticket` (easy), `longest-fresh-run`,
+      `count-islands`, `exact-change`, `booked-hours` (medium), `window-peaks`, `typo-distance`,
+      `rain-walls` (hard); 20 problems, 164 golden solutions in the judge and E2E suites
+- [x] Problem list easiest first (easy, medium, hard, then in the order added): keyset cursor
+      `p:<difficulty rank>:<id>`; demo re-recorded with the sorted list
 - [ ] **(manual)** After the next deploy: add yourself to the Cognito group `admins` (SETUP.md)

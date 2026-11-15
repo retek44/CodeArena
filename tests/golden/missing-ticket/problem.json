@@ -1,0 +1,8 @@
+{
+  "slug": "missing-ticket",
+  "title": "Missing Ticket",
+  "difficulty": "easy",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

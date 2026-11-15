@@ -74,8 +74,8 @@ part of the evidence.
 
 - Demo recording: `docs/media/demo.gif` (sign-in, a wrong answer with per-test-case
   results, the fix accepted, a contest leaderboard).
-- Seed problems written for the project: ten problems in `tests/golden/` (from `a-plus-b`
-  to `shortest-route` and `task-order`), with golden solutions per language; seed contests in
+- Seed problems written for the project: twenty problems in `tests/golden/` (from `a-plus-b`
+  to `typo-distance` and `window-peaks`), with golden solutions per language; seed contests in
   `tests/golden/contests.json`.
 - Architecture and decisions: `README.md`, `docs/PLAN.md`, `docs/adr/`.
 - There are no real users, testimonials, usage numbers or press. Do not invent them.

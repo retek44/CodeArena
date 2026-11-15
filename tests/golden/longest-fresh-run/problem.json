@@ -1,0 +1,8 @@
+{
+  "slug": "longest-fresh-run",
+  "title": "Longest Fresh Run",
+  "difficulty": "medium",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

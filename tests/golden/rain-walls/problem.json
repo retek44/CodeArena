@@ -1,0 +1,8 @@
+{
+  "slug": "rain-walls",
+  "title": "Rain Between Walls",
+  "difficulty": "hard",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

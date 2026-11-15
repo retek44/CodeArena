@@ -41,9 +41,9 @@ func TestParseLimit(t *testing.T) {
 func TestProblemCursorRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	got, err := decodeProblemCursor(encodeProblemCursor(42))
-	if err != nil || got != 42 {
-		t.Fatalf("round trip = %d, %v; want 42", got, err)
+	rank, id, err := decodeProblemCursor(encodeProblemCursor(2, 42))
+	if err != nil || rank != 2 || id != 42 {
+		t.Fatalf("round trip = %d, %d, %v; want 2, 42", rank, id, err)
 	}
 }
 
@@ -66,23 +66,27 @@ func TestDecodeCursorRejectsTampering(t *testing.T) {
 	problemCursors := map[string]string{
 		"not base64":         "%%%",
 		"submission cursor":  encodeSubmissionCursor(time.Now(), uuid.New()),
-		"zero id":            enc("p:0"),
-		"negative id":        enc("p:-5"),
-		"not a number":       enc("p:abc"),
+		"zero id":            enc("p:0:0"),
+		"negative id":        enc("p:1:-5"),
+		"not a number":       enc("p:1:abc"),
+		"rank too high":      enc("p:3:1"),
+		"negative rank":      enc("p:-1:1"),
+		"id only":            enc("p:42"),
 		"too long":           strings.Repeat("A", maxCursorLen+1),
-		"sql in the payload": enc("p:1 OR 1=1"),
+		"sql in the payload": enc("p:1:1 OR 1=1"),
+		"sql in the rank":    enc("p:1) OR (1:1"),
 	}
 	for name, c := range problemCursors {
 		t.Run("problem/"+name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := decodeProblemCursor(c); err == nil {
+			if _, _, err := decodeProblemCursor(c); err == nil {
 				t.Errorf("decodeProblemCursor(%q) accepted a bad cursor", c)
 			}
 		})
 	}
 
 	submissionCursors := map[string]string{
-		"problem cursor": encodeProblemCursor(1),
+		"problem cursor": encodeProblemCursor(0, 1),
 		"missing id":     enc("s:123"),
 		"bad time":       enc("s:abc:" + uuid.NewString()),
 		"bad uuid":       enc("s:123:not-a-uuid"),
