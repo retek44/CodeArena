@@ -2,6 +2,7 @@
 #   - S3 bucket for Terraform state (native S3 locking, no DynamoDB table)
 #   - GitHub Actions OIDC provider and CI roles
 #   - Monthly cost budget with email alerts
+#   - API Gateway CloudWatch Logs role (account setting, needed by the WebSocket stage)
 # Apply it manually with admin credentials. CI never touches this stack.
 
 provider "aws" {
@@ -141,6 +142,44 @@ module "github_oidc" {
   environments         = var.environments
   create_provider      = var.create_github_oidc_provider
   state_bucket_arn     = aws_s3_bucket.tfstate.arn
+}
+
+# --- API Gateway logging ------------------------------------------------------
+
+# Account and region setting: API Gateway refuses a WebSocket stage with access logs
+# ("CloudWatch Logs role ARN must be set in account settings") until it has a role
+# for CloudWatch Logs. One setting serves every environment, so it lives here.
+data "aws_iam_policy_document" "apigateway_trust" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["apigateway.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [local.account_id]
+    }
+  }
+}
+
+resource "aws_iam_role" "apigateway_logs" {
+  name               = "${var.project}-apigateway-logs"
+  assume_role_policy = data.aws_iam_policy_document.apigateway_trust.json
+}
+
+resource "aws_iam_role_policy_attachment" "apigateway_logs" {
+  role       = aws_iam_role.apigateway_logs.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs"
+}
+
+resource "aws_api_gateway_account" "this" {
+  cloudwatch_role_arn = aws_iam_role.apigateway_logs.arn
+
+  depends_on = [aws_iam_role_policy_attachment.apigateway_logs]
 }
 
 module "budget" {

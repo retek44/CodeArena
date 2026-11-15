@@ -8,13 +8,15 @@ locals {
   region = data.aws_region.current.region
   d      = var.dashboard
 
-  runner_metrics = flatten([
+  # concat, not flatten: flatten is recursive and would turn each metric row into
+  # loose strings, which PutDashboard rejects ("Should be array").
+  runner_metrics = concat([], [
     for lang, fn in local.d.runner_function_names : [
       ["AWS/Lambda", "Duration", "FunctionName", fn, { stat = "p95", label = "${lang} p95 duration" }],
       ["AWS/Lambda", "Errors", "FunctionName", fn, { stat = "Sum", label = "${lang} errors", yAxis = "right" }],
       ["AWS/Lambda", "ConcurrentExecutions", "FunctionName", fn, { stat = "Maximum", label = "${lang} concurrency", yAxis = "right" }],
     ]
-  ])
+  ]...)
 
   widgets = [
     {
