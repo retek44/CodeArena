@@ -1,0 +1,8 @@
+{
+  "slug": "grid-paths",
+  "title": "Grid Paths",
+  "difficulty": "medium",
+  "time_ms": 2000,
+  "memory_mb": 128,
+  "checker": "exact"
+}

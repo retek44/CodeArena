@@ -268,4 +268,13 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       to list, create and replace problems with their test cases (new version on a change of limits,
       checker or test cases; optimistic locking); SPA list and editor with Markdown preview and
       `.in`/`.out` file pairing; Go integration, Vitest and Playwright (judging with the new version) tests
+- [x] SPA redesign ("Departures Board", DESIGN.md): split-flap state cells that flip on a state
+      change, results board with one row per test case, statement and editor side by side, self-hosted
+      Barlow / Barlow Condensed / JetBrains Mono (CSP `font-src 'self'`); PRODUCT.md for product context
+- [x] Seven more golden problems written for the project, with generators (`gen.py`): `best-streak`,
+      `bracket-check`, `grid-paths`, `shortest-route`, `mean-median` (float checker), `prime-count`,
+      `task-order` (custom checker); AC solutions in all five languages plus WA, TLE and RE solutions
+      (97 golden solutions in the judge and E2E suites); duplicate Example sections removed from the
+      statements (the SPA shows the sample test case)
+- [x] Demo re-recorded with the new frontend (`docs/media/demo.gif`)
 - [ ] **(manual)** After the next deploy: add yourself to the Cognito group `admins` (SETUP.md)

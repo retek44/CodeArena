@@ -1,0 +1,8 @@
+{
+  "slug": "shortest-route",
+  "title": "Shortest Route",
+  "difficulty": "hard",
+  "time_ms": 2000,
+  "memory_mb": 256,
+  "checker": "exact"
+}

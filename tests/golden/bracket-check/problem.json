@@ -1,0 +1,8 @@
+{
+  "slug": "bracket-check",
+  "title": "Bracket Check",
+  "difficulty": "easy",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

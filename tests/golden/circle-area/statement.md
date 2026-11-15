@@ -8,17 +8,3 @@ printed digits is up to you.
 ## Constraints
 
 - 0 ≤ r ≤ 10^4, `r` may have a fractional part
-
-## Example
-
-Input:
-
-```
-1
-```
-
-Output:
-
-```
-3.141592653589793
-```

@@ -35,16 +35,6 @@ type ContestProblem struct {
 	ProblemID int64
 }
 
-type Hint struct {
-	ID           int64
-	UserID       string
-	Text         string
-	Status       string
-	Model        pgtype.Text
-	CreatedAt    pgtype.Timestamptz
-	SubmissionID uuid.UUID
-}
-
 type OutboxMessage struct {
 	ID          int64
 	Topic       string

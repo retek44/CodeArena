@@ -1,0 +1,8 @@
+{
+  "slug": "best-streak",
+  "title": "Best Streak",
+  "difficulty": "medium",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "exact"
+}

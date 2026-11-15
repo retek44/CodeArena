@@ -1,0 +1,8 @@
+{
+  "slug": "task-order",
+  "title": "Task Order",
+  "difficulty": "hard",
+  "time_ms": 2000,
+  "memory_mb": 128,
+  "checker": "custom"
+}

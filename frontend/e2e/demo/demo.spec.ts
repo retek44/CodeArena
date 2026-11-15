@@ -18,6 +18,7 @@ async function caption(page: Page, text: string) {
       bar = document.createElement("div");
       bar.id = "demo-caption";
       bar.setAttribute("aria-hidden", "true");
+      // In the board's own face: Barlow Condensed on board black, one ramp rule.
       Object.assign(bar.style, {
         position: "fixed",
         left: "50%",
@@ -25,10 +26,13 @@ async function caption(page: Page, text: string) {
         transform: "translateX(-50%)",
         maxWidth: "80%",
         padding: "10px 18px",
-        borderRadius: "8px",
-        background: "rgba(17, 24, 39, 0.9)",
-        color: "#fff",
-        font: "600 18px system-ui, sans-serif",
+        borderRadius: "2px",
+        background: "rgba(14, 16, 19, 0.94)",
+        border: "1px solid #3a3f46",
+        color: "#ecebe6",
+        font: '600 20px "Barlow Condensed", sans-serif',
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
         zIndex: "2147483647",
         pointerEvents: "none",
       });
@@ -68,7 +72,12 @@ test("CodeArena demo", async ({ page }) => {
 
   const problems = new ProblemsPage(page);
   await problems.open();
-  await caption(page, "Problems by difficulty");
+  await caption(page, "Problems, each checked by golden solutions in five languages");
+  const difficulty = page.getByLabel("Difficulty");
+  await difficulty.selectOption("hard");
+  await caption(page, "Filter by difficulty");
+  await difficulty.selectOption("");
+  await pause(page, 600);
   await problems.openProblem("A + B");
   const problem = new ProblemPage(page);
   await expect(page.getByRole("heading", { level: 1, name: "A + B" })).toBeVisible();

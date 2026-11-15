@@ -8,18 +8,3 @@ The first line holds `n` and a target `t`. The second line holds `n` integers
 
 - 2 ≤ n ≤ 10^5
 - |a_i|, |t| ≤ 10^9
-
-## Example
-
-Input:
-
-```
-4 9
-2 7 11 15
-```
-
-Output:
-
-```
-1 2
-```

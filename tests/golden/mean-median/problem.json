@@ -1,0 +1,9 @@
+{
+  "slug": "mean-median",
+  "title": "Mean and Median",
+  "difficulty": "easy",
+  "time_ms": 1000,
+  "memory_mb": 64,
+  "checker": "float",
+  "tolerance": 1e-06
+}
