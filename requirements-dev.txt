@@ -1,10 +1,10 @@
 # Development and CI tools for the Python parts (runners, test suites). Pinned; Dependabot updates them.
 jsonschema==4.26.0
-mypy==2.4.0
+mypy==2.4.1
 pytest==9.2.0
 pytest-cov==7.1.0
 pyyaml==6.0.3
 requests==2.34.2
-ruff==0.17.3
+ruff==0.17.4
 types-PyYAML==6.0.12.20261113
-types-requests==2.33.0.20261006
+types-requests==2.33.0.20261030
