@@ -4,11 +4,13 @@ package contest_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -241,10 +243,19 @@ func TestLifecycleSteps(t *testing.T) {
 	}
 }
 
-type recordingScheduler struct{ slugs []string }
+// recordingScheduler is idempotent like the real one: a contest is scheduled once.
+type recordingScheduler struct {
+	slugs []string
+	fail  error
+}
 
 func (r *recordingScheduler) Schedule(_ context.Context, c *ent.Contest) error {
-	r.slugs = append(r.slugs, c.Slug)
+	if r.fail != nil {
+		return r.fail
+	}
+	if !slices.Contains(r.slugs, c.Slug) {
+		r.slugs = append(r.slugs, c.Slug)
+	}
 	return nil
 }
 
@@ -265,15 +276,29 @@ func TestSeedContestsOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 11, 13, 10, 0, 30, 0, time.UTC)
-	sched := &recordingScheduler{}
-
+	// The first seed creates "now" but cannot schedule it (a missing permission, say).
+	sched := &recordingScheduler{fail: errors.New("access denied")}
+	if err := contest.SeedContests(ctx, st, path, now, sched, logger()); err == nil {
+		t.Fatal("expected the scheduling error")
+	}
+	// The next seeds schedule both contests, "now" included.
+	sched.fail = nil
 	for range 2 {
 		if err := contest.SeedContests(ctx, st, path, now, sched, logger()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if len(sched.slugs) != 2 {
-		t.Errorf("scheduled %v, want each contest once", sched.slugs)
+	if !slices.Equal(sched.slugs, []string{"now", "later"}) {
+		t.Errorf("scheduled %v, want now and later", sched.slugs)
+	}
+	// A contest that has started is not scheduled again.
+	st.Ent.Contest.Update().Where(entcontest.Slug("now")).SetStatus(entcontest.StatusRunning).ExecX(ctx)
+	rerun := &recordingScheduler{}
+	if err := contest.SeedContests(ctx, st, path, now, rerun, logger()); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(rerun.slugs, []string{"later"}) {
+		t.Errorf("rescheduled %v, want only later", rerun.slugs)
 	}
 	later := st.Ent.Contest.Query().Where(entcontest.Slug("later")).WithProblems().OnlyX(ctx)
 	if !later.StartsAt.Equal(now.Truncate(time.Minute).Add(24*time.Hour)) || later.EndsAt.Sub(later.FreezeAt) != 30*time.Minute {

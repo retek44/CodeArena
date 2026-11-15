@@ -31,11 +31,16 @@ type Definition struct {
 
 // Scheduler arranges the lifecycle steps of a new contest (EventBridge Scheduler and
 // Step Functions in AWS; nothing locally, where the phases follow the clock anyway).
+// Schedule must be idempotent: the seed calls it again for a contest that has not
+// started yet.
 type Scheduler interface {
 	Schedule(ctx context.Context, c *ent.Contest) error
 }
 
-// SeedContests creates the contests of the file that do not exist yet.
+// SeedContests creates the contests of the file that do not exist yet and schedules
+// every contest that has not started. Otherwise a seed that failed after creating a
+// contest (for example, without permission to schedule it) would leave the contest
+// without a lifecycle: the next seed would skip it.
 func SeedContests(ctx context.Context, st *store.Store, path string, now time.Time, sched Scheduler, logger *slog.Logger) error {
 	raw, err := os.ReadFile(path) //nolint:gosec // path from the seed's own flag
 	if errors.Is(err, os.ErrNotExist) {
@@ -52,19 +57,21 @@ func SeedContests(ctx context.Context, st *store.Store, path string, now time.Ti
 		if d.FreezeAfterMinutes <= 0 || d.DurationMinutes <= d.FreezeAfterMinutes || len(d.Problems) == 0 {
 			return fmt.Errorf("contest %s: need 0 < freeze_after_minutes < duration_minutes and problems", d.Slug)
 		}
-		exists, err := st.Ent.Contest.Query().Where(entcontest.Slug(d.Slug)).Exist(ctx)
-		if err != nil {
+		c, err := st.Ent.Contest.Query().Where(entcontest.Slug(d.Slug)).Only(ctx)
+		switch {
+		case ent.IsNotFound(err):
+			if c, err = createContest(ctx, st, d, now); err != nil {
+				return fmt.Errorf("contest %s: %w", d.Slug, err)
+			}
+			logger.Info("contest seeded", "slug", c.Slug, "starts_at", c.StartsAt)
+		case err != nil:
 			return err
-		}
-		if exists {
+		case c.Status != entcontest.StatusScheduled:
 			logger.Info("contest exists, skipped", "slug", d.Slug)
 			continue
+		default:
+			logger.Info("contest exists, not started: schedule checked", "slug", d.Slug)
 		}
-		c, err := createContest(ctx, st, d, now)
-		if err != nil {
-			return fmt.Errorf("contest %s: %w", d.Slug, err)
-		}
-		logger.Info("contest seeded", "slug", c.Slug, "starts_at", c.StartsAt)
 		if sched != nil {
 			if err := sched.Schedule(ctx, c); err != nil {
 				return fmt.Errorf("schedule %s: %w", c.Slug, err)

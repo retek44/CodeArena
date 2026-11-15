@@ -86,6 +86,9 @@ jobs:
       # Expand/contract: the schema must be ready before the new code runs. Step 1
       # applies the database and the job tasks only, step 2 migrates and seeds,
       # step 3 rolls out everything else. A failed job leaves the services unchanged.
+      # The seed schedules new contests (ADR-0016), so step 1 also applies the job
+      # role's scheduling policy, the schedule group and the role the schedules pass.
+      # The state machine comes in step 3; Scheduler retries a missing target.
       - name: Apply database and job tasks
         run: >-
           terraform -chdir="${TF_DIR}" apply -input=false -auto-approve -lock-timeout=120s
@@ -95,6 +98,9 @@ jobs:
           -target=module.app.module.backend[0].aws_ecs_task_definition.job
           -target=module.app.module.backend[0].aws_security_group.job
           -target=module.app.module.backend[0].aws_ecs_cluster.this
+          -target=module.app.module.backend[0].aws_iam_role_policy.seed_scheduling
+          -target=module.app.module.contests[0].aws_scheduler_schedule_group.contests
+          -target=module.app.module.contests[0].aws_iam_role.scheduler
       - name: Migrate and seed
         run: |
           DEPLOY=$(terraform -chdir="${TF_DIR}" output -json jobs)
