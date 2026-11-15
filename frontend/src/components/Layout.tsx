@@ -1,8 +1,10 @@
 import { Link, NavLink, Outlet } from "react-router";
+import { useMe } from "../api/hooks";
 import { useAuth } from "../auth/AuthProvider";
 
 export function Layout() {
   const auth = useAuth();
+  const me = useMe();
   return (
     <>
       <a className="skip-link" href="#main">
@@ -16,6 +18,7 @@ export function Layout() {
           <NavLink to="/">Problems</NavLink>
           <NavLink to="/contests">Contests</NavLink>
           {auth.user && <NavLink to="/submissions">My submissions</NavLink>}
+          {auth.user && me.data?.admin && <NavLink to="/admin/problems">Admin</NavLink>}
         </nav>
         <div className="user">
           {auth.user ? (

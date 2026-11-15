@@ -176,6 +176,16 @@ nothing deploys on push.
 - **Destroy:** Actions → Destroy → environment. dev and staging are also destroyed every
   night at 21:00 UTC; prod never automatically. The same run destroys previews whose PR is
   closed or has lost the label.
+- **Admins:** problems are managed in the SPA under *Admin* (`/admin/problems`), by members
+  of the Cognito group `admins`. No one is an admin after a deploy. Sign up in the SPA once,
+  then add yourself (the pool ID is in `terraform output cognito`), and sign in again so the
+  new token carries the group:
+
+  ```bash
+  aws cognito-idp admin-add-user-to-group --profile CodeArena --user-pool-id <pool id> --username <your username> --group-name admins
+  ```
+
+  Locally (`AUTH_MODE=dev`) the users `admin` and `admin-<name>` are admins.
 - **Release notes:** every merge to `main` updates the release PR of release-please
   (version + `CHANGELOG.md` from the Conventional Commit titles). Merging it tags `vX.Y.Z` and
   publishes a GitHub Release with an SPDX SBOM.

@@ -6,9 +6,10 @@
 //	SUBMISSIONS_QUEUE_URL   SQS queue (AWS_ENDPOINT_URL_SQS points to ElasticMQ locally)
 //	RUNNER_MODE             http (runner container) or lambda
 //	RUNNER_URL              http mode: Lambda Runtime Interface Emulator invoke URL (Python runner)
-//	RUNNER_URL_CPP          http mode: invoke URL of the C++ runner (optional)
+//	RUNNER_URL_<LANG>       http mode: invoke URL of another language's runner, for example
+//	                        RUNNER_URL_CPP, RUNNER_URL_JAVA (optional; without it the language is unavailable)
 //	RUNNER_FUNCTION_PYTHON  lambda mode: runner function name or ARN
-//	RUNNER_FUNCTION_CPP     lambda mode: C++ runner function (optional)
+//	RUNNER_FUNCTION_<LANG>  lambda mode: another language's runner function (optional)
 //	WORKER_CONCURRENCY      submissions judged at once (default 4)
 //	WORKER_LEASE            lease and retry delay, e.g. 2m (default 2m; match the queue visibility timeout)
 //	WORKER_MAX_ATTEMPTS     judging attempts before IE (default 3)
@@ -25,6 +26,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,6 +39,7 @@ import (
 
 	"github.com/retek44/CodeArena/backend/internal/contest"
 	"github.com/retek44/CodeArena/backend/internal/events"
+	"github.com/retek44/CodeArena/backend/internal/judge"
 	"github.com/retek44/CodeArena/backend/internal/queue"
 	"github.com/retek44/CodeArena/backend/internal/runner"
 	"github.com/retek44/CodeArena/backend/internal/store"
@@ -144,8 +147,10 @@ func newInvoker(cfg aws.Config, timeout time.Duration) (runner.Invoker, error) {
 		}
 		client := &http.Client{Timeout: timeout, Transport: telemetry.HTTPTransport(http.DefaultTransport)}
 		invokers := runner.ByLanguage{"python": &runner.HTTPInvoker{URL: url, Client: client}}
-		if cpp := os.Getenv("RUNNER_URL_CPP"); cpp != "" {
-			invokers["cpp"] = &runner.HTTPInvoker{URL: cpp, Client: client}
+		for _, language := range judge.Languages[1:] {
+			if u := os.Getenv("RUNNER_URL" + judge.RunnerEnvSuffix(language)); u != "" {
+				invokers[language] = &runner.HTTPInvoker{URL: u, Client: client}
+			}
 		}
 		return invokers, nil
 	case "lambda":
@@ -154,8 +159,10 @@ func newInvoker(cfg aws.Config, timeout time.Duration) (runner.Invoker, error) {
 			return nil, errors.New("RUNNER_FUNCTION_PYTHON is required when RUNNER_MODE=lambda")
 		}
 		functions := map[string]string{"python": fn}
-		if cpp := os.Getenv("RUNNER_FUNCTION_CPP"); cpp != "" {
-			functions["cpp"] = cpp
+		for _, language := range judge.Languages[1:] {
+			if f := os.Getenv("RUNNER_FUNCTION_" + strings.ToUpper(language)); f != "" {
+				functions[language] = f
+			}
 		}
 		return &runner.LambdaInvoker{Client: lambda.NewFromConfig(cfg), Functions: functions}, nil
 	default:

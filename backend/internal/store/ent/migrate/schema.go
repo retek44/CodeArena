@@ -155,7 +155,7 @@ var (
 	SubmissionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID},
 		{Name: "problem_version", Type: field.TypeInt},
-		{Name: "language", Type: field.TypeEnum, Enums: []string{"python", "cpp"}},
+		{Name: "language", Type: field.TypeEnum, Enums: []string{"python", "cpp", "java", "javascript", "go"}},
 		{Name: "source", Type: field.TypeString, Size: 65536},
 		{Name: "idempotency_key", Type: field.TypeString, Size: 128},
 		{Name: "request_hash", Type: field.TypeString, Size: 64},

@@ -39,7 +39,7 @@ func (Submission) Fields() []ent.Field {
 			Positive().
 			Immutable(),
 		field.Enum("language").
-			Values("python", "cpp").
+			Values("python", "cpp", "java", "javascript", "go").
 			Immutable(),
 		field.Text("source").
 			NotEmpty().

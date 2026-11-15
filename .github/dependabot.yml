@@ -19,7 +19,7 @@ updates:
       prefix: build
 
   - package-ecosystem: docker
-    directories: ["/backend", "/runners/python", "/runners/cpp"]
+    directories: ["/backend", "/runners/python", "/runners/cpp", "/runners/java", "/runners/javascript", "/runners/go"]
     schedule:
       interval: weekly
     ignore:

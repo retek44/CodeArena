@@ -7,6 +7,23 @@ import { config } from "../config";
 // Bundle Monaco instead of loading it from a CDN at runtime: no third-party script,
 // works offline and with a strict Content-Security-Policy.
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
+// JavaScript keeps its syntax highlighting but not the TypeScript language service: that
+// worker is about 7 MB, and the judge reports syntax errors anyway (node --check).
+monaco.typescript.javascriptDefaults.setModeConfiguration({
+  completionItems: false,
+  hovers: false,
+  documentSymbols: false,
+  definitions: false,
+  references: false,
+  documentHighlights: false,
+  rename: false,
+  diagnostics: false,
+  documentRangeFormattingEdits: false,
+  signatureHelp: false,
+  onTypeFormattingEdits: false,
+  codeActions: false,
+  inlayHints: false,
+});
 loader.config({ monaco });
 
 interface Props {

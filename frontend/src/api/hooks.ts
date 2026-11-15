@@ -1,16 +1,21 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
-import { type Api, type Difficulty, type Submission } from "./client";
+import { useAuth } from "../auth/AuthProvider";
+import { type Api, type Difficulty, type ProblemInput, type Submission } from "./client";
 import { useLiveContest, useLiveSubmission } from "./live";
 import {
+  getAdminProblem,
   getContest,
+  getMe,
   getLeaderboard,
   getProblem,
   getSubmission,
+  listAdminProblems,
   listContests,
   listMySubmissions,
   listProblems,
   registerForContest,
+  saveProblem,
   submit,
   type SubmitInput,
 } from "./requests";
@@ -129,5 +134,50 @@ export function useLeaderboard(slug: string, pollMs = 10_000) {
     queryKey: ["leaderboard", slug],
     queryFn: () => getLeaderboard(api, slug),
     refetchInterval: (q) => (q.state.data?.phase === "ended" ? false : live ? LIVE_POLL_MS * 2 : pollMs),
+  });
+}
+
+/** The signed-in user (null when signed out); `admin` gates the admin pages. */
+export function useMe() {
+  const api = useApi();
+  const user = useAuth().user;
+  return useQuery({
+    queryKey: ["me", user?.name ?? null],
+    queryFn: () => getMe(api),
+    enabled: user !== null,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useAdminProblems() {
+  const api = useApi();
+  return useQuery({
+    queryKey: ["admin-problems"],
+    queryFn: () => listAdminProblems(api),
+  });
+}
+
+export function useAdminProblem(slug: string | undefined) {
+  const api = useApi();
+  return useQuery({
+    queryKey: ["admin-problem", slug],
+    queryFn: () => getAdminProblem(api, slug ?? ""),
+    enabled: slug !== undefined,
+    // The form keeps its own copy: a background refetch must not reset unsaved edits.
+    staleTime: Infinity,
+  });
+}
+
+export function useSaveProblem(slug: string | undefined) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ProblemInput) => saveProblem(api, input, slug),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["admin-problem", saved.slug], saved);
+      void queryClient.invalidateQueries({ queryKey: ["admin-problems"] });
+      void queryClient.invalidateQueries({ queryKey: ["problems"] });
+      void queryClient.invalidateQueries({ queryKey: ["problem", saved.slug] });
+    },
   });
 }

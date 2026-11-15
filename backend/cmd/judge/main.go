@@ -23,10 +23,9 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/runner"
 )
 
-const (
-	defaultRunnerURL    = "http://localhost:9000/2015-03-31/functions/function/invocations"
-	defaultRunnerURLCpp = "http://localhost:9001/2015-03-31/functions/function/invocations"
-)
+// Runner containers listen on 9000 (Python), 9001 (C++), 9002 (Java), 9003 (JavaScript)
+// and 9004 (Go), in the order of judge.Languages (make runner-up).
+const runnerURLFormat = "http://localhost:%d/2015-03-31/functions/function/invocations"
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -38,15 +37,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	problemDir := fs.String("problem", "", "problem directory (problem.json + cases/)")
 	srcPath := fs.String("src", "", "solution source file")
 	lang := fs.String("lang", "", "language (default: from file extension)")
-	runnerURL := fs.String("runner-url", envOr("CODEARENA_RUNNER_URL", defaultRunnerURL), "Python runner invoke URL (also runs custom checkers)")
-	runnerURLCpp := fs.String("runner-url-cpp", envOr("CODEARENA_RUNNER_URL_CPP", defaultRunnerURLCpp), "C++ runner invoke URL")
+	runnerURLs := map[string]*string{}
+	for i, language := range judge.Languages {
+		suffix := judge.RunnerEnvSuffix(language)
+		flagName := "runner-url" + strings.ReplaceAll(strings.ToLower(suffix), "_", "-")
+		def := envOr("CODEARENA_RUNNER_URL"+suffix, fmt.Sprintf(runnerURLFormat, 9000+i))
+		runnerURLs[language] = fs.String(flagName, def, language+" runner invoke URL (env CODEARENA_RUNNER_URL"+suffix+")")
+	}
 	asJSON := fs.Bool("json", false, "print the result as JSON")
 	timeout := fs.Duration("timeout", 2*time.Minute, "overall timeout")
 	if err := fs.Parse(args); err != nil {
 		return 1
 	}
 	if *problemDir == "" || *srcPath == "" {
-		fmt.Fprintln(stderr, "usage: judge -problem DIR -src FILE [-lang python|cpp] [-runner-url URL] [-runner-url-cpp URL] [-json]")
+		fmt.Fprintln(stderr, "usage: judge -problem DIR -src FILE [-lang "+strings.Join(judge.Languages, "|")+"] [-runner-url URL] [-runner-url-<lang> URL] [-json]")
 		return 1
 	}
 
@@ -74,9 +78,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	defer cancel()
 
 	client := &http.Client{Timeout: *timeout}
-	inv := runner.ByLanguage{
-		"python": &runner.HTTPInvoker{URL: *runnerURL, Client: client},
-		"cpp":    &runner.HTTPInvoker{URL: *runnerURLCpp, Client: client},
+	inv := runner.ByLanguage{}
+	for language, url := range runnerURLs {
+		inv[language] = &runner.HTTPInvoker{URL: *url, Client: client}
 	}
 	sub := judge.Submission{ID: "local-" + time.Now().UTC().Format("20060102T150405"), Language: language, Source: string(source)}
 	result, err := judge.Run(ctx, inv, p, sub)

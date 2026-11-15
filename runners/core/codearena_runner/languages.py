@@ -21,6 +21,10 @@ except SyntaxError as exc:
 """
 
 
+# Placeholder in run commands: the problem's memory limit in MB (JVM heap, V8 old space).
+MEMORY_MB = "{memory_mb}"
+
+
 @dataclass(frozen=True)
 class Language:
     name: str
@@ -30,6 +34,21 @@ class Language:
     # Address space the toolchain needs on top of the user's memory limit.
     # RLIMIT_AS counts virtual memory, which is much larger than resident memory.
     address_space_overhead_mb: int = 64
+    # Resident memory of the runtime itself (JVM, V8) that does not count against the
+    # problem's limit: the memory verdict allows the limit plus this much.
+    memory_overhead_mb: int = 0
+    # Files of the compile step that the runs need (glob patterns); None keeps them all.
+    artifacts: tuple[str, ...] | None = None
+    # Processes and threads one run may create (RLIMIT_NPROC above current usage).
+    # Managed runtimes start helper threads (GC, JIT compiler, I/O pool).
+    run_tasks: int = 16
+    # Address space of the compile step (compilers that are themselves a JVM need more).
+    compile_address_space_mb: int = 1024
+    # Extra environment variables of compile and run (on top of the fixed minimal one).
+    env: tuple[tuple[str, str], ...] = ()
+
+    def run_command(self, memory_mb: int) -> tuple[str, ...]:
+        return tuple(arg.replace(MEMORY_MB, str(memory_mb)) for arg in self.run)
 
 
 LANGUAGES: dict[str, Language] = {
@@ -50,6 +69,79 @@ LANGUAGES: dict[str, Language] = {
         # works the same with a minimal environment and a fresh working directory.
         compile=("/usr/bin/g++", "-std=gnu++20", "-O2", "-pipe", "-static", "-s", "-o", "main", "main.cpp"),
         address_space_overhead_mb=32,
+        artifacts=("main",),
+    ),
+    "java": Language(
+        name="java",
+        source_file="Main.java",
+        # Heap = the problem's memory limit. Serial GC: one GC thread, small footprint.
+        # No perf data file in /tmp. Small reserved code cache and class space keep the
+        # virtual address space (RLIMIT_AS) low.
+        run=(
+            "/usr/bin/java",
+            f"-Xmx{MEMORY_MB}m",
+            "-Xss64m",
+            "-XX:+UseSerialGC",
+            "-XX:ReservedCodeCacheSize=48m",
+            "-XX:CompressedClassSpaceSize=32m",
+            "-XX:MaxMetaspaceSize=96m",
+            "-XX:-UsePerfData",
+            "-Xshare:auto",
+            "-cp",
+            ".",
+            "Main",
+        ),
+        compile=(
+            "/usr/bin/javac",
+            "-J-Xmx256m",
+            "-J-XX:+UseSerialGC",
+            "-J-XX:TieredStopAtLevel=1",
+            "-J-XX:ReservedCodeCacheSize=48m",
+            "-J-XX:CompressedClassSpaceSize=32m",
+            "-J-XX:-UsePerfData",
+            "-encoding",
+            "UTF-8",
+            "-nowarn",
+            "Main.java",
+        ),
+        address_space_overhead_mb=1024,
+        memory_overhead_mb=64,
+        artifacts=("*.class",),
+        run_tasks=48,
+        compile_address_space_mb=2048,
+        env=(("MALLOC_ARENA_MAX", "2"),),
+    ),
+    "javascript": Language(
+        name="javascript",
+        source_file="main.js",
+        # One GC thread: CPU time stays the program's own, and fewer threads to budget.
+        run=(
+            "/usr/local/bin/codearena-node",
+            f"--max-old-space-size={MEMORY_MB}",
+            "--single-threaded-gc",
+            "--stack-size=65500",
+            "main.js",
+        ),
+        compile=("/usr/local/bin/codearena-node", "--check", "main.js"),
+        address_space_overhead_mb=1024,
+        memory_overhead_mb=48,
+        artifacts=("main.js",),
+        run_tasks=32,
+        compile_address_space_mb=2048,
+        env=(("MALLOC_ARENA_MAX", "2"), ("UV_THREADPOOL_SIZE", "1")),
+    ),
+    "go": Language(
+        name="go",
+        source_file="main.go",
+        run=("./main",),
+        # Compile and link against the standard library built into the image (runners/go).
+        compile=("/opt/codearena-go/build.sh",),
+        # The Go runtime reserves about 750 MB of address space at start (page summaries),
+        # and with a limit between about 1100 and 1200 MB its first heap arena does not fit
+        # (runtime: out of memory, 0 in use). 1536 keeps every limit (16-512 MB) above that.
+        address_space_overhead_mb=1536,
+        artifacts=("main",),
+        env=(("GOMAXPROCS", "2"),),
     ),
 }
 

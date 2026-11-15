@@ -18,7 +18,8 @@ STDERR_TAIL_BYTES = 4096
 _MAX_FD_TO_CLOSE = 65536
 _MAX_STACK_BYTES = 64 * 1024 * 1024
 _MAX_OPEN_FILES = 64
-_OOM_MARKERS = (b"MemoryError", b"std::bad_alloc", b"Cannot allocate memory", b"OutOfMemoryError")
+# Out-of-memory messages: Python, C++, libc, Java, and Node.js and Go ("... out of memory").
+_OOM_MARKERS = (b"MemoryError", b"std::bad_alloc", b"Cannot allocate memory", b"OutOfMemoryError", b"out of memory")
 
 
 @dataclass(frozen=True)
@@ -207,7 +208,10 @@ def _exec_child(
         resource.setrlimit(resource.RLIMIT_FSIZE, (limits.output_bytes, limits.output_bytes))
         resource.setrlimit(resource.RLIMIT_NOFILE, (_MAX_OPEN_FILES, _MAX_OPEN_FILES))
         resource.setrlimit(resource.RLIMIT_NPROC, (nproc, nproc))
-        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        # No core dumps. 0 is not enough when core_pattern pipes to a helper (WSL, systemd-
+        # coredump, apport): the kernel ignores RLIMIT_CORE for pipes, except the value 1,
+        # which it treats as "do not dump". A dump would also cost seconds of wall time.
+        resource.setrlimit(resource.RLIMIT_CORE, (1, 1))
         stack = min(_MAX_STACK_BYTES, limits.address_space_bytes)
         resource.setrlimit(resource.RLIMIT_STACK, (stack, stack))
 

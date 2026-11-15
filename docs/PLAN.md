@@ -19,7 +19,7 @@ Progress is tracked in [PROGRESS.md](PROGRESS.md). Decisions are in [adr/](adr/)
 ## 1. Product scope
 
 - Problem list and problem page (Markdown statement, samples, limits).
-- Browser editor (Monaco). Languages: Python and C++ first, then Java, Node.js, Go.
+- Browser editor (Monaco). Languages: Python and C++ first, then Java, Node.js, Go (all five done, ADR-0022).
 - Verdicts: `AC` accepted, `WA` wrong answer, `TLE` time limit, `MLE` memory limit,
   `OLE` output limit, `RE` runtime error, `CE` compile error, `IE` internal error
   (runner failed or ran out of time; the submission is retried).
@@ -28,7 +28,7 @@ Progress is tracked in [PROGRESS.md](PROGRESS.md). Decisions are in [adr/](adr/)
 - Live status per test case over WebSocket.
 - Contests: scheduled start and end, live leaderboard, ICPC-style freeze in the last 30 minutes.
 - ~~AI hint on `WA` (Amazon Bedrock, Claude Haiku) with guardrails~~ removed: no model calls (ADR-0021).
-- Admin: create problems, upload test cases, version problems.
+- Admin: create problems, upload test cases, version problems (done, ADR-0023).
 - Problems are written for this project. Do not copy LeetCode or other judges (copyright).
 
 ## 2. Architecture
@@ -130,7 +130,7 @@ Observability: OpenTelemetry (ADOT sidecar) ──▶ X-Ray + CloudWatch; alarms
 - `POST /api/submissions` → `202 Accepted` + id. `Idempotency-Key` header required.
 - `GET /api/submissions/{id}`, `GET /api/users/me/submissions`
 - `GET /api/contests`, `POST /api/contests/{id}/register`, `GET /api/contests/{id}/leaderboard`
-- `POST /api/admin/problems`, `POST /api/admin/problems/{id}/testcases` (presigned S3 URL)
+- `GET|POST /api/admin/problems`, `GET|PUT /api/admin/problems/{slug}` with test cases as JSON (ADR-0023; no S3 upload)
 - WebSocket: `subscribe {submissionId | contestId}` → `verdict_update`, `leaderboard_update`
 - Event schemas: AsyncAPI + EventBridge Schema Registry
 

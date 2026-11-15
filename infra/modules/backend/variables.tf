@@ -57,7 +57,7 @@ variable "queue" {
 }
 
 variable "runner_function_arns" {
-  description = "Runner Lambda per language (python, cpp) the worker invokes."
+  description = "Runner Lambda per language (python, cpp, java, javascript, go) the worker invokes."
   type        = map(string)
 
   validation {

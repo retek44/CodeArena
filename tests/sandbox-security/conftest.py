@@ -18,11 +18,11 @@ def runners_ready() -> None:
     for language, url in suite.URLS.items():
         if not url:
             continue
-        source = "print(1)\n" if language == "python" else "int main() { return 0; }\n"
+        source = (suite.PROGRAMS / f"probe.{suite.SUFFIXES[language]}").read_text(encoding="utf-8")
         deadline = time.monotonic() + 60
         while True:
             try:
-                suite.invoke(language, source, [""])
+                suite.invoke(language, source, ["1 2\n"])
                 break
             except (urllib.error.URLError, ConnectionError, TimeoutError):
                 if time.monotonic() > deadline:

@@ -42,6 +42,23 @@ A_PLUS_B = {
         "#include <iostream>\n\nint main() {\n    long long a, b;\n"
         "    std::cin >> a >> b;\n    std::cout << a + b << '\\n';\n}\n"
     ),
+    "java": (
+        "import java.io.*;\nimport java.util.*;\n\npublic class Main {\n"
+        "    public static void main(String[] args) throws IOException {\n"
+        "        StringTokenizer in = new StringTokenizer("
+        "new BufferedReader(new InputStreamReader(System.in)).readLine());\n"
+        "        long a = Long.parseLong(in.nextToken());\n"
+        "        long b = Long.parseLong(in.nextToken());\n"
+        "        System.out.println(a + b);\n    }\n}\n"
+    ),
+    "javascript": (
+        "// BigInt: |a|, |b| up to 10^18 do not fit into a double exactly.\n"
+        'const [a, b] = require("fs").readFileSync(0, "utf8").trim().split(/\\s+/).map(BigInt);\n'
+        "console.log((a + b).toString());\n"
+    ),
+    "go": (
+        'package main\n\nimport "fmt"\n\nfunc main() {\n\tvar a, b int64\n\tfmt.Scan(&a, &b)\n\tfmt.Println(a + b)\n}\n'
+    ),
 }
 
 

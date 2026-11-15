@@ -7,6 +7,8 @@ import { DEFAULT_LANGUAGE, LANGUAGES, languageInfo, type LanguageId } from "../l
 
 // Monaco is large: load it only on problem pages, as a separate chunk.
 const CodeEditor = lazy(() => import("../components/CodeEditor").then((m) => ({ default: m.CodeEditor })));
+// The Markdown renderer is a separate chunk too: the problem list does not need it.
+const Statement = lazy(() => import("../components/Statement").then((m) => ({ default: m.Statement })));
 
 export function ProblemPage() {
   const { slug = "" } = useParams();
@@ -49,7 +51,9 @@ export function ProblemPage() {
       <p className="meta">
         {p.difficulty} · time limit {p.time_limit_ms} ms · memory limit {p.memory_limit_mb} MB
       </p>
-      <div className="statement">{p.statement_md}</div>
+      <Suspense fallback={<p role="status">Loading statement…</p>}>
+        <Statement markdown={p.statement_md} />
+      </Suspense>
 
       {p.samples.length > 0 && (
         <section>

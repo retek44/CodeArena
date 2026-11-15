@@ -1,4 +1,4 @@
-h1:3BpVhmvyTnzyvWcBjdhTwSYkHj/6rYhtESctrTIeVOw=
+h1:5HiI+4bf/tnrXHA0zqTC27YVjn4MFK9um74DUTznCmQ=
 20261111183343_initial.sql h1:WnVLkIKcgpR4NndZ/a3UmRkj/LfrQcV3492+F6kjKN0=
 20261113070255_add_outbox.sql h1:kFBUUQ5Toq0kxYRCUp4X7qCByu91FKdF1dBz65aXvyg=
 20261113131934_add_checkers.sql h1:dn4xHvh1zUWrXDyPMI5nYNuz2nAyps/+9Qi/lSlK7k0=
@@ -6,3 +6,4 @@ h1:3BpVhmvyTnzyvWcBjdhTwSYkHj/6rYhtESctrTIeVOw=
 20261113145058_add_contests.sql h1:ZJJlpxV8/Y86va/UGIRyTpduAbYJAKQFjtDB79L/dAw=
 20261114113842_add_outbox_trace_parent.sql h1:7Y59HdBYELUYdpaj2pFTklU7C+pLMWCx6su83EWe0MU=
 20261115120000_add_submission_created_at_index.sql h1:woY2o5v7StNj+7UKwB6HU3GpGOT/WDKhEb4D1Y7JlKQ=
+20261115130000_drop_hints.sql h1:8r1hPvknz1se2Cb+rilfzy07GgSOAlJmGBk+C3ooMMU=

@@ -108,7 +108,9 @@ func TestGoldenSolutionsEndToEnd(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			got := waitForVerdict(t, created.ID, user, 90*time.Second)
+			// All solutions are submitted at once and the local worker judges one at a time
+			// (WORKER_CONCURRENCY=1), so the last verdict waits for every other one.
+			got := waitForVerdict(t, created.ID, user, 5*time.Minute)
 			if got.Status != "done" || got.Verdict == nil || *got.Verdict != want {
 				t.Fatalf("status=%s verdict=%v, want done %s (cases: %+v)", got.Status, deref(got.Verdict), want, got.Cases)
 			}

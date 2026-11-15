@@ -100,7 +100,7 @@ run "one_runner_per_language" {
   }
 
   assert {
-    condition     = toset(keys(module.runner)) == toset(["python", "cpp"])
+    condition     = toset(keys(module.runner)) == toset(["python", "cpp", "java", "javascript", "go"])
     error_message = "Every language needs its runner function (the worker routes by language)."
   }
 }
@@ -295,8 +295,11 @@ run "runner_canary_when_enabled" {
     condition = {
       for lang, r in output.deploy.runner_canary.runners : lang => r.deployment_group
       } == {
-      python = "codearena-prod-runner-python"
-      cpp    = "codearena-prod-runner-cpp"
+      python     = "codearena-prod-runner-python"
+      cpp        = "codearena-prod-runner-cpp"
+      java       = "codearena-prod-runner-java"
+      javascript = "codearena-prod-runner-javascript"
+      go         = "codearena-prod-runner-go"
     }
     error_message = "One deployment group per runner, named after the function (the hook relies on it)."
   }

@@ -1,4 +1,4 @@
-import { type Api, type Difficulty, toApiError } from "./client";
+import { type Api, type Difficulty, type ProblemInput, toApiError } from "./client";
 import type { LanguageId } from "../languages";
 
 // The API calls of the SPA, one function per endpoint. The hooks wrap them in TanStack
@@ -75,6 +75,33 @@ export async function getLeaderboard(api: Api, slug: string) {
   const { data, error, response } = await api.GET("/api/contests/{slug}/leaderboard", {
     params: { path: { slug } },
   });
+  if (!data) throw toApiError(error, response);
+  return data;
+}
+
+export async function getMe(api: Api) {
+  const { data, error, response } = await api.GET("/api/users/me");
+  if (!data) throw toApiError(error, response);
+  return data;
+}
+
+export async function listAdminProblems(api: Api) {
+  const { data, error, response } = await api.GET("/api/admin/problems");
+  if (!data) throw toApiError(error, response);
+  return data.items;
+}
+
+export async function getAdminProblem(api: Api, slug: string) {
+  const { data, error, response } = await api.GET("/api/admin/problems/{slug}", { params: { path: { slug } } });
+  if (!data) throw toApiError(error, response);
+  return data;
+}
+
+/** Creates the problem, or replaces the problem `slug` when it is given. */
+export async function saveProblem(api: Api, input: ProblemInput, slug?: string) {
+  const { data, error, response } = slug
+    ? await api.PUT("/api/admin/problems/{slug}", { params: { path: { slug } }, body: input })
+    : await api.POST("/api/admin/problems", { body: input });
   if (!data) throw toApiError(error, response);
   return data;
 }

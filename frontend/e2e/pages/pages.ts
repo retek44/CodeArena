@@ -92,3 +92,37 @@ export class SubmissionPage {
     await expect(this.result).toContainText(`${code} ${label}`, { timeout: 45_000 });
   }
 }
+
+export class AdminProblemPage {
+  constructor(private readonly page: Page) {}
+
+  async openNew() {
+    await this.page.goto("/admin/problems");
+    await this.page.getByRole("link", { name: "New problem" }).click();
+    await expect(this.page.getByRole("heading", { level: 1, name: "New problem" })).toBeVisible();
+  }
+
+  async fill(fields: { slug: string; title: string; statement: string }) {
+    await this.page.getByLabel("Slug").fill(fields.slug);
+    await this.page.getByLabel("Title").fill(fields.title);
+    await this.page.getByLabel("Markdown").fill(fields.statement);
+  }
+
+  /** Uploads test case files: name to content, e.g. {"1.in": "2\n", "1.out": "4\n"}. */
+  async uploadTestFiles(files: Record<string, string>) {
+    await this.page.getByLabel(/Upload test case files/).setInputFiles(
+      Object.entries(files).map(([name, text]) => ({ name, mimeType: "text/plain", buffer: Buffer.from(text) })),
+    );
+  }
+
+  async save(button: "Create problem" | "Save") {
+    await this.page.getByRole("button", { name: button }).click();
+  }
+
+  /** Waits for the saved version, e.g. "Version 2.". */
+  async expectVersion(version: number) {
+    await expect(this.page.getByRole("status").filter({ hasText: /Version \d+\./ })).toContainText(
+      `Version ${version}.`,
+    );
+  }
+}

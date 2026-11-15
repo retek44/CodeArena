@@ -2,10 +2,17 @@
 SHELL := bash
 
 TF_DIRS := infra/bootstrap infra/shared $(wildcard infra/envs/*) $(wildcard infra/preview/*) $(wildcard infra/modules/*)
-RUNNER_IMAGE := codearena-runner-python:local
-RUNNER_URL ?= http://localhost:9000/2015-03-31/functions/function/invocations
-RUNNER_IMAGE_CPP := codearena-runner-cpp:local
-RUNNER_URL_CPP ?= http://localhost:9001/2015-03-31/functions/function/invocations
+# One runner image per language: codearena-runner-<language>:local. make runner-up starts
+# them on ports 9000, 9001, ... in this order, with uids 993, 994, ... (RLIMIT_NPROC
+# counts the tasks of a uid across all containers, so they must not share one).
+RUNNER_LANGUAGES := python cpp java javascript go
+RUNNER_TAG := local
+RUNNER_INVOKE := 2015-03-31/functions/function/invocations
+RUNNER_URLS := CODEARENA_RUNNER_URL=http://localhost:9000/$(RUNNER_INVOKE) \
+	CODEARENA_RUNNER_URL_CPP=http://localhost:9001/$(RUNNER_INVOKE) \
+	CODEARENA_RUNNER_URL_JAVA=http://localhost:9002/$(RUNNER_INVOKE) \
+	CODEARENA_RUNNER_URL_JAVASCRIPT=http://localhost:9003/$(RUNNER_INVOKE) \
+	CODEARENA_RUNNER_URL_GO=http://localhost:9004/$(RUNNER_INVOKE)
 
 .PHONY: help
 help: ## List targets
@@ -107,39 +114,40 @@ py-test-docker: ## Runner lint and tests inside a Linux container
 		'pip install -q -r requirements-dev.txt && ruff check runners lambdas tests/sandbox-security && mypy && pytest -q runners/core/tests lambdas/ws/tests lambdas/deploy-hook/tests'
 
 .PHONY: runner-image
-runner-image: ## Build the Python and C++ runner images
-	docker build -t $(RUNNER_IMAGE) -f runners/python/Dockerfile runners
-	docker build -t $(RUNNER_IMAGE_CPP) -f runners/cpp/Dockerfile runners
+runner-image: ## Build the runner images (one per language)
+	for lang in $(RUNNER_LANGUAGES); do \
+		docker build -t codearena-runner-$$lang:$(RUNNER_TAG) -f runners/$$lang/Dockerfile runners || exit 1; \
+	done
 
 .PHONY: runner-up
-runner-up: runner-image ## Start the runner on :9000, restricted like Lambda
-	-docker rm -f codearena-runner >/dev/null 2>&1
-	docker run -d --name codearena-runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g \
-		-p 9000:8080 $(RUNNER_IMAGE)
-	-docker rm -f codearena-runner-cpp >/dev/null 2>&1
-	# The C++ program runs from /tmp (allowed in Lambda); Docker tmpfs is noexec by default.
-	# Own uid: RLIMIT_NPROC counts the tasks of a uid across all containers.
-	docker run -d --name codearena-runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
-		--user 994:990 -p 9001:8080 $(RUNNER_IMAGE_CPP)
+runner-up: runner-image ## Start the runners on :9000-9004, restricted like Lambda
+	# Read-only root, writable /tmp only, own uid each. Compiled programs (C++, Go) run
+	# from /tmp, which Lambda allows; Docker mounts tmpfs noexec unless told otherwise.
+	i=0; for lang in $(RUNNER_LANGUAGES); do \
+		docker rm -f codearena-runner-$$lang >/dev/null 2>&1; \
+		docker run -d --name codearena-runner-$$lang --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
+			--user $$((993 + i)):990 -p $$((9000 + i)):8080 codearena-runner-$$lang:$(RUNNER_TAG) || exit 1; \
+		i=$$((i + 1)); \
+	done
 
 .PHONY: runner-down
 runner-down: ## Stop the runner containers
-	-docker rm -f codearena-runner codearena-runner-cpp
+	-for lang in $(RUNNER_LANGUAGES); do docker rm -f codearena-runner-$$lang; done
 
 .PHONY: sandbox-suite
 sandbox-suite: runner-image ## Sandbox hardening suite: limits, isolation, leftovers (runners without network)
-	bash tests/sandbox-security/run.sh $(RUNNER_IMAGE) $(RUNNER_IMAGE_CPP)
+	bash tests/sandbox-security/run.sh $(RUNNER_TAG)
 
 .PHONY: golden
-golden: ## Golden verdict tests against the running runner (make runner-up first)
-	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) CODEARENA_RUNNER_URL_CPP=$(RUNNER_URL_CPP) go test -count=1 -run TestGolden -v ./internal/judge/
+golden: ## Golden verdict tests against the running runners (make runner-up first)
+	cd backend && $(RUNNER_URLS) go test -count=1 -run TestGolden -v ./internal/judge/
 
 # Usage: make judge SRC=tests/golden/a-plus-b/solutions/ac.py [PROBLEM=tests/golden/a-plus-b]
 PROBLEM ?= tests/golden/a-plus-b
 
 .PHONY: judge
 judge: ## Judge one solution locally (SRC=..., PROBLEM=...)
-	cd backend && CODEARENA_RUNNER_URL=$(RUNNER_URL) CODEARENA_RUNNER_URL_CPP=$(RUNNER_URL_CPP) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
+	cd backend && $(RUNNER_URLS) go run ./cmd/judge -problem ../$(PROBLEM) -src ../$(SRC)
 
 # --- Frontend -----------------------------------------------------------------
 

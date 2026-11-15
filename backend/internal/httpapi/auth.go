@@ -5,13 +5,19 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strings"
 )
 
 // Principal is the authenticated caller.
 type Principal struct {
 	UserID   string // Cognito "sub"
 	Username string
+	// Admin: member of the Cognito group AdminGroup; may manage problems.
+	Admin bool
 }
+
+// AdminGroup is the Cognito group of admins (infra/modules/cognito).
+const AdminGroup = "admins"
 
 // Authenticator turns a request into a Principal. The Cognito JWT implementation
 // lives in internal/auth; tests and local development use DevAuthenticator.
@@ -48,6 +54,7 @@ var devUserPattern = regexp.MustCompile(`^[a-z0-9-]{1,32}$`)
 
 // DevAuthenticator trusts the X-Dev-User header. Only for local development and
 // tests: cmd/api enables it only with AUTH_MODE=dev, and AWS deployments set cognito.
+// The users "admin" and "admin-<name>" are admins.
 type DevAuthenticator struct{}
 
 // Authenticate implements Authenticator.
@@ -56,5 +63,6 @@ func (DevAuthenticator) Authenticate(r *http.Request) (Principal, error) {
 	if !devUserPattern.MatchString(id) {
 		return Principal{}, ErrUnauthenticated
 	}
-	return Principal{UserID: "dev-" + id, Username: id}, nil
+	admin := id == "admin" || strings.HasPrefix(id, "admin-")
+	return Principal{UserID: "dev-" + id, Username: id, Admin: admin}, nil
 }

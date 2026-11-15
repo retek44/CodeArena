@@ -91,3 +91,12 @@ resource "aws_cognito_managed_login_branding" "spa" {
 
   use_cognito_provided_values = true
 }
+
+# Admins manage problems (backend: httpapi.AdminGroup). Access tokens carry the groups in
+# cognito:groups. Members are added by hand (docs/SETUP.md); no one is an admin by default.
+resource "aws_cognito_user_group" "admins" {
+  name         = "admins"
+  user_pool_id = aws_cognito_user_pool.this.id
+  description  = "May create and edit problems and their test cases."
+  precedence   = 1
+}

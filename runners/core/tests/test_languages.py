@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from codearena_runner.languages import LANGUAGES, enabled_languages
+from codearena_runner.languages import LANGUAGES, MEMORY_MB, enabled_languages
 
 REQUEST_SCHEMA = json.loads((Path(__file__).parents[2] / "protocol" / "request.schema.json").read_text())
 
@@ -38,3 +38,33 @@ def test_commands_use_absolute_paths() -> None:
                 continue
             program = argv[0]
             assert program.startswith("/") or program.startswith("./"), f"{language.name}: {program}"
+
+
+def test_run_command_fills_in_the_memory_limit() -> None:
+    java = LANGUAGES["java"].run_command(128)
+    assert "-Xmx128m" in java
+    assert "--max-old-space-size=64" in LANGUAGES["javascript"].run_command(64)
+    for language in LANGUAGES.values():
+        assert not any(MEMORY_MB in arg for arg in language.run_command(64)), language.name
+
+
+def test_compiled_languages_keep_only_what_the_run_needs() -> None:
+    # The source and compiler leftovers are not written into every test case directory.
+    assert LANGUAGES["cpp"].artifacts == ("main",)
+    assert LANGUAGES["go"].artifacts == ("main",)
+    assert LANGUAGES["java"].artifacts == ("*.class",)
+
+
+def test_managed_runtimes_get_room_for_their_own_memory() -> None:
+    for name in ("java", "javascript"):
+        language = LANGUAGES[name]
+        assert language.memory_overhead_mb > 0, name
+        assert language.run_tasks > 16, name
+    assert LANGUAGES["python"].memory_overhead_mb == 0
+    assert LANGUAGES["cpp"].memory_overhead_mb == 0
+
+
+def test_language_environment_cannot_replace_the_fixed_variables() -> None:
+    for language in LANGUAGES.values():
+        names = {name for name, _ in language.env}
+        assert not names & {"PATH", "HOME", "TMPDIR", "LANG"}, language.name

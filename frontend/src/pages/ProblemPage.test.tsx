@@ -11,8 +11,23 @@ describe("ProblemPage", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: "A + B" })).toBeInTheDocument();
     expect(screen.getByText(/time limit 1000 ms/)).toBeInTheDocument();
-    expect(screen.getByText("Read two integers and print their sum.")).toBeInTheDocument();
+    // The statement renderer is a lazy chunk; its first import can be slow under a loaded test run.
+    expect(await screen.findByText("Read two integers and print their sum.", {}, { timeout: 5000 })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Input 1" })).toBeInTheDocument();
+  });
+
+  it("offers every language with its own starter", async () => {
+    const api = mockFetch({ "GET /api/problems/a-plus-b": () => json(aPlusB) });
+    renderApp("/problems/a-plus-b", { fetch: api.fetch });
+
+    const picker = await screen.findByLabelText("Language");
+    const options = Array.from((picker as HTMLSelectElement).options).map((o) => o.value);
+    expect(options).toEqual(["python", "cpp", "java", "javascript", "go"]);
+
+    await userEvent.selectOptions(picker, "java");
+    expect((screen.getByLabelText("Solution source code") as HTMLTextAreaElement).value).toContain("public class Main");
+    await userEvent.selectOptions(picker, "go");
+    expect((screen.getByLabelText("Solution source code") as HTMLTextAreaElement).value).toContain("package main");
   });
 
   it("asks anonymous users to sign in instead of showing Submit", async () => {

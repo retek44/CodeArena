@@ -105,6 +105,41 @@ services:
     mem_limit: 1g
     restart: unless-stopped
 
+  # Java, JavaScript and Go runners: each with its own uid, like the C++ runner.
+  runner-java:
+    build:
+      context: runners
+      dockerfile: java/Dockerfile
+    user: "995:990"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=256m
+    mem_limit: 1g
+    restart: unless-stopped
+
+  runner-javascript:
+    build:
+      context: runners
+      dockerfile: javascript/Dockerfile
+    user: "996:990"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,size=256m
+    mem_limit: 1g
+    restart: unless-stopped
+
+  # The compiled Go program runs from /tmp, like the C++ one.
+  runner-go:
+    build:
+      context: runners
+      dockerfile: go/Dockerfile
+    user: "997:990"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,exec,size=256m
+    mem_limit: 1g
+    restart: unless-stopped
+
   api:
     build:
       context: backend
@@ -137,6 +172,9 @@ services:
       RUNNER_MODE: http
       RUNNER_URL: http://runner:8080/2015-03-31/functions/function/invocations
       RUNNER_URL_CPP: http://runner-cpp:8080/2015-03-31/functions/function/invocations
+      RUNNER_URL_JAVA: http://runner-java:8080/2015-03-31/functions/function/invocations
+      RUNNER_URL_JAVASCRIPT: http://runner-javascript:8080/2015-03-31/functions/function/invocations
+      RUNNER_URL_GO: http://runner-go:8080/2015-03-31/functions/function/invocations
       # The Lambda emulator serves one invocation at a time (a real Lambda scales out),
       # so locally the worker judges one submission at a time.
       WORKER_CONCURRENCY: "1"
@@ -150,6 +188,12 @@ services:
       runner:
         condition: service_started
       runner-cpp:
+        condition: service_started
+      runner-java:
+        condition: service_started
+      runner-javascript:
+        condition: service_started
+      runner-go:
         condition: service_started
       valkey:
         condition: service_healthy

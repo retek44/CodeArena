@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,6 +42,8 @@ type accessTokenClaims struct {
 	TokenUse string `json:"token_use"`
 	ClientID string `json:"client_id"`
 	Username string `json:"username"`
+	// Groups the user belongs to; admins are in httpapi.AdminGroup.
+	Groups []string `json:"cognito:groups"`
 }
 
 // NewCognito fetches the signing keys once and keeps them fresh in the background
@@ -101,7 +104,11 @@ func (a *CognitoAuthenticator) Authenticate(r *http.Request) (httpapi.Principal,
 	if username == "" {
 		username = claims.Subject
 	}
-	return httpapi.Principal{UserID: claims.Subject, Username: username}, nil
+	return httpapi.Principal{
+		UserID:   claims.Subject,
+		Username: username,
+		Admin:    slices.Contains(claims.Groups, httpapi.AdminGroup),
+	}, nil
 }
 
 func bearerToken(r *http.Request) (string, bool) {

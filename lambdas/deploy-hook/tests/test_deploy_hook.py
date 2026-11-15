@@ -230,9 +230,9 @@ def test_runner_requests_follow_the_protocol() -> None:
         jsonschema.validate(handler.runner_request(language, "d-" + "X" * 80), schema)
 
 
-@pytest.mark.parametrize("language", ["python", "cpp"])
+@pytest.mark.parametrize("language", ["python", "cpp", "java", "javascript", "go"])
 def test_runner_sources_are_the_golden_accepted_solutions(language: str) -> None:
-    ext = {"python": "py", "cpp": "cpp"}[language]
+    ext = {"python": "py", "cpp": "cpp", "java": "java", "javascript": "js", "go": "go"}[language]
     golden = (ROOT / "tests" / "golden" / "a-plus-b" / "solutions" / f"ac.{ext}").read_text(encoding="utf-8")
     assert handler.A_PLUS_B[language].strip() == golden.strip()
 

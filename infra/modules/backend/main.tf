@@ -293,8 +293,10 @@ resource "aws_ecs_task_definition" "worker" {
     environment = concat(local.database_env, [
       { name = "SUBMISSIONS_QUEUE_URL", value = var.queue.url },
       { name = "RUNNER_MODE", value = "lambda" },
-      { name = "RUNNER_FUNCTION_PYTHON", value = var.runner_function_arns["python"] },
-      { name = "RUNNER_FUNCTION_CPP", value = lookup(var.runner_function_arns, "cpp", "") },
+      ], [
+      # One function per language: RUNNER_FUNCTION_PYTHON, RUNNER_FUNCTION_CPP, ...
+      for lang, arn in var.runner_function_arns : { name = "RUNNER_FUNCTION_${upper(lang)}", value = arn }
+      ], [
       { name = "WORKER_LEASE", value = "${var.queue.visibility_timeout_seconds}s" },
       { name = "WORKER_CONCURRENCY", value = "4" },
       ], var.realtime == null ? [] : [

@@ -400,7 +400,7 @@ jobs:
           exit 1
 
   runner-python:
-    name: Runners (lint, unit, Python and C++ images, golden)
+    name: Runners (lint, unit, images for every language, golden, sandbox)
     needs: changes
     if: needs.changes.outputs.runner == 'true' || github.event_name != 'pull_request'
     # Runner Lambdas run on arm64.
@@ -408,6 +408,9 @@ jobs:
     env:
       CODEARENA_RUNNER_URL: http://localhost:9000/2015-03-31/functions/function/invocations
       CODEARENA_RUNNER_URL_CPP: http://localhost:9001/2015-03-31/functions/function/invocations
+      CODEARENA_RUNNER_URL_JAVA: http://localhost:9002/2015-03-31/functions/function/invocations
+      CODEARENA_RUNNER_URL_JAVASCRIPT: http://localhost:9003/2015-03-31/functions/function/invocations
+      CODEARENA_RUNNER_URL_GO: http://localhost:9004/2015-03-31/functions/function/invocations
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -436,6 +439,15 @@ jobs:
       - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: runners/cpp/Dockerfile
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: runners/java/Dockerfile
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: runners/javascript/Dockerfile
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: runners/go/Dockerfile
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -457,7 +469,37 @@ jobs:
           tags: codearena-runner-cpp:ci
           cache-from: type=gha,scope=runner-cpp
           cache-to: type=gha,scope=runner-cpp,mode=max
-      - name: Vulnerability scan (Grype)
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: runners
+          file: runners/java/Dockerfile
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: codearena-runner-java:ci
+          cache-from: type=gha,scope=runner-java
+          cache-to: type=gha,scope=runner-java,mode=max
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: runners
+          file: runners/javascript/Dockerfile
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: codearena-runner-javascript:ci
+          cache-from: type=gha,scope=runner-javascript
+          cache-to: type=gha,scope=runner-javascript,mode=max
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: runners
+          file: runners/go/Dockerfile
+          platforms: linux/arm64
+          load: true
+          push: false
+          tags: codearena-runner-go:ci
+          cache-from: type=gha,scope=runner-go
+          cache-to: type=gha,scope=runner-go,mode=max
+      - name: Vulnerability scan, python runner (Grype)
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: codearena-runner-python:ci
@@ -465,7 +507,7 @@ jobs:
           only-fixed: true
           fail-build: true
           output-format: table
-      - name: Vulnerability scan, C++ runner (Grype)
+      - name: Vulnerability scan, cpp runner (Grype)
         uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
         with:
           image: codearena-runner-cpp:ci
@@ -473,15 +515,41 @@ jobs:
           only-fixed: true
           fail-build: true
           output-format: table
-      # Like Lambda: read-only root file system, writable /tmp only, non-root user (set in the image).
-      # The compiled C++ program runs from /tmp, which Lambda allows; Docker tmpfs is noexec by default.
-      # RLIMIT_NPROC counts the tasks of a uid across all containers, so the runners use different uids.
+      - name: Vulnerability scan, java runner (Grype)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: codearena-runner-java:ci
+          severity-cutoff: critical
+          only-fixed: true
+          fail-build: true
+          output-format: table
+      - name: Vulnerability scan, javascript runner (Grype)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: codearena-runner-javascript:ci
+          severity-cutoff: critical
+          only-fixed: true
+          fail-build: true
+          output-format: table
+      - name: Vulnerability scan, go runner (Grype)
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: codearena-runner-go:ci
+          severity-cutoff: critical
+          only-fixed: true
+          fail-build: true
+          output-format: table
+      # Like Lambda: read-only root file system, writable /tmp only, non-root user. Compiled
+      # programs (C++, Go) run from /tmp, which Lambda allows; Docker tmpfs is noexec by default.
+      # RLIMIT_NPROC counts the tasks of a uid across all containers, so each runner has its own uid.
       - name: Start runner containers
         run: |
-          docker run -d --name runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g \
-            -p 9000:8080 codearena-runner-python:ci
-          docker run -d --name runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
-            --user 994:990 -p 9001:8080 codearena-runner-cpp:ci
+          i=0
+          for lang in python cpp java javascript go; do
+            docker run -d --name "runner-${lang}" --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
+              --user "$((993 + i)):990" -p "$((9000 + i)):8080" "codearena-runner-${lang}:ci"
+            i=$((i + 1))
+          done
           probe='{"protocol_version":1,"submission_id":"probe","language":"python","source":"print(1)","limits":{"time_ms":1000,"memory_mb":64},"test_cases":[{"id":"1","input":""}]}'
           for _ in $(seq 1 30); do
             if curl -fsS -X POST "${CODEARENA_RUNNER_URL}" -d "${probe}" | grep -q '"status": "ok"'; then
@@ -489,7 +557,7 @@ jobs:
             fi
             sleep 1
           done
-          docker logs runner
+          docker logs runner-python
           exit 1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -501,12 +569,14 @@ jobs:
       # Fork bombs, memory and output floods, network, file system, environment and
       # leftover processes against the same images, on a network without a route out.
       - name: Sandbox security suite
-        run: bash tests/sandbox-security/run.sh codearena-runner-python:ci codearena-runner-cpp:ci
+        run: bash tests/sandbox-security/run.sh ci
       - name: Runner logs
         if: failure()
         run: |
-          docker logs runner
-          docker logs runner-cpp
+          for lang in python cpp java javascript go; do
+            echo "--- ${lang}"
+            docker logs --tail 50 "runner-${lang}"
+          done
 
   e2e:
     name: End-to-end (docker compose, Playwright)

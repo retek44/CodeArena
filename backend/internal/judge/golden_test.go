@@ -16,14 +16,13 @@ import (
 // TestGolden judges every solution in tests/golden/*/solutions against running runner
 // containers and checks that it gets the verdict in its file name (ac.py → AC,
 // wa_negative.cpp → WA). The language comes from the extension. Skipped unless
-// CODEARENA_RUNNER_URL (Python runner) is set; C++ solutions also need
-// CODEARENA_RUNNER_URL_CPP.
+// CODEARENA_RUNNER_URL (Python runner) is set; other languages also need their runner
+// (CODEARENA_RUNNER_URL_CPP, _JAVA, _JAVASCRIPT, _GO).
 func TestGolden(t *testing.T) {
 	url := os.Getenv("CODEARENA_RUNNER_URL")
 	if url == "" {
 		t.Skip("CODEARENA_RUNNER_URL not set; start a runner container to run golden tests")
 	}
-	urlCpp := os.Getenv("CODEARENA_RUNNER_URL_CPP")
 
 	problemFiles, err := filepath.Glob(filepath.Join("..", "..", "..", "tests", "golden", "*", "problem.json"))
 	if err != nil || len(problemFiles) == 0 {
@@ -31,8 +30,10 @@ func TestGolden(t *testing.T) {
 	}
 	client := &http.Client{Timeout: time.Minute}
 	inv := runner.ByLanguage{"python": &runner.HTTPInvoker{URL: url, Client: client}}
-	if urlCpp != "" {
-		inv["cpp"] = &runner.HTTPInvoker{URL: urlCpp, Client: client}
+	for _, language := range judge.Languages[1:] {
+		if u := os.Getenv("CODEARENA_RUNNER_URL" + judge.RunnerEnvSuffix(language)); u != "" {
+			inv[language] = &runner.HTTPInvoker{URL: u, Client: client}
+		}
 	}
 
 	for _, file := range problemFiles {
@@ -48,7 +49,7 @@ func TestGolden(t *testing.T) {
 			language := judge.LanguageOf(sol)
 			t.Run(name, func(t *testing.T) {
 				if _, ok := inv[language]; !ok {
-					t.Skipf("no runner for %q (set CODEARENA_RUNNER_URL_CPP for C++)", language)
+					t.Skipf("no runner for %q (set CODEARENA_RUNNER_URL%s)", language, judge.RunnerEnvSuffix(language))
 				}
 				source, err := os.ReadFile(sol) //nolint:gosec // test fixture path from Glob
 				if err != nil {

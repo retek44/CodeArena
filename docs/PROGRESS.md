@@ -248,9 +248,21 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 
 - [x] ~~AI hints (ADR-0014)~~ removed (ADR-0021): no endpoint, Lambda, guardrail, LLM eval or Bedrock
       permission is left; the workload boundary has no `bedrock` and the CI deploy roles deny `bedrock:*`
-- [ ] Contract migration: drop the unused `hints` table (after the release without hint code)
+- [x] Contract migration: drop the unused `hints` table (`20261115130000_drop_hints.sql`, ships in a
+      release after the one without hint code)
 - [ ] **(manual)** Apply `infra/bootstrap` again (boundary without Bedrock, deny on the deploy roles)
 - [x] README with Mermaid diagrams (architecture, one submission, contest lifecycle, delivery pipeline,
       safe rollout), test layer table, ADR index; demo GIF recorded by Playwright against the local stack
       (`make demo-video`: `frontend/e2e/demo`, captions, ffmpeg in Docker; not part of the regression suite)
-- [ ] Problem statements render as plain text; PLAN.md asks for Markdown (sanitized)
+- [x] Java 21, JavaScript (Node.js 22) and Go 1.26 runners (ADR-0022): one image and function each,
+      per-language memory overhead, thread budget and artifacts; Go compiles against a standard
+      library built into the image (no writable build cache); golden solutions and sandbox scenarios
+      for each; worker, Terraform, CI, deploy hook and SPA take any language from one list
+- [ ] Verify the Java, JavaScript and Go runner functions on AWS (cold start, canary hook)
+- [x] Problem statements render as Markdown (react-markdown + GFM, lazy chunk): raw HTML, images and
+      unsafe URLs are dropped, links open with `noopener noreferrer`, the leading title is not repeated
+- [x] Problem management for admins (ADR-0023): Cognito group `admins`, `GET /api/users/me`, admin API
+      to list, create and replace problems with their test cases (new version on a change of limits,
+      checker or test cases; optimistic locking); SPA list and editor with Markdown preview and
+      `.in`/`.out` file pairing; Go integration, Vitest and Playwright (judging with the new version) tests
+- [ ] **(manual)** After the next deploy: add yourself to the Cognito group `admins` (SETUP.md)

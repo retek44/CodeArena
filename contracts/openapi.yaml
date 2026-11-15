@@ -30,6 +30,10 @@ tags:
     description: Live updates over WebSocket (contracts/asyncapi.yaml)
   - name: contests
     description: Timed contests with ICPC rules and a leaderboard
+  - name: users
+    description: The signed-in user
+  - name: admin
+    description: Problem management (Cognito group admins)
 
 security:
   - bearerAuth: []
@@ -377,6 +381,137 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/users/me:
+    get:
+      tags: [users]
+      operationId: getMe
+      summary: The signed-in user
+      responses:
+        "200":
+          description: The caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Me"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/admin/problems:
+    get:
+      tags: [admin]
+      operationId: listAdminProblems
+      summary: List every problem, published or not (admins only)
+      responses:
+        "200":
+          description: All problems, by slug.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AdminProblemSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [admin]
+      operationId: createProblem
+      summary: Create a problem with its test cases (admins only)
+      description: The problem starts at version 1. It is visible to users once published.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProblemInput"
+      responses:
+        "201":
+          description: Created.
+          headers:
+            Location:
+              description: URL of the new problem in the admin API.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProblem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: A problem with this slug exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /api/admin/problems/{slug}:
+    parameters:
+      - $ref: "#/components/parameters/ProblemSlug"
+    get:
+      tags: [admin]
+      operationId: getAdminProblem
+      summary: Get a problem with every test case of its current version (admins only)
+      responses:
+        "200":
+          description: The problem.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProblem"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [admin]
+      operationId: updateProblem
+      summary: Replace a problem (admins only)
+      description: |
+        A change of the limits, the checker or the test cases creates a new version: new
+        submissions are judged with it, earlier submissions keep their test cases. Title,
+        statement, difficulty and publishing do not change the version. The slug cannot
+        be changed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProblemInput"
+      responses:
+        "200":
+          description: The saved problem.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminProblem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another save changed the problem at the same time.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -411,6 +546,13 @@ components:
       description: Contest slug.
       schema:
         $ref: "#/components/schemas/Slug"
+    ProblemSlug:
+      name: slug
+      in: path
+      required: true
+      description: Problem slug.
+      schema:
+        $ref: "#/components/schemas/Slug"
     SubmissionId:
       name: id
       in: path
@@ -439,8 +581,146 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/ProblemDetails"
+    Forbidden:
+      description: The caller is signed in but not allowed to do this (admins only).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
 
   schemas:
+    Me:
+      type: object
+      additionalProperties: false
+      required: [id, username, admin]
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        admin:
+          type: boolean
+          description: Member of the admin group; may manage problems.
+
+    AdminProblemSummary:
+      type: object
+      additionalProperties: false
+      required: [slug, title, difficulty, published, version, updated_at]
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        title:
+          type: string
+        difficulty:
+          $ref: "#/components/schemas/Difficulty"
+        published:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        updated_at:
+          type: string
+          format: date-time
+
+    ProblemInput:
+      type: object
+      additionalProperties: false
+      required: [slug, title, difficulty, statement_md, time_limit_ms, memory_limit_mb, checker, published, test_cases]
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        difficulty:
+          $ref: "#/components/schemas/Difficulty"
+        statement_md:
+          type: string
+          maxLength: 65536
+          description: Problem statement in Markdown (raw HTML is not rendered).
+        time_limit_ms:
+          type: integer
+          minimum: 100
+          maximum: 10000
+        memory_limit_mb:
+          type: integer
+          minimum: 16
+          maximum: 512
+        checker:
+          type: string
+          enum: [exact, float, custom]
+          description: exact compares lines, float compares numbers within checker_tolerance, custom runs checker_source.
+        checker_tolerance:
+          type: [number, "null"]
+          minimum: 0
+          description: float checker only; null or 0 means the default (1e-6).
+        checker_source:
+          type: [string, "null"]
+          maxLength: 65536
+          description: custom checker only. Python; reads input, expected and output, prints AC or WA.
+        published:
+          type: boolean
+        test_cases:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Inputs and outputs together at most 4 MB.
+          items:
+            $ref: "#/components/schemas/TestCase"
+
+    AdminProblem:
+      type: object
+      additionalProperties: false
+      required: [slug, title, difficulty, statement_md, time_limit_ms, memory_limit_mb, checker, checker_tolerance, checker_source, published, test_cases, version, updated_at]
+      properties:
+        slug:
+          $ref: "#/components/schemas/Slug"
+        title:
+          type: string
+        difficulty:
+          $ref: "#/components/schemas/Difficulty"
+        statement_md:
+          type: string
+        time_limit_ms:
+          type: integer
+        memory_limit_mb:
+          type: integer
+        checker:
+          type: string
+          enum: [exact, float, custom]
+        checker_tolerance:
+          type: [number, "null"]
+        checker_source:
+          type: [string, "null"]
+        published:
+          type: boolean
+        test_cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/TestCase"
+        version:
+          type: integer
+          minimum: 1
+          description: Grows with every change that affects judging.
+        updated_at:
+          type: string
+          format: date-time
+
+    TestCase:
+      type: object
+      additionalProperties: false
+      required: [input, output, sample]
+      properties:
+        input:
+          type: string
+        output:
+          type: string
+          description: Expected output.
+        sample:
+          type: boolean
+          description: Shown on the problem page.
+
     Slug:
       type: string
       minLength: 1
@@ -455,14 +735,14 @@ components:
     Language:
       description: Languages a submission can be written in.
       type: string
-      enum: [python, cpp]
+      enum: [python, cpp, java, javascript, go]
 
     LanguageName:
       description: |
         Language of an existing submission. Extensible: new languages are added over time,
         so clients must accept values they do not know (show them as text).
       type: string
-      x-extensible-enum: [python, cpp]
+      x-extensible-enum: [python, cpp, java, javascript, go]
 
     Verdict:
       type: string

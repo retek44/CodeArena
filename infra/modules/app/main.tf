@@ -26,7 +26,7 @@ locals {
   contest_scheduler_role = "${local.name_prefix}-contest-scheduler"
 
   # Languages with a runner image in ECR (build-images.yml builds codearena-runner-<lang>).
-  runner_languages = ["python", "cpp"]
+  runner_languages = ["python", "cpp", "java", "javascript", "go"]
 }
 
 moved {

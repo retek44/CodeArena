@@ -64,6 +64,17 @@ test("a C++ solution is compiled and judged by the C++ runner", async ({ request
   expect(result).toMatchObject({ status: "done", verdict: "WA", language: "cpp" });
 });
 
+for (const [language, file] of [
+  ["java", "ac.java"],
+  ["javascript", "ac.js"],
+  ["go", "ac.go"],
+] as const) {
+  test(`a ${language} solution is judged AC by its runner Lambda`, async ({ request }) => {
+    const result = await submitAndWait(request, "a-plus-b", language, golden("a-plus-b", file));
+    expect(result).toMatchObject({ status: "done", verdict: "AC", language });
+  });
+}
+
 test("a custom checker accepts a different correct answer", async ({ request }) => {
   const result = await submitAndWait(request, "pair-sum", "python", golden("pair-sum", "ac_from_the_end.py"));
   expect(result).toMatchObject({ status: "done", verdict: "AC" });

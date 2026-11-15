@@ -12,6 +12,7 @@ The submission never sees expected outputs, other test cases or the runner's env
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import sys
@@ -38,7 +39,6 @@ SCRATCH_DIRS = ("/tmp", "/dev/shm")
 _SCRATCH_ROOT = "/tmp"
 _MB = 1024 * 1024
 _SAFETY_MARGIN_MS = 2000
-_RUN_EXTRA_TASKS = 16
 _COMPILE_EXTRA_TASKS = 64
 _COMPILE_MEMORY_MB = 512
 # RLIMIT_FSIZE of the compile step: it covers the binary the compiler writes, not only
@@ -101,7 +101,12 @@ def judge(request: Request, remaining_ms: Callable[[], int]) -> Response:
             f.write(case.input)
 
         result = execute(
-            language.run, cwd=workdir, stdin_path=stdin_path, io_dir=io_dir, limits=limits, env=_child_env(workdir)
+            language.run_command(request.limits.memory_mb),
+            cwd=workdir,
+            stdin_path=stdin_path,
+            io_dir=io_dir,
+            limits=limits,
+            env=_child_env(workdir, language),
         )
         response.results.append(_case_result(case.id, result))
         failed = failed or result.status != Status.OK
@@ -129,8 +134,8 @@ def _compile(language: Language, request: Request) -> tuple[CompileResult, Artif
             cwd=workdir,
             stdin_path=stdin_path,
             io_dir=io_dir,
-            limits=_compile_limits(request.limits),
-            env=_child_env(workdir),
+            limits=_compile_limits(request.limits, language),
+            env=_child_env(workdir, language),
         )
         diagnostics = (result.stdout + result.stderr).decode("utf-8", errors="replace")[-_COMPILE_DIAGNOSTICS_CHARS:]
         if result.status == Status.TIME_LIMIT:
@@ -142,29 +147,33 @@ def _compile(language: Language, request: Request) -> tuple[CompileResult, Artif
     for root, _, files in os.walk(workdir):
         for name in files:
             path = os.path.join(root, name)
+            rel_path = os.path.relpath(path, workdir)
+            if language.artifacts is not None and not any(fnmatch.fnmatch(rel_path, p) for p in language.artifacts):
+                continue
             with open(path, "rb") as f:
-                artifacts[os.path.relpath(path, workdir)] = (f.read(), os.stat(path).st_mode & 0o700)
+                artifacts[rel_path] = (f.read(), os.stat(path).st_mode & 0o700)
     return CompileResult(CompileStatus.OK), artifacts
 
 
 def _run_limits(limits: Limits, language: Language) -> ExecLimits:
+    memory_mb = limits.memory_mb + language.memory_overhead_mb
     return ExecLimits(
         cpu_time_ms=limits.time_ms,
         # Wall clock catches programs that sleep or block instead of using CPU.
         wall_time_ms=limits.time_ms * 2 + 1000,
-        memory_kb=limits.memory_mb * 1024,
-        address_space_bytes=(limits.memory_mb + language.address_space_overhead_mb) * _MB,
+        memory_kb=memory_mb * 1024,
+        address_space_bytes=(memory_mb + language.address_space_overhead_mb) * _MB,
         output_bytes=limits.output_kb * 1024,
-        extra_tasks=_RUN_EXTRA_TASKS,
+        extra_tasks=language.run_tasks,
     )
 
 
-def _compile_limits(limits: Limits) -> ExecLimits:
+def _compile_limits(limits: Limits, language: Language) -> ExecLimits:
     return ExecLimits(
         cpu_time_ms=limits.compile_time_ms,
         wall_time_ms=limits.compile_time_ms * 2,
         memory_kb=_COMPILE_MEMORY_MB * 1024,
-        address_space_bytes=2 * _COMPILE_MEMORY_MB * _MB,
+        address_space_bytes=language.compile_address_space_mb * _MB,
         output_bytes=_COMPILE_FILE_BYTES,
         extra_tasks=_COMPILE_EXTRA_TASKS,
     )
@@ -184,14 +193,15 @@ def _case_result(case_id: str, result: ExecResult) -> CaseResult:
     )
 
 
-def _child_env(workdir: str) -> dict[str, str]:
-    # A fixed, minimal environment. Nothing from the runner's environment
-    # (AWS credentials, Lambda variables) reaches the program.
+def _child_env(workdir: str, language: Language) -> dict[str, str]:
+    # A fixed, minimal environment plus the language's own settings. Nothing from the
+    # runner's environment (AWS credentials, Lambda variables) reaches the program.
     return {
         "PATH": "/var/lang/bin:/usr/local/bin:/usr/bin:/bin",
         "HOME": workdir,
         "TMPDIR": workdir,
         "LANG": "C.UTF-8",
+        **dict(language.env),
     }
 
 

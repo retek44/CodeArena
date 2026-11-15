@@ -5,6 +5,8 @@ import { ApiError, createApi } from "./api/client";
 import { ApiContext } from "./api/hooks";
 import { useAuth } from "./auth/AuthProvider";
 import { Layout } from "./components/Layout";
+import { AdminProblemPage } from "./pages/AdminProblemPage";
+import { AdminProblemsPage } from "./pages/AdminProblemsPage";
 import { AuthCallbackPage, LoginPage, NotFoundPage } from "./pages/AuthPages";
 import { ContestPage } from "./pages/ContestPage";
 import { ContestsPage } from "./pages/ContestsPage";
@@ -23,6 +25,9 @@ export const routes: RouteObject[] = [
       { path: "/submissions/:id", element: <SubmissionPage /> },
       { path: "/contests", element: <ContestsPage /> },
       { path: "/contests/:slug", element: <ContestPage /> },
+      { path: "/admin/problems", element: <AdminProblemsPage /> },
+      { path: "/admin/problems/new", element: <AdminProblemPage /> },
+      { path: "/admin/problems/:slug", element: <AdminProblemPage /> },
       { path: "/login", element: <LoginPage /> },
       { path: "/auth/callback", element: <AuthCallbackPage /> },
       { path: "*", element: <NotFoundPage /> },

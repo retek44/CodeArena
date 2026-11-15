@@ -10,7 +10,8 @@ Emulator, the way the worker invokes them on AWS, and checks two things per scen
 
 The runner containers must run like Lambda (non-root, read-only root file system,
 writable /tmp only) on a network without a route out; `make sandbox-suite` and the CI job
-start them that way. Without SANDBOX_RUNNER_URL the suite is skipped.
+start them that way. A language without its runner URL (SANDBOX_RUNNER_URL for Python,
+SANDBOX_RUNNER_URL_<LANGUAGE> for the others) is skipped.
 """
 
 from __future__ import annotations
@@ -28,9 +29,11 @@ import pytest
 pytestmark = pytest.mark.sandbox
 
 PROGRAMS = Path(__file__).parent / "programs"
+EXTENSIONS = {"py": "python", "cpp": "cpp", "java": "java", "js": "javascript", "go": "go"}
+SUFFIXES = {language: extension for extension, language in EXTENSIONS.items()}
 URLS = {
-    "python": os.environ.get("SANDBOX_RUNNER_URL", ""),
-    "cpp": os.environ.get("SANDBOX_RUNNER_URL_CPP", ""),
+    language: os.environ.get("SANDBOX_RUNNER_URL" + ("" if language == "python" else f"_{language.upper()}"), "")
+    for language in EXTENSIONS.values()
 }
 TIME_MS = 1000
 MEMORY_MB = 64
@@ -47,7 +50,7 @@ class Scenario:
 
     @property
     def language(self) -> str:
-        return "cpp" if self.program.endswith(".cpp") else "python"
+        return EXTENSIONS[self.program.rsplit(".", 1)[1]]
 
 
 SCENARIOS = [
@@ -72,18 +75,31 @@ SCENARIOS = [
     Scenario("memory.cpp", "memory_limit"),
     Scenario("process_limit.cpp", "ok", "limited\n"),
     Scenario("network.cpp", "ok", "tcp: blocked\ntcp: blocked\n"),
+    # Managed runtimes: heap limits from the problem's memory limit, helper threads.
+    *(
+        scenario
+        for extension in ("java", "js", "go")
+        for scenario in (
+            Scenario(f"busy_loop.{extension}", "time_limit"),
+            Scenario(f"memory.{extension}", "memory_limit"),
+            Scenario(f"network.{extension}", "ok", "tcp: blocked\ntcp: blocked\n"),
+        )
+    ),
 ]
 
 CLEAN = {
     "python": "processes: 0\nfiles: 0\n3\n",
     "cpp": "processes: 0\n3\n",
+    "java": "processes: 0\n3\n",
+    "javascript": "processes: 0\n3\n",
+    "go": "processes: 0\n3\n",
 }
 
 
 def invoke(language: str, source: str, inputs: list[str]) -> dict[str, Any]:
     url = URLS[language]
     if not url:
-        pytest.skip(f"no runner for {language} (SANDBOX_RUNNER_URL{'_CPP' if language == 'cpp' else ''})")
+        pytest.skip(f"no runner for {language}")
     request = {
         "protocol_version": 1,
         "submission_id": f"sandbox-{uuid.uuid4().hex[:12]}",
@@ -107,7 +123,7 @@ def run(language: str, program: str, inputs: list[str]) -> dict[str, Any]:
 
 def assert_clean(language: str, after: str) -> None:
     """The next run in the same environment finds nothing left and is judged normally."""
-    probe = run(language, f"probe.{'cpp' if language == 'cpp' else 'py'}", ["1 2\n"])
+    probe = run(language, f"probe.{SUFFIXES[language]}", ["1 2\n"])
     assert probe["compile"]["status"] == "ok", probe["compile"]
     (case,) = probe["results"]
     assert case["status"] == "ok", f"probe after {after}: {case}"

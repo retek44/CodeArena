@@ -154,8 +154,11 @@ type Language string
 
 // Language values.
 const (
-	LanguagePython Language = "python"
-	LanguageCpp    Language = "cpp"
+	LanguagePython     Language = "python"
+	LanguageCpp        Language = "cpp"
+	LanguageJava       Language = "java"
+	LanguageJavascript Language = "javascript"
+	LanguageGo         Language = "go"
 )
 
 func (l Language) String() string {
@@ -165,7 +168,7 @@ func (l Language) String() string {
 // LanguageValidator is a validator for the "language" field enum values. It is called by the builders before save.
 func LanguageValidator(l Language) error {
 	switch l {
-	case LanguagePython, LanguageCpp:
+	case LanguagePython, LanguageCpp, LanguageJava, LanguageJavascript, LanguageGo:
 		return nil
 	default:
 		return fmt.Errorf("submission: invalid enum value for language field: %q", l)

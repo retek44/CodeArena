@@ -299,6 +299,19 @@ func checkerRunID(id string) string {
 	return id + suffix
 }
 
+// Languages are the submission languages. Each has its own runner image and function;
+// the Python runner also runs custom checkers, so it is always required.
+var Languages = []string{"python", "cpp", "java", "javascript", "go"}
+
+// RunnerEnvSuffix is the suffix of a language's runner settings: none for Python, the
+// default runner (RUNNER_URL), and "_CPP", "_JAVA", ... for the others (RUNNER_URL_CPP).
+func RunnerEnvSuffix(language string) string {
+	if language == "python" {
+		return ""
+	}
+	return "_" + strings.ToUpper(language)
+}
+
 // LanguageOf returns the submission language of a source file name, by extension
 // (golden solutions, the local judge CLI). Empty if unknown.
 func LanguageOf(filename string) string {
@@ -307,6 +320,12 @@ func LanguageOf(filename string) string {
 		return "python"
 	case ".cpp", ".cc", ".cxx":
 		return "cpp"
+	case ".java":
+		return "java"
+	case ".js":
+		return "javascript"
+	case ".go":
+		return "go"
 	default:
 		return ""
 	}

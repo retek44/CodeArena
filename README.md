@@ -1,7 +1,7 @@
 # CodeArena
 
 A cloud-native online judge on AWS. Solve programming problems in the browser, submit
-Python or C++ code, watch the verdict of every test case arrive live, and compete in
+Python, C++, Java, JavaScript or Go code, watch the verdict of every test case arrive live, and compete in
 contests with an ICPC-style leaderboard.
 
 The project has two goals: a non-trivial distributed system (sandboxed code execution,
@@ -30,6 +30,10 @@ Recorded with Playwright against the local stack (`make demo-video`).
 - **Contests:** phases from the clock, EventBridge Scheduler and Step Functions for the
   lifecycle, Valkey leaderboard with freeze and a Postgres fallback, result e-mails through SES
   ([ADR-0016](docs/adr/0016-contests-clock-phases-valkey-step-functions.md)).
+- **Problem management:** admins (a Cognito group) create problems in the SPA with a live
+  Markdown preview and test case files; a change that affects judging saves a new problem
+  version, so earlier submissions keep their test cases
+  ([ADR-0023](docs/adr/0023-admin-problem-management.md)).
 - **Bounded cost:** no paid AI calls (the planned Bedrock hints were removed and IAM denies
   Bedrock), and submissions are capped per user and for the whole site, so public traffic
   cannot turn into unbounded cost ([ADR-0021](docs/adr/0021-remove-ai-hints.md)).
@@ -62,7 +66,7 @@ flowchart LR
     subgraph isolated[Isolated subnets: no route out]
       rds[(RDS PostgreSQL)]
       valkey[(Valkey<br/>leaderboard)]
-      runners[Runner Lambdas<br/>Python, C++]
+      runners[Runner Lambdas<br/>Python, C++, Java, JS, Go]
     end
   end
 
@@ -185,7 +189,7 @@ flowchart LR
 |---|---|---|
 | Unit | Go (race detector), Vitest + Testing Library, pytest for runners and Lambdas | `make test`, `make fe-check`, `make py-test` |
 | Sandbox | probe programs through the runner images without network: limits, file system, environment, leftover processes | `make sandbox-suite` |
-| Golden | every problem has one solution per expected verdict (AC, WA, TLE, MLE, RE, CE, ...) in Python and C++ | `tests/golden`, `make golden` |
+| Golden | every problem has one solution per expected verdict (AC, WA, TLE, MLE, RE, CE, ...) in all five languages | `tests/golden`, `make golden` |
 | Integration | Testcontainers PostgreSQL, ElasticMQ and Valkey: claims, outbox, sweeper, API with an N+1 query guard | `make test-integration` |
 | Contract | OpenAPI response validation in every API test, Pact SPA ↔ API, AsyncAPI for WebSocket messages | `make pact` |
 | End to end | golden solutions through the whole local chain, Playwright with page objects and axe | `make e2e`, `make fe-e2e` |
@@ -199,7 +203,7 @@ flowchart LR
 ```
 backend/            Go: cmd/api, cmd/worker, cmd/judge, cmd/seed, cmd/contest, cmd/migratediff
 frontend/           React + Vite + TypeScript SPA (Monaco, typed API client, Playwright, Pact)
-runners/            runner protocol (JSON Schema), sandbox core, Python and C++ Lambda images
+runners/            runner protocol (JSON Schema), sandbox core, one Lambda image per language
 lambdas/            Python Lambdas: ws (WebSocket), deploy-hook (rollout smoke tests)
 contracts/          OpenAPI 3.1 and AsyncAPI contracts
 tests/              golden problems, sandbox security, performance (k6), security (ZAP)
@@ -226,7 +230,7 @@ make local-traces # the same stack with traces in Jaeger (http://localhost:16686
 make demo-video   # record docs/media/demo.gif (needs make local-up)
 make test         # Go unit tests
 make golden       # every golden solution must get its expected verdict (make runner-up first)
-make sandbox-suite # runner hardening: limits, no network, read-only root, no leftovers
+make sandbox-suite # runner hardening for every language: limits, no network, read-only root, no leftovers
 make judge SRC=tests/golden/a-plus-b/solutions/ac.py
 make tf-validate  # validate all Terraform stacks
 make check        # every local check

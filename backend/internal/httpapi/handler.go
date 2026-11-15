@@ -105,6 +105,11 @@ func NewHandler(d Deps) http.Handler {
 		mux.HandleFunc("GET /api/contests/{slug}", s.getContest)
 		mux.Handle("POST /api/contests/{slug}/register", s.requireAuth(s.registerForContest))
 		mux.HandleFunc("GET /api/contests/{slug}/leaderboard", s.getLeaderboard)
+		mux.Handle("GET /api/users/me", s.requireAuth(s.getMe))
+		mux.Handle("GET /api/admin/problems", s.requireAdmin(s.listAdminProblems))
+		mux.Handle("POST /api/admin/problems", s.requireAdmin(s.createProblem))
+		mux.Handle("GET /api/admin/problems/{slug}", s.requireAdmin(s.getAdminProblem))
+		mux.Handle("PUT /api/admin/problems/{slug}", s.requireAdmin(s.updateProblem))
 	}
 
 	return securityHeaders(mux)

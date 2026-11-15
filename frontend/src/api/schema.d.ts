@@ -233,10 +233,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/users/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in user */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/problems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List every problem, published or not (admins only) */
+        get: operations["listAdminProblems"];
+        put?: never;
+        /**
+         * Create a problem with its test cases (admins only)
+         * @description The problem starts at version 1. It is visible to users once published.
+         */
+        post: operations["createProblem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/problems/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Problem slug. */
+                slug: components["parameters"]["ProblemSlug"];
+            };
+            cookie?: never;
+        };
+        /** Get a problem with every test case of its current version (admins only) */
+        get: operations["getAdminProblem"];
+        /**
+         * Replace a problem (admins only)
+         * @description A change of the limits, the checker or the test cases creates a new version: new
+         *     submissions are judged with it, earlier submissions keep their test cases. Title,
+         *     statement, difficulty and publishing do not change the version. The slug cannot
+         *     be changed.
+         */
+        put: operations["updateProblem"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        Me: {
+            id: string;
+            username: string;
+            /** @description Member of the admin group; may manage problems. */
+            admin: boolean;
+        };
+        AdminProblemSummary: {
+            slug: components["schemas"]["Slug"];
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            published: boolean;
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        ProblemInput: {
+            slug: components["schemas"]["Slug"];
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            /** @description Problem statement in Markdown (raw HTML is not rendered). */
+            statement_md: string;
+            time_limit_ms: number;
+            memory_limit_mb: number;
+            /**
+             * @description exact compares lines, float compares numbers within checker_tolerance, custom runs checker_source.
+             * @enum {string}
+             */
+            checker: "exact" | "float" | "custom";
+            /** @description float checker only; null or 0 means the default (1e-6). */
+            checker_tolerance?: number | null;
+            /** @description custom checker only. Python; reads input, expected and output, prints AC or WA. */
+            checker_source?: string | null;
+            published: boolean;
+            /** @description Inputs and outputs together at most 4 MB. */
+            test_cases: components["schemas"]["TestCase"][];
+        };
+        AdminProblem: {
+            slug: components["schemas"]["Slug"];
+            title: string;
+            difficulty: components["schemas"]["Difficulty"];
+            statement_md: string;
+            time_limit_ms: number;
+            memory_limit_mb: number;
+            /** @enum {string} */
+            checker: "exact" | "float" | "custom";
+            checker_tolerance: number | null;
+            checker_source: string | null;
+            published: boolean;
+            test_cases: components["schemas"]["TestCase"][];
+            /** @description Grows with every change that affects judging. */
+            version: number;
+            /** Format: date-time */
+            updated_at: string;
+        };
+        TestCase: {
+            input: string;
+            /** @description Expected output. */
+            output: string;
+            /** @description Shown on the problem page. */
+            sample: boolean;
+        };
         /** @example a-plus-b */
         Slug: string;
         /** @enum {string} */
@@ -245,7 +371,7 @@ export interface components {
          * @description Languages a submission can be written in.
          * @enum {string}
          */
-        Language: "python" | "cpp";
+        Language: "python" | "cpp" | "java" | "javascript" | "go";
         /**
          * @description Language of an existing submission. Extensible: new languages are added over time,
          *     so clients must accept values they do not know (show them as text).
@@ -419,6 +545,15 @@ export interface components {
                 "application/problem+json": components["schemas"]["ProblemDetails"];
             };
         };
+        /** @description The caller is signed in but not allowed to do this (admins only). */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["ProblemDetails"];
+            };
+        };
     };
     parameters: {
         /** @description Opaque cursor from the previous page. */
@@ -427,6 +562,8 @@ export interface components {
         Limit: number;
         /** @description Contest slug. */
         ContestSlug: components["schemas"]["Slug"];
+        /** @description Problem slug. */
+        ProblemSlug: components["schemas"]["Slug"];
         /** @description Submission ID. */
         SubmissionId: string;
     };
@@ -790,6 +927,155 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    listAdminProblems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All problems, by slug. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["AdminProblemSummary"][];
+                    };
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createProblem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProblemInput"];
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    /** @description URL of the new problem in the admin API. */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProblem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            /** @description A problem with this slug exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getAdminProblem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Problem slug. */
+                slug: components["parameters"]["ProblemSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The problem. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProblem"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateProblem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Problem slug. */
+                slug: components["parameters"]["ProblemSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProblemInput"];
+            };
+        };
+        responses: {
+            /** @description The saved problem. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminProblem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description Another save changed the problem at the same time. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
         };
     };
 }

@@ -35,9 +35,10 @@ Remove the feature completely instead of capping it:
 ## Consequences
 
 - No code path in the project calls a generative AI model, and the account's CI roles cannot.
-- The `hints` table stays in the database for now: dropping it in the same release would
-  break the API version that blue/green keeps running during the switch (expand/contract).
-  A later migration drops it (`-- atlas:nolint destructive`, it holds no data anyone needs).
+- The `hints` table stayed in the database in the release that removed the code: dropping
+  it in the same release would break the API version that blue/green keeps running during
+  the switch (expand/contract). The next release drops it
+  (`20261115130000_drop_hints.sql`, `-- atlas:nolint destructive`, no data anyone needs).
 - Bedrock model access in the AWS console is no longer needed; if it was granted, it can
   stay or be removed, it costs nothing without calls.
 - The remaining public cost surface is the judge itself (runner Lambda invocations, a few

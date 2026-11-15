@@ -24,6 +24,9 @@ output "cognito" {
     authority = module.cognito.issuer
     client_id = module.cognito.client_id
     domain    = module.cognito.login_domain
+    # Admins (problem management) are members of this group: docs/SETUP.md.
+    user_pool_id = module.cognito.user_pool_id
+    admin_group  = module.cognito.admin_group
   }
 }
 

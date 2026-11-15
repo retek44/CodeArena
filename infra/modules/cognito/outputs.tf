@@ -24,3 +24,8 @@ output "user_pool_arn" {
   description = "User pool ARN (IAM policies)."
   value       = aws_cognito_user_pool.this.arn
 }
+
+output "admin_group" {
+  description = "Cognito group whose members may manage problems."
+  value       = aws_cognito_user_group.admins.name
+}

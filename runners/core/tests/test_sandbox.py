@@ -49,6 +49,19 @@ def run_status(**overrides: object) -> Status:
         pytest.param({"memory_kb": 64 * 1024 + 1}, Status.MEMORY_LIMIT, id="rss-over-limit"),
         pytest.param({"exit_code": 1, "stderr": b"...\nMemoryError\n"}, Status.MEMORY_LIMIT, id="python-memoryerror"),
         pytest.param({"exit_code": 0, "stderr": b"MemoryError"}, Status.OK, id="memoryerror-text-but-success"),
+        pytest.param(
+            {"exit_code": 1, "stderr": b"java.lang.OutOfMemoryError: Java heap space"},
+            Status.MEMORY_LIMIT,
+            id="java-heap",
+        ),
+        pytest.param(
+            {"exit_code": None, "term_signal": signal.SIGABRT, "stderr": b"JavaScript heap out of memory"},
+            Status.MEMORY_LIMIT,
+            id="node-heap",
+        ),
+        pytest.param(
+            {"exit_code": 2, "stderr": b"fatal error: runtime: out of memory"}, Status.MEMORY_LIMIT, id="go-heap"
+        ),
         pytest.param({"exit_code": 3}, Status.RUNTIME_ERROR, id="nonzero-exit"),
         pytest.param({"exit_code": None, "term_signal": signal.SIGSEGV}, Status.RUNTIME_ERROR, id="segfault"),
         pytest.param(
@@ -121,3 +134,17 @@ def test_execute_reports_exit_code(tmp_path: Path) -> None:
 
     assert result.status == Status.RUNTIME_ERROR
     assert result.exit_code == 3
+
+
+def test_execute_disables_core_dumps_also_for_pipe_helpers(tmp_path: Path) -> None:
+    # RLIMIT_CORE = 1 is the kernel's "do not dump" value for core_pattern pipes too.
+    result = run_python(tmp_path, "import resource\nprint(resource.getrlimit(resource.RLIMIT_CORE))\n")
+
+    assert result.stdout == b"(1, 1)\n"
+
+
+def test_execute_abort_is_runtime_error_without_delay(tmp_path: Path) -> None:
+    result = run_python(tmp_path, "import os\nos.abort()\n")
+
+    assert result.status == Status.RUNTIME_ERROR
+    assert result.wall_time_ms < 1000

@@ -127,7 +127,33 @@ pre {
 }
 
 .statement {
-  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.statement code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.statement :not(pre) > code {
+  background: #eef1f4;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+
+.statement pre {
+  margin: 0 0 1rem;
+}
+
+.statement table {
+  border-collapse: collapse;
+  margin: 0 0 1rem;
+}
+
+.statement th,
+.statement td {
+  border: 1px solid #d0d7de;
+  padding: 0.3rem 0.6rem;
 }
 
 .sample {
@@ -205,4 +231,50 @@ pre {
 
 .contest-problems li {
   margin: 0.25rem 0;
+}
+
+.admin-form label {
+  display: block;
+  margin: 0.5rem 0;
+}
+
+.admin-form label.checkbox input {
+  margin: 0 0.5rem 0 0;
+}
+
+.admin-form .fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.5rem;
+  align-items: end;
+}
+
+.admin-form textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  font: inherit;
+  padding: 0.4rem 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.admin-form textarea.code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.statement-editor {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+
+.statement-editor h3 {
+  margin: 0.5rem 0;
+}
+
+.test-case {
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  margin: 0.75rem 0;
 }

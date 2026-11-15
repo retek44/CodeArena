@@ -107,6 +107,24 @@ func TestValidAccessToken(t *testing.T) {
 	}
 }
 
+func TestAdminGroupMakesAnAdmin(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+
+	plain, err := f.auth.Authenticate(requestWith(t, "Bearer "+f.sign(t, validClaims(), nil)))
+	if err != nil || plain.Admin {
+		t.Fatalf("without groups: %+v, %v", plain, err)
+	}
+	for groups, want := range map[string]bool{"admins": true, "teachers": false} {
+		claims := validClaims()
+		claims["cognito:groups"] = []string{"users", groups}
+		p, err := f.auth.Authenticate(requestWith(t, "Bearer "+f.sign(t, claims, nil)))
+		if err != nil || p.Admin != want {
+			t.Errorf("groups [users %s]: admin = %v, %v; want %v", groups, p.Admin, err, want)
+		}
+	}
+}
+
 func TestRejectedTokens(t *testing.T) {
 	t.Parallel()
 	f := newFixture(t)
