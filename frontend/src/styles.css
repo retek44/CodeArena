@@ -461,14 +461,16 @@ label {
   font-weight: 500;
 }
 
-.main {
+/* Not ".main": Monaco's suggest rows contain a ".main" element, and this padding pushed
+   their labels out of view. */
+.app-main {
   max-width: 1200px;
   margin: 0 auto;
   padding: calc(var(--u) * 5) calc(var(--u) * 4) calc(var(--u) * 8);
 }
 
 /* The problem page uses the full width: statement and editor side by side. */
-.main:has(> .problem-page) {
+.app-main:has(> .problem-page) {
   max-width: none;
   padding: 0;
 }
@@ -1077,7 +1079,7 @@ td a:hover {
     padding-right: 0;
   }
 
-  .main {
+  .app-main {
     padding: calc(var(--u) * 3) calc(var(--u) * 2) calc(var(--u) * 6);
   }
 

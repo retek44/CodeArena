@@ -51,7 +51,7 @@ export function Layout() {
           )}
         </div>
       </header>
-      <main id="main" className="main">
+      <main id="main" className="app-main">
         <Outlet />
       </main>
     </>
