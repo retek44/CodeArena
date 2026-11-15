@@ -24,7 +24,7 @@ require (
 	github.com/lib/pq v1.12.3
 	github.com/pact-foundation/pact-go/v2 v2.9.0
 	github.com/pb33f/jsonschema/v6 v6.0.3
-	github.com/pb33f/libopenapi v0.41.8
+	github.com/pb33f/libopenapi v0.42.5
 	github.com/pb33f/libopenapi-validator v0.16.3
 	github.com/testcontainers/testcontainers-go v0.45.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
@@ -142,7 +142,7 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
