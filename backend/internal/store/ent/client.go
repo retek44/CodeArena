@@ -19,7 +19,6 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
@@ -40,8 +39,6 @@ type Client struct {
 	ContestParticipant *ContestParticipantClient
 	// ContestProblem is the client for interacting with the ContestProblem builders.
 	ContestProblem *ContestProblemClient
-	// Hint is the client for interacting with the Hint builders.
-	Hint *HintClient
 	// OutboxMessage is the client for interacting with the OutboxMessage builders.
 	OutboxMessage *OutboxMessageClient
 	// Problem is the client for interacting with the Problem builders.
@@ -70,7 +67,6 @@ func (c *Client) init() {
 	c.Contest = NewContestClient(c.config)
 	c.ContestParticipant = NewContestParticipantClient(c.config)
 	c.ContestProblem = NewContestProblemClient(c.config)
-	c.Hint = NewHintClient(c.config)
 	c.OutboxMessage = NewOutboxMessageClient(c.config)
 	c.Problem = NewProblemClient(c.config)
 	c.Submission = NewSubmissionClient(c.config)
@@ -173,7 +169,6 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Contest:            NewContestClient(cfg),
 		ContestParticipant: NewContestParticipantClient(cfg),
 		ContestProblem:     NewContestProblemClient(cfg),
-		Hint:               NewHintClient(cfg),
 		OutboxMessage:      NewOutboxMessageClient(cfg),
 		Problem:            NewProblemClient(cfg),
 		Submission:         NewSubmissionClient(cfg),
@@ -203,7 +198,6 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Contest:            NewContestClient(cfg),
 		ContestParticipant: NewContestParticipantClient(cfg),
 		ContestProblem:     NewContestProblemClient(cfg),
-		Hint:               NewHintClient(cfg),
 		OutboxMessage:      NewOutboxMessageClient(cfg),
 		Problem:            NewProblemClient(cfg),
 		Submission:         NewSubmissionClient(cfg),
@@ -240,8 +234,8 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.Contest, c.ContestParticipant, c.ContestProblem, c.Hint, c.OutboxMessage,
-		c.Problem, c.Submission, c.SubmissionResult, c.Tag, c.TestCase, c.User,
+		c.Contest, c.ContestParticipant, c.ContestProblem, c.OutboxMessage, c.Problem,
+		c.Submission, c.SubmissionResult, c.Tag, c.TestCase, c.User,
 	} {
 		n.Use(hooks...)
 	}
@@ -251,8 +245,8 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.Contest, c.ContestParticipant, c.ContestProblem, c.Hint, c.OutboxMessage,
-		c.Problem, c.Submission, c.SubmissionResult, c.Tag, c.TestCase, c.User,
+		c.Contest, c.ContestParticipant, c.ContestProblem, c.OutboxMessage, c.Problem,
+		c.Submission, c.SubmissionResult, c.Tag, c.TestCase, c.User,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -267,8 +261,6 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ContestParticipant.mutate(ctx, m)
 	case *ContestProblemMutation:
 		return c.ContestProblem.mutate(ctx, m)
-	case *HintMutation:
-		return c.Hint.mutate(ctx, m)
 	case *OutboxMessageMutation:
 		return c.OutboxMessage.mutate(ctx, m)
 	case *ProblemMutation:
@@ -799,155 +791,6 @@ func (c *ContestProblemClient) mutate(ctx context.Context, m *ContestProblemMuta
 	}
 }
 
-// HintClient is a client for the Hint schema.
-type HintClient struct {
-	config
-}
-
-// NewHintClient returns a client for the Hint from the given config.
-func NewHintClient(c config) *HintClient {
-	return &HintClient{config: c}
-}
-
-// Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `hint.Hooks(f(g(h())))`.
-func (c *HintClient) Use(hooks ...Hook) {
-	c.hooks.Hint = append(c.hooks.Hint, hooks...)
-}
-
-// Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `hint.Intercept(f(g(h())))`.
-func (c *HintClient) Intercept(interceptors ...Interceptor) {
-	c.inters.Hint = append(c.inters.Hint, interceptors...)
-}
-
-// Create returns a builder for creating a Hint entity.
-func (c *HintClient) Create() *HintCreate {
-	mutation := newHintMutation(c.config, OpCreate)
-	return &HintCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// CreateBulk returns a builder for creating a bulk of Hint entities.
-func (c *HintClient) CreateBulk(builders ...*HintCreate) *HintCreateBulk {
-	return &HintCreateBulk{config: c.config, builders: builders}
-}
-
-// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
-// a builder and applies setFunc on it.
-func (c *HintClient) MapCreateBulk(slice any, setFunc func(*HintCreate, int)) *HintCreateBulk {
-	rv := reflect.ValueOf(slice)
-	if rv.Kind() != reflect.Slice {
-		return &HintCreateBulk{err: fmt.Errorf("calling to HintClient.MapCreateBulk with wrong type %T, need slice", slice)}
-	}
-	builders := make([]*HintCreate, rv.Len())
-	for i := 0; i < rv.Len(); i++ {
-		builders[i] = c.Create()
-		setFunc(builders[i], i)
-	}
-	return &HintCreateBulk{config: c.config, builders: builders}
-}
-
-// Update returns an update builder for Hint.
-func (c *HintClient) Update() *HintUpdate {
-	mutation := newHintMutation(c.config, OpUpdate)
-	return &HintUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOne returns an update builder for the given entity.
-func (c *HintClient) UpdateOne(_m *Hint) *HintUpdateOne {
-	mutation := newHintMutation(c.config, OpUpdateOne, withHint(_m))
-	return &HintUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// UpdateOneID returns an update builder for the given id.
-func (c *HintClient) UpdateOneID(id int) *HintUpdateOne {
-	mutation := newHintMutation(c.config, OpUpdateOne, withHintID(id))
-	return &HintUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// Delete returns a delete builder for Hint.
-func (c *HintClient) Delete() *HintDelete {
-	mutation := newHintMutation(c.config, OpDelete)
-	return &HintDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
-}
-
-// DeleteOne returns a builder for deleting the given entity.
-func (c *HintClient) DeleteOne(_m *Hint) *HintDeleteOne {
-	return c.DeleteOneID(_m.ID)
-}
-
-// DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *HintClient) DeleteOneID(id int) *HintDeleteOne {
-	builder := c.Delete().Where(hint.ID(id))
-	builder.mutation.id = &id
-	builder.mutation.op = OpDeleteOne
-	return &HintDeleteOne{builder}
-}
-
-// Query returns a query builder for Hint.
-func (c *HintClient) Query() *HintQuery {
-	return &HintQuery{
-		config: c.config,
-		ctx:    &QueryContext{Type: TypeHint},
-		inters: c.Interceptors(),
-	}
-}
-
-// Get returns a Hint entity by its id.
-func (c *HintClient) Get(ctx context.Context, id int) (*Hint, error) {
-	return c.Query().Where(hint.ID(id)).Only(ctx)
-}
-
-// GetX is like Get, but panics if an error occurs.
-func (c *HintClient) GetX(ctx context.Context, id int) *Hint {
-	obj, err := c.Get(ctx, id)
-	if err != nil {
-		panic(err)
-	}
-	return obj
-}
-
-// QuerySubmission queries the submission edge of a Hint.
-func (c *HintClient) QuerySubmission(_m *Hint) *SubmissionQuery {
-	query := (&SubmissionClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(hint.Table, hint.FieldID, id),
-			sqlgraph.To(submission.Table, submission.FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, true, hint.SubmissionTable, hint.SubmissionColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// Hooks returns the client hooks.
-func (c *HintClient) Hooks() []Hook {
-	return c.hooks.Hint
-}
-
-// Interceptors returns the client interceptors.
-func (c *HintClient) Interceptors() []Interceptor {
-	return c.inters.Hint
-}
-
-func (c *HintClient) mutate(ctx context.Context, m *HintMutation) (Value, error) {
-	switch m.Op() {
-	case OpCreate:
-		return (&HintCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdate:
-		return (&HintUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpUpdateOne:
-		return (&HintUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
-	case OpDelete, OpDeleteOne:
-		return (&HintDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
-	default:
-		return nil, fmt.Errorf("ent: unknown Hint mutation op: %q", m.Op())
-	}
-}
-
 // OutboxMessageClient is a client for the OutboxMessage schema.
 type OutboxMessageClient struct {
 	config
@@ -1443,22 +1286,6 @@ func (c *SubmissionClient) QueryResults(_m *Submission) *SubmissionResultQuery {
 			sqlgraph.From(submission.Table, submission.FieldID, id),
 			sqlgraph.To(submissionresult.Table, submissionresult.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, submission.ResultsTable, submission.ResultsColumn),
-		)
-		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
-		return fromV, nil
-	}
-	return query
-}
-
-// QueryHint queries the hint edge of a Submission.
-func (c *SubmissionClient) QueryHint(_m *Submission) *HintQuery {
-	query := (&HintClient{config: c.config}).Query()
-	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
-		id := _m.ID
-		step := sqlgraph.NewStep(
-			sqlgraph.From(submission.Table, submission.FieldID, id),
-			sqlgraph.To(hint.Table, hint.FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, false, submission.HintTable, submission.HintColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -2106,11 +1933,11 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Contest, ContestParticipant, ContestProblem, Hint, OutboxMessage, Problem,
-		Submission, SubmissionResult, Tag, TestCase, User []ent.Hook
+		Contest, ContestParticipant, ContestProblem, OutboxMessage, Problem, Submission,
+		SubmissionResult, Tag, TestCase, User []ent.Hook
 	}
 	inters struct {
-		Contest, ContestParticipant, ContestProblem, Hint, OutboxMessage, Problem,
-		Submission, SubmissionResult, Tag, TestCase, User []ent.Interceptor
+		Contest, ContestParticipant, ContestProblem, OutboxMessage, Problem, Submission,
+		SubmissionResult, Tag, TestCase, User []ent.Interceptor
 	}
 )

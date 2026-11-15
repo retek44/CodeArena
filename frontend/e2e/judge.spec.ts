@@ -47,29 +47,6 @@ test("a wrong answer shows which test cases failed", async ({ page }) => {
   await expect(submission.cases.getByText("Accepted").first()).toBeVisible();
 });
 
-test("a wrong answer gets an AI hint, an accepted one does not", async ({ page }) => {
-  const problem = new ProblemPage(page);
-  await problem.open("a-plus-b");
-  await problem.setSource(golden("wa.py"));
-  const submission = await problem.submit();
-
-  await submission.expectVerdict("WA", "Wrong answer");
-  const hint = await submission.askForHint();
-  expect(hint.length).toBeGreaterThan(20);
-  await expect(submission.hintButton).toHaveCount(0);
-
-  // The stored hint comes back after a reload, without a second button press.
-  await page.reload();
-  await submission.expectVerdict("WA", "Wrong answer");
-  expect(await submission.askForHint()).toBe(hint);
-
-  await problem.open("a-plus-b");
-  await problem.setSource(golden("ac.py"));
-  const accepted = await problem.submit();
-  await accepted.expectVerdict("AC", "Accepted");
-  await expect(accepted.hintButton).toHaveCount(0);
-});
-
 test("a syntax error shows the compiler output", async ({ page }) => {
   const problem = new ProblemPage(page);
   await problem.open("a-plus-b");

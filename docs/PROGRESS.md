@@ -62,7 +62,10 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 - [x] `infra/modules/ecr-repository` + `infra/shared` stack (ECR for api, worker, runner-python)
 - [x] `infra/modules/runner-lambda`: arm64 image function in isolated subnets, SG without rules,
       boundary-limited role, X-Ray, log group; wired into `infra/envs/dev` (created once an image tag is given)
-- [ ] Sandbox hardening test suite (`tests/sandbox-security`) – open
+- [x] Sandbox hardening suite (`tests/sandbox-security`, `make sandbox-suite`, CI job "Runners"): probe
+      programs (Python and C++) through the runner images under the RIE on an `--internal` Docker network;
+      CPU/wall/memory/output/process limits, network and DNS blocked, read-only root, minimal environment,
+      no data shared between test cases or submissions, and a clean-environment probe after every scenario
 - [x] First deploy to dev (deploy.yml): images in ECR, runner Lambda, API and worker on ECS, smoke and
       post-deploy tests green; destroyed again with destroy.yml
 
@@ -238,19 +241,12 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       the SPA with a break threshold; scores in the job summary) and Terraform drift detection (plans
       every running stack with its deployed image tag, opens or updates a `drift` issue)
 
-## Phase 8 – AI + polish
+## Phase 8 – Polish
 
-- [x] AI hint (ADR-0014): `POST /api/submissions/{id}/hint` (own WA/RE/TLE/MLE/OLE submissions, one stored
-      hint per submission, 3 new hints per user and hour, 503 without a hint service), only sample test
-      data goes to the model
-- [x] Hint Lambda (`lambdas/hint`, Python): Bedrock Converse with Claude Haiku 5.5 (EU inference profile),
-      system prompt + code post-filter with a generic fallback; pytest with a stubbed client
-- [x] `infra/modules/hint`: Bedrock guardrail (content + prompt attack filters, denied topic "full
-      solution", numbered version), Lambda outside the VPC, least-privilege IAM; `hints_enabled` per env
-- [x] SPA: "Get a hint" on failed submissions, rate-limit message with the wait time
-- [x] LLM eval in `nightly.yml` (`tests/llm-eval`): wrong golden solutions + prompt-injection cases
-      through the dev Lambda, deterministic checks + LLM-as-judge (Sonnet 5.5, forced tool use)
-- [ ] **(manual)** Bedrock model access for Claude Haiku 5.5 and Sonnet 5.5 (`docs/SETUP.md` 1.5)
+- [x] ~~AI hints (ADR-0014)~~ removed (ADR-0021): no endpoint, Lambda, guardrail, LLM eval or Bedrock
+      permission is left; the workload boundary has no `bedrock` and the CI deploy roles deny `bedrock:*`
+- [ ] Contract migration: drop the unused `hints` table (after the release without hint code)
+- [ ] **(manual)** Apply `infra/bootstrap` again (boundary without Bedrock, deny on the deploy roles)
 - [x] README with Mermaid diagrams (architecture, one submission, contest lifecycle, delivery pipeline,
       safe rollout), test layer table, ADR index; demo GIF recorded by Playwright against the local stack
       (`make demo-video`: `frontend/e2e/demo`, captions, ffmpeg in Docker; not part of the regression suite)

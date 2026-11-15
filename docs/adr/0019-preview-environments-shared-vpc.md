@@ -31,7 +31,7 @@ Facts that changed the design:
   VPC. State key `preview/pr-<n>/terraform.tfstate` (the `preview` deploy role may only
   write `preview/*`). The preview has its own RDS, ALB, CloudFront, Cognito pool, queue,
   Valkey cache and runner Lambdas, so it is isolated from every other environment.
-  Bedrock hints and tracing are off, one worker at most.
+  Tracing is off, one worker at most.
 - **Opt-in:** the `preview` label starts it (`preview.yml`). Every push to the labelled
   PR redeploys; closing the PR or removing the label runs `destroy-preview.yml`, which
   also deletes the state file. A nightly job in `destroy.yml` lists the preview state

@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/google/uuid"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/user"
@@ -72,11 +71,9 @@ type SubmissionEdges struct {
 	Contest *Contest `json:"contest,omitempty"`
 	// Results holds the value of the results edge.
 	Results []*SubmissionResult `json:"results,omitempty"`
-	// Hint holds the value of the hint edge.
-	Hint *Hint `json:"hint,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [5]bool
+	loadedTypes [4]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -119,17 +116,6 @@ func (e SubmissionEdges) ResultsOrErr() ([]*SubmissionResult, error) {
 		return e.Results, nil
 	}
 	return nil, &NotLoadedError{edge: "results"}
-}
-
-// HintOrErr returns the Hint value or an error if the edge
-// was not loaded in eager-loading, or loaded but was not found.
-func (e SubmissionEdges) HintOrErr() (*Hint, error) {
-	if e.Hint != nil {
-		return e.Hint, nil
-	} else if e.loadedTypes[4] {
-		return nil, &NotFoundError{label: hint.Label}
-	}
-	return nil, &NotLoadedError{edge: "hint"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -305,11 +291,6 @@ func (_m *Submission) QueryContest() *ContestQuery {
 // QueryResults queries the "results" edge of the Submission entity.
 func (_m *Submission) QueryResults() *SubmissionResultQuery {
 	return NewSubmissionClient(_m.config).QueryResults(_m)
-}
-
-// QueryHint queries the "hint" edge of the Submission entity.
-func (_m *Submission) QueryHint() *HintQuery {
-	return NewSubmissionClient(_m.config).QueryHint(_m)
 }
 
 // Update returns a builder for updating this Submission.

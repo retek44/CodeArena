@@ -81,21 +81,10 @@ export class ProblemPage {
 export class SubmissionPage {
   readonly result: Locator;
   readonly cases: Locator;
-  readonly hintButton: Locator;
-  readonly hint: Locator;
 
   constructor(page: Page) {
     this.result = page.getByText(/^Result:/);
     this.cases = page.getByRole("table", { name: "Test cases" });
-    this.hintButton = page.getByRole("button", { name: "Get a hint" });
-    this.hint = page.getByRole("region", { name: "Stuck?" }).getByRole("blockquote");
-  }
-
-  /** Asks for the AI hint and returns its text. */
-  async askForHint(): Promise<string> {
-    await this.hintButton.click();
-    await expect(this.hint).toBeVisible({ timeout: 30_000 });
-    return (await this.hint.innerText()).trim();
   }
 
   /** Waits until the polling page shows a final verdict. */

@@ -9,7 +9,6 @@ export type ProblemSummary = Schemas["ProblemSummary"];
 export type Submission = Schemas["Submission"];
 export type Verdict = Schemas["Verdict"];
 export type Difficulty = Schemas["Difficulty"];
-export type Hint = Schemas["Hint"];
 
 /** Returns the headers that authenticate a request (empty when signed out). */
 export type AuthHeaders = () => Promise<Record<string, string>>;

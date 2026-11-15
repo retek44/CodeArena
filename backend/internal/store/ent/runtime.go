@@ -9,7 +9,6 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/schema"
@@ -68,16 +67,6 @@ func init() {
 			return nil
 		}
 	}()
-	hintFields := schema.Hint{}.Fields()
-	_ = hintFields
-	// hintDescUserID is the schema descriptor for user_id field.
-	hintDescUserID := hintFields[1].Descriptor()
-	// hint.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
-	hint.UserIDValidator = hintDescUserID.Validators[0].(func(string) error)
-	// hintDescCreatedAt is the schema descriptor for created_at field.
-	hintDescCreatedAt := hintFields[5].Descriptor()
-	// hint.DefaultCreatedAt holds the default value on creation for the created_at field.
-	hint.DefaultCreatedAt = hintDescCreatedAt.Default.(func() time.Time)
 	outboxmessageFields := schema.OutboxMessage{}.Fields()
 	_ = outboxmessageFields
 	// outboxmessageDescTopic is the schema descriptor for topic field.

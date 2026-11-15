@@ -222,54 +222,6 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/submissions/{id}/hint:
-    post:
-      tags: [submissions]
-      operationId: createHint
-      summary: Get an AI hint for a failed submission
-      description: |
-        Returns a short hint that points at the likely mistake without giving the
-        solution (Amazon Bedrock with a guardrail). One hint per submission: asking
-        again returns the stored hint and does not count against the rate limit.
-        Available for judged submissions with the verdict WA, RE, TLE, MLE or OLE.
-        Hidden test data is never sent to the model.
-      parameters:
-        - $ref: "#/components/parameters/SubmissionId"
-      responses:
-        "200":
-          description: The hint.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Hint"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "409":
-          description: The submission is not judged yet or its verdict needs no hint (AC, CE).
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "429":
-          description: Too many hints.
-          headers:
-            Retry-After:
-              description: Seconds to wait before the next hint.
-              schema:
-                type: integer
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "503":
-          description: Hints are disabled in this environment or the model is not available.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-
   /api/ws/ticket:
     post:
       tags: [realtime]
@@ -676,25 +628,6 @@ components:
         memory_kb:
           type: integer
           minimum: 0
-
-    Hint:
-      type: object
-      additionalProperties: false
-      required: [submission_id, hint, status, created_at]
-      properties:
-        submission_id:
-          type: string
-          format: uuid
-        hint:
-          type: string
-          description: Plain text, a few sentences.
-        status:
-          type: string
-          description: "`blocked`: the guardrail replaced the model's answer with a generic hint."
-          x-extensible-enum: [ok, blocked]
-        created_at:
-          type: string
-          format: date-time
 
     WebSocketTicket:
       type: object

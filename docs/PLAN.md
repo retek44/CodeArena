@@ -2,7 +2,8 @@
 
 CodeArena is a cloud-native online judge (a small LeetCode / Codeforces) on AWS.
 Users solve programming problems in the browser, submit code, and see per-test-case
-results in real time. Contests have a live leaderboard. An AI hint helps after a wrong answer.
+results in real time. Contests have a live leaderboard. (The AI hint of the first plan was removed:
+[ADR-0021](adr/0021-remove-ai-hints.md).)
 
 The project has two goals:
 
@@ -26,7 +27,7 @@ Progress is tracked in [PROGRESS.md](PROGRESS.md). Decisions are in [adr/](adr/)
   verdict by comparing outputs. Expected outputs never reach the runner.
 - Live status per test case over WebSocket.
 - Contests: scheduled start and end, live leaderboard, ICPC-style freeze in the last 30 minutes.
-- AI hint on `WA` (Amazon Bedrock, Claude Haiku) with guardrails: no full solutions, rate limited.
+- ~~AI hint on `WA` (Amazon Bedrock, Claude Haiku) with guardrails~~ removed: no model calls (ADR-0021).
 - Admin: create problems, upload test cases, version problems.
 - Problems are written for this project. Do not copy LeetCode or other judges (copyright).
 
@@ -55,7 +56,6 @@ API Gateway WebSocket ◀── push Lambda          │  Cognito JWT validation
    └──────── EventBridge: SubmissionJudged ──▶ push Lambda / leaderboard / stats
 
 Contest:  EventBridge Scheduler ──▶ Step Functions (start → freeze → end → ranking → SES email)
-AI hint:  api ──▶ hint Lambda (Python) ──▶ Bedrock + Guardrails, rate limit in DynamoDB
 Observability: OpenTelemetry (ADOT sidecar) ──▶ X-Ray + CloudWatch; alarms drive rollback
 ```
 
@@ -63,7 +63,7 @@ Observability: OpenTelemetry (ADOT sidecar) ──▶ X-Ray + CloudWatch; alarms
 
 - Go: API and judge worker. HTTP routing with the standard library (`net/http`, Go 1.22+ patterns).
 - TypeScript: React frontend (Vite, TanStack Query, Monaco).
-- Python: hint, WebSocket push and contest Lambdas; the Python runner.
+- Python: WebSocket push and deployment hook Lambdas; the Python runner.
 
 ## 3. Key decisions (details in `docs/adr/`)
 
@@ -130,7 +130,6 @@ Observability: OpenTelemetry (ADOT sidecar) ──▶ X-Ray + CloudWatch; alarms
 - `POST /api/submissions` → `202 Accepted` + id. `Idempotency-Key` header required.
 - `GET /api/submissions/{id}`, `GET /api/users/me/submissions`
 - `GET /api/contests`, `POST /api/contests/{id}/register`, `GET /api/contests/{id}/leaderboard`
-- `POST /api/submissions/{id}/hint` (rate limit 3 per hour)
 - `POST /api/admin/problems`, `POST /api/admin/problems/{id}/testcases` (presigned S3 URL)
 - WebSocket: `subscribe {submissionId | contestId}` → `verdict_update`, `leaderboard_update`
 - Event schemas: AsyncAPI + EventBridge Schema Registry
@@ -141,11 +140,11 @@ Observability: OpenTelemetry (ADOT sidecar) ──▶ X-Ray + CloudWatch; alarms
 backend/        One Go module (ADR-0010): cmd/api, cmd/worker, cmd/judge, cmd/migratediff;
                 internal/ httpapi, auth, store (Ent + sqlc), judge, checker, runner, protocol
 runners/        protocol/ (JSON Schemas), core/ (shared Python runner), one image dir per language
-lambdas/        ws-push, hint, contest-steps (Python)
+lambdas/        ws-push, deploy-hook (Python)
 frontend/       React + Vite + TypeScript
 contracts/      openapi.yaml, asyncapi.yaml
 infra/          bootstrap/, shared/ (ECR), modules/, envs/{dev,staging,prod}/, preview/
-tests/          golden/, sandbox-security/, api/, e2e/, contract/, performance/, chaos/, llm-eval/, infra/
+tests/          golden/, sandbox-security/, api/, e2e/, contract/, performance/, chaos/, infra/
 docs/           PLAN.md, PROGRESS.md, SETUP.md, adr/
 .github/        workflows/, actions/ (composite actions)
 ```
@@ -196,7 +195,7 @@ required status check.
 ### Nightly (`nightly.yml`)
 
 Full regression for all languages, mutation testing (Gremlins for Go, Stryker for TS),
-Terraform drift detection (opens an issue), LLM eval for hints (DeepEval, LLM-as-judge),
+Terraform drift detection (opens an issue),
 auto-destroy of dev and staging at 22:00.
 
 ### Reporting
@@ -231,6 +230,6 @@ The same alarms drive rollback and SNS notifications.
 | 5 | CD: dev/staging/prod, preview environments, blue/green, canary, rollback, migration task | 2 |
 | 6 | Contests: Step Functions, Scheduler, Valkey leaderboard, freeze, SES | 1–2 |
 | 7 | Non-functional: k6, ZAP, FIS, Synthetics, OTel dashboards | 2 |
-| 8 | AI + polish: Bedrock hint + Guardrails, LLM eval, README, diagrams, demo video | 1–2 |
+| 8 | Polish: README, diagrams, demo video (AI hint removed, ADR-0021) | 1–2 |
 
 MVP milestone at the end of phase 3: code submitted from the CLI runs in the cloud and gets a verdict.

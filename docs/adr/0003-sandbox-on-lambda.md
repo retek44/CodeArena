@@ -37,8 +37,12 @@ compares outputs and stores the verdict.
 - Cold starts for container images (a few hundred milliseconds to seconds). Provisioned
   concurrency is possible for contests, at extra cost.
 - Max 15 minutes and 10 GB memory per invocation – far above judge limits.
-- Unit tests cover limit classification; golden tests cover the verdicts end to end. A
-  dedicated hardening suite (`tests/sandbox-security`) is still open.
+- Unit tests cover limit classification; golden tests cover the verdicts end to end. The
+  hardening suite (`tests/sandbox-security`, `make sandbox-suite`, CI job "Runners") runs
+  probe programs through both runner images on an internal Docker network: CPU, wall
+  clock, memory, output and process limits, no network or DNS, read-only root file
+  system, minimal environment, no data shared between test cases or submissions, and after
+  every scenario a probe run that must find no leftover process or file.
 
 ## Implementation notes (phase 1)
 

@@ -11,7 +11,6 @@ import {
   listMySubmissions,
   listProblems,
   registerForContest,
-  requestHint,
   submit,
   type SubmitInput,
 } from "./requests";
@@ -87,15 +86,6 @@ export function useSubmit() {
       queryClient.setQueryData(["submission", submission.id], submission);
       void queryClient.invalidateQueries({ queryKey: ["my-submissions"] });
     },
-  });
-}
-
-/** Asks for the AI hint of a failed submission. The API stores one hint per submission. */
-export function useHint(submissionId: string) {
-  const api = useApi();
-  return useMutation({
-    mutationKey: ["hint", submissionId],
-    mutationFn: () => requestHint(api, submissionId),
   });
 }
 

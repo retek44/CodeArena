@@ -92,19 +92,19 @@ migrate-lint: ## Lint the newest migrations (destructive / data-dependent change
 # --- Runner -------------------------------------------------------------------
 
 .PHONY: py-lint
-py-lint: ## ruff + mypy for the Python runner and the hint Lambda
-	ruff check runners lambdas tests/llm-eval
-	ruff format --check runners lambdas tests/llm-eval
+py-lint: ## ruff + mypy for the Python runner and the Lambdas
+	ruff check runners lambdas tests/sandbox-security
+	ruff format --check runners lambdas tests/sandbox-security
 	mypy
 
 .PHONY: py-test
 py-test: ## Runner unit and contract tests (Linux; on Windows use py-test-docker)
-	pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests lambdas/deploy-hook/tests tests/llm-eval
+	pytest -q runners/core/tests lambdas/ws/tests lambdas/deploy-hook/tests
 
 .PHONY: py-test-docker
 py-test-docker: ## Runner lint and tests inside a Linux container
 	docker run --rm -v "$(CURDIR)":/src -w /src python:3.13-slim sh -c \
-		'pip install -q -r requirements-dev.txt && ruff check runners lambdas tests/llm-eval && mypy && pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests lambdas/deploy-hook/tests tests/llm-eval'
+		'pip install -q -r requirements-dev.txt && ruff check runners lambdas tests/sandbox-security && mypy && pytest -q runners/core/tests lambdas/ws/tests lambdas/deploy-hook/tests'
 
 .PHONY: runner-image
 runner-image: ## Build the Python and C++ runner images
@@ -118,12 +118,17 @@ runner-up: runner-image ## Start the runner on :9000, restricted like Lambda
 		-p 9000:8080 $(RUNNER_IMAGE)
 	-docker rm -f codearena-runner-cpp >/dev/null 2>&1
 	# The C++ program runs from /tmp (allowed in Lambda); Docker tmpfs is noexec by default.
+	# Own uid: RLIMIT_NPROC counts the tasks of a uid across all containers.
 	docker run -d --name codearena-runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
-		-p 9001:8080 $(RUNNER_IMAGE_CPP)
+		--user 994:990 -p 9001:8080 $(RUNNER_IMAGE_CPP)
 
 .PHONY: runner-down
 runner-down: ## Stop the runner containers
 	-docker rm -f codearena-runner codearena-runner-cpp
+
+.PHONY: sandbox-suite
+sandbox-suite: runner-image ## Sandbox hardening suite: limits, isolation, leftovers (runners without network)
+	bash tests/sandbox-security/run.sh $(RUNNER_IMAGE) $(RUNNER_IMAGE_CPP)
 
 .PHONY: golden
 golden: ## Golden verdict tests against the running runner (make runner-up first)

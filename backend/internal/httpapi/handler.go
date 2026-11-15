@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/retek44/CodeArena/backend/internal/contest"
-	"github.com/retek44/CodeArena/backend/internal/hint"
 	"github.com/retek44/CodeArena/backend/internal/realtime"
 	"github.com/retek44/CodeArena/backend/internal/store"
 )
@@ -29,10 +28,6 @@ type Deps struct {
 	Now    func() time.Time
 	// SubmissionLimit caps submissions per user; zero means DefaultSubmissionLimit.
 	SubmissionLimit RateLimit
-	// Hinter answers POST /api/submissions/{id}/hint; nil disables hints (503).
-	Hinter hint.Hinter
-	// HintLimit caps new hints per user; zero means DefaultHintLimit.
-	HintLimit RateLimit
 	// Tickets issues WebSocket tickets; nil disables live updates (503, the SPA polls).
 	Tickets realtime.Ticketer
 	// Leaderboard of contests; nil means Postgres only (no Valkey cache).
@@ -56,9 +51,6 @@ func NewHandler(d Deps) http.Handler {
 	if d.SubmissionLimit.Max <= 0 || d.SubmissionLimit.Window <= 0 {
 		d.SubmissionLimit = DefaultSubmissionLimit
 	}
-	if d.HintLimit.Max <= 0 || d.HintLimit.Window <= 0 {
-		d.HintLimit = DefaultHintLimit
-	}
 	if d.Leaderboard == nil && d.Store != nil {
 		d.Leaderboard = &contest.Leaderboard{Queries: d.Store.Queries, Logger: d.Logger}
 	}
@@ -77,7 +69,6 @@ func NewHandler(d Deps) http.Handler {
 		mux.HandleFunc("GET /api/problems/{slug}", s.getProblem)
 		mux.Handle("POST /api/submissions", s.requireAuth(s.createSubmission))
 		mux.Handle("GET /api/submissions/{id}", s.requireAuth(s.getSubmission))
-		mux.Handle("POST /api/submissions/{id}/hint", s.requireAuth(s.createHint))
 		mux.Handle("GET /api/users/me/submissions", s.requireAuth(s.listMySubmissions))
 		mux.Handle("POST /api/ws/ticket", s.requireAuth(s.createWSTicket))
 		mux.HandleFunc("GET /api/contests", s.listContests)

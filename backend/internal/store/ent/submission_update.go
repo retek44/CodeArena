@@ -11,7 +11,6 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/predicate"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
@@ -201,25 +200,6 @@ func (_u *SubmissionUpdate) AddResults(v ...*SubmissionResult) *SubmissionUpdate
 	return _u.AddResultIDs(ids...)
 }
 
-// SetHintID sets the "hint" edge to the Hint entity by ID.
-func (_u *SubmissionUpdate) SetHintID(id int) *SubmissionUpdate {
-	_u.mutation.SetHintID(id)
-	return _u
-}
-
-// SetNillableHintID sets the "hint" edge to the Hint entity by ID if the given value is not nil.
-func (_u *SubmissionUpdate) SetNillableHintID(id *int) *SubmissionUpdate {
-	if id != nil {
-		_u = _u.SetHintID(*id)
-	}
-	return _u
-}
-
-// SetHint sets the "hint" edge to the Hint entity.
-func (_u *SubmissionUpdate) SetHint(v *Hint) *SubmissionUpdate {
-	return _u.SetHintID(v.ID)
-}
-
 // Mutation returns the SubmissionMutation object of the builder.
 func (_u *SubmissionUpdate) Mutation() *SubmissionMutation {
 	return _u.mutation
@@ -244,12 +224,6 @@ func (_u *SubmissionUpdate) RemoveResults(v ...*SubmissionResult) *SubmissionUpd
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveResultIDs(ids...)
-}
-
-// ClearHint clears the "hint" edge to the Hint entity.
-func (_u *SubmissionUpdate) ClearHint() *SubmissionUpdate {
-	_u.mutation.ClearHint()
-	return _u
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -428,35 +402,6 @@ func (_u *SubmissionUpdate) sqlSave(ctx context.Context) (_node int, err error) 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submissionresult.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.HintCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   submission.HintTable,
-			Columns: []string{submission.HintColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hint.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.HintIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   submission.HintTable,
-			Columns: []string{submission.HintColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hint.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {
@@ -656,25 +601,6 @@ func (_u *SubmissionUpdateOne) AddResults(v ...*SubmissionResult) *SubmissionUpd
 	return _u.AddResultIDs(ids...)
 }
 
-// SetHintID sets the "hint" edge to the Hint entity by ID.
-func (_u *SubmissionUpdateOne) SetHintID(id int) *SubmissionUpdateOne {
-	_u.mutation.SetHintID(id)
-	return _u
-}
-
-// SetNillableHintID sets the "hint" edge to the Hint entity by ID if the given value is not nil.
-func (_u *SubmissionUpdateOne) SetNillableHintID(id *int) *SubmissionUpdateOne {
-	if id != nil {
-		_u = _u.SetHintID(*id)
-	}
-	return _u
-}
-
-// SetHint sets the "hint" edge to the Hint entity.
-func (_u *SubmissionUpdateOne) SetHint(v *Hint) *SubmissionUpdateOne {
-	return _u.SetHintID(v.ID)
-}
-
 // Mutation returns the SubmissionMutation object of the builder.
 func (_u *SubmissionUpdateOne) Mutation() *SubmissionMutation {
 	return _u.mutation
@@ -699,12 +625,6 @@ func (_u *SubmissionUpdateOne) RemoveResults(v ...*SubmissionResult) *Submission
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveResultIDs(ids...)
-}
-
-// ClearHint clears the "hint" edge to the Hint entity.
-func (_u *SubmissionUpdateOne) ClearHint() *SubmissionUpdateOne {
-	_u.mutation.ClearHint()
-	return _u
 }
 
 // Where appends a list predicates to the SubmissionUpdate builder.
@@ -913,35 +833,6 @@ func (_u *SubmissionUpdateOne) sqlSave(ctx context.Context) (_node *Submission, 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submissionresult.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.HintCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   submission.HintTable,
-			Columns: []string{submission.HintColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hint.FieldID, field.TypeInt),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.HintIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   submission.HintTable,
-			Columns: []string{submission.HintColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hint.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

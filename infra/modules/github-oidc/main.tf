@@ -284,6 +284,15 @@ data "aws_iam_policy_document" "deploy" {
     not_actions = ["iam:Get*", "iam:List*"]
     resources   = ["${local.iam_arn_prefix}:role/${var.project}-ci-*"]
   }
+
+  # No generative AI (ADR-0021): PowerUserAccess would allow Bedrock model calls, which
+  # cost per token. The workload boundary leaves Bedrock out as well.
+  statement {
+    sid       = "NoGenerativeAI"
+    effect    = "Deny"
+    actions   = ["bedrock:*"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "deploy" {

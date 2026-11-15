@@ -42,7 +42,6 @@ output "deploy" {
     runner_function_names          = { for lang, runner in module.runner : lang => runner.function_name }
     fis_stop_worker_template_id    = module.backend[0].fis_stop_worker_template_id
     worker_autoscaling_resource_id = module.backend[0].worker_autoscaling_resource_id
-    hint_function_name             = one(module.hint[*].function_name)
     ws_url                         = module.realtime[0].ws_url
     contest_state_machine_arn      = module.contests[0].state_machine_arn
     # CodeDeploy canary of the runners (null: Terraform moved the aliases already).

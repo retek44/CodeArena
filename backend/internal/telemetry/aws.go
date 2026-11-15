@@ -15,7 +15,7 @@ import (
 )
 
 // InstrumentAWS adds a client span to every AWS SDK call made with cfg ("SQS.SendMessage")
-// and sends the X-Amzn-Trace-Id header, so the runner and hint Lambdas (active tracing)
+// and sends the X-Amzn-Trace-Id header, so the runner Lambdas (active tracing)
 // join the trace. Only the X-Ray header is sent: AWS services do not read W3C headers.
 // The span attributes are the ones the X-Ray exporter turns into AWS subsegments.
 func InstrumentAWS(cfg *aws.Config) {

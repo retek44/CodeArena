@@ -229,16 +229,6 @@ module "realtime" {
   permissions_boundary_arn = local.boundary_arn
 }
 
-# AI hint for failed submissions (Bedrock with a guardrail, ADR-0014).
-module "hint" {
-  source = "../hint"
-  count  = local.deploy && var.hints_enabled ? 1 : 0
-
-  name_prefix              = local.name_prefix
-  permissions_boundary_arn = local.boundary_arn
-  model_id                 = var.hint_model_id
-}
-
 module "postgres" {
   source = "../postgres"
   count  = local.deploy ? 1 : 0
@@ -267,7 +257,6 @@ module "backend" {
   runner_function_arns     = { for lang, runner in module.runner : lang => runner.alias_arn }
   deploy_hook_function_arn = module.deploy_hook[0].function_arn
   bake_time_minutes        = var.api_bake_time_minutes
-  hint_function_arn        = one(module.hint[*].function_arn)
 
   valkey_url = module.contests[0].valkey_url
 

@@ -14,7 +14,6 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
@@ -253,25 +252,6 @@ func (_c *SubmissionCreate) AddResults(v ...*SubmissionResult) *SubmissionCreate
 		ids[i] = v[i].ID
 	}
 	return _c.AddResultIDs(ids...)
-}
-
-// SetHintID sets the "hint" edge to the Hint entity by ID.
-func (_c *SubmissionCreate) SetHintID(id int) *SubmissionCreate {
-	_c.mutation.SetHintID(id)
-	return _c
-}
-
-// SetNillableHintID sets the "hint" edge to the Hint entity by ID if the given value is not nil.
-func (_c *SubmissionCreate) SetNillableHintID(id *int) *SubmissionCreate {
-	if id != nil {
-		_c = _c.SetHintID(*id)
-	}
-	return _c
-}
-
-// SetHint sets the "hint" edge to the Hint entity.
-func (_c *SubmissionCreate) SetHint(v *Hint) *SubmissionCreate {
-	return _c.SetHintID(v.ID)
 }
 
 // Mutation returns the SubmissionMutation object of the builder.
@@ -574,22 +554,6 @@ func (_c *SubmissionCreate) createSpec() (*Submission, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(submissionresult.FieldID, field.TypeInt),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.HintIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2O,
-			Inverse: false,
-			Table:   submission.HintTable,
-			Columns: []string{submission.HintColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(hint.FieldID, field.TypeInt),
 			},
 		}
 		for _, k := range nodes {

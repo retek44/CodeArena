@@ -49,7 +49,7 @@ variable "workload_services" {
   description = "Service prefixes that roles created by CI (Lambda, ECS task, Step Functions roles) may use. Enforced by the permissions boundary."
   type        = list(string)
   default = [
-    "apigateway", "application-autoscaling", "bedrock", "cloudwatch", "codedeploy", "cognito-idp",
+    "apigateway", "application-autoscaling", "cloudwatch", "codedeploy", "cognito-idp",
     "dynamodb", "ec2", "ecr", "ecs", "elasticache", "elasticloadbalancing", "events", "execute-api",
     "fis", "kms", "lambda", "logs", "rds", "s3", "scheduler", "secretsmanager", "ses", "sns", "sqs",
     "ssm", "states", "sts", "synthetics", "xray",

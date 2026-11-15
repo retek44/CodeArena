@@ -54,15 +54,6 @@ data "aws_iam_policy_document" "api" {
   }
 
   dynamic "statement" {
-    for_each = var.hint_function_arn == null ? [] : [var.hint_function_arn]
-    content {
-      sid       = "InvokeHint"
-      actions   = ["lambda:InvokeFunction"]
-      resources = [statement.value]
-    }
-  }
-
-  dynamic "statement" {
     for_each = var.realtime == null ? [] : [var.realtime.table_arn]
     content {
       sid       = "IssueWebSocketTickets"

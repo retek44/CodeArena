@@ -110,9 +110,6 @@ func (Submission) Edges() []ent.Edge {
 			Immutable(),
 		edge.To("results", SubmissionResult.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
-		edge.To("hint", Hint.Type).
-			Unique().
-			Annotations(entsql.OnDelete(entsql.Cascade)),
 	}
 }
 

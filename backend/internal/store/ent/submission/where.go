@@ -983,29 +983,6 @@ func HasResultsWith(preds ...predicate.SubmissionResult) predicate.Submission {
 	})
 }
 
-// HasHint applies the HasEdge predicate on the "hint" edge.
-func HasHint() predicate.Submission {
-	return predicate.Submission(func(s *sql.Selector) {
-		step := sqlgraph.NewStep(
-			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2O, false, HintTable, HintColumn),
-		)
-		sqlgraph.HasNeighbors(s, step)
-	})
-}
-
-// HasHintWith applies the HasEdge predicate on the "hint" edge with a given conditions (other predicates).
-func HasHintWith(preds ...predicate.Hint) predicate.Submission {
-	return predicate.Submission(func(s *sql.Selector) {
-		step := newHintStep()
-		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
-			for _, p := range preds {
-				p(s)
-			}
-		})
-	})
-}
-
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Submission) predicate.Submission {
 	return predicate.Submission(sql.AndPredicates(predicates...))

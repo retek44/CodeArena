@@ -5,8 +5,6 @@ name: Nightly
 #     job summary, a score below the break threshold fails the job
 #   - Terraform drift: plans every stack that is deployed with the version it runs and
 #     opens (or updates) an issue labelled "drift" when AWS differs from the code
-#   - AI hint evaluation: the dev hint Lambda answers every wrong golden solution and
-#     prompt-injection cases; deterministic checks plus an LLM judge (tests/llm-eval)
 # Runs at 20:00 UTC, before the nightly destroy (destroy.yml, 21:00 UTC).
 on:
   schedule:
@@ -19,7 +17,6 @@ permissions:
 env:
   TF_VERSION: 1.16.5
   GREMLINS_VERSION: v0.6.0
-  BOTO3_VERSION: 1.44.2
 
 jobs:
   mutation-go:
@@ -158,49 +155,3 @@ jobs:
             gh issue create --title "${title}" --label drift --body-file body.md
           fi
           echo "::warning::Drift in ${STACK}"
-
-  llm-eval:
-    name: AI hint evaluation (dev)
-    if: vars.AWS_ACCOUNT_ID != ''
-    runs-on: ubuntu-latest
-    # The dev deploy role: invoking the hint Lambda and the judge model is not read-only.
-    environment: dev
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      FUNCTION: codearena-dev-hint
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.13"
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/codearena-ci-deploy-dev
-          aws-region: ${{ vars.AWS_REGION }}
-      - name: Is dev deployed?
-        id: deployed
-        run: |
-          if aws lambda get-function --function-name "${FUNCTION}" >/dev/null 2>&1; then
-            echo "yes=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "The dev environment is not deployed: nothing to evaluate." | tee -a "$GITHUB_STEP_SUMMARY"
-            echo "yes=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Evaluate the hints
-        if: steps.deployed.outputs.yes == 'true'
-        run: |
-          pip install "boto3==${BOTO3_VERSION}"
-          python tests/llm-eval/eval_hints.py --function "${FUNCTION}" --report hint-eval.md
-      - name: Summary
-        if: always() && steps.deployed.outputs.yes == 'true'
-        run: |
-          if [ -f hint-eval.md ]; then cat hint-eval.md >> "$GITHUB_STEP_SUMMARY"; fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always() && steps.deployed.outputs.yes == 'true'
-        with:
-          name: hint-eval
-          path: hint-eval.md
-          if-no-files-found: ignore
-          retention-days: 30

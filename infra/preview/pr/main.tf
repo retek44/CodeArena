@@ -46,8 +46,7 @@ module "app" {
     isolated_subnet_ids = sort(data.aws_subnets.isolated.ids)
   }
 
-  # Short-lived and seen by a reviewer or two: no Bedrock calls, no traces, one worker.
-  hints_enabled    = false
+  # Short-lived and seen by a reviewer or two: no traces, one worker.
   tracing          = { enabled = false, sample_ratio = 0 }
   worker_max_count = 1
 }

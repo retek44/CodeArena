@@ -35,7 +35,7 @@ func TestPactProvider(t *testing.T) {
 		current *api
 	)
 	fresh := func() *api {
-		a := newAPIWith(t, func(d *httpapi.Deps) { d.Hinter = &recordingHinter{} })
+		a := newAPIWith(t, nil)
 		mu.Lock()
 		current = a
 		mu.Unlock()

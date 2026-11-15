@@ -27,7 +27,7 @@ where its time went. PLAN.md asks for OpenTelemetry with an ADOT sidecar and X-R
     (`<queue> process`) is a child of the producer span.
   - AWS SDK: a small middleware adds a client span per call (`SQS.SendMessage`) with the
     attributes the X-Ray exporter turns into AWS subsegments, and sends `X-Amzn-Trace-Id`.
-    The runner and hint Lambdas already use active tracing and join the trace from that
+    The runner Lambdas already use active tracing and join the trace from that
     header. (The contrib `otelaws` package is deprecated, and the SDK's own tracing hook
     is per client and does not send the header.)
   - EventBridge: each `PutEvents` entry carries the X-Ray header in `TraceHeader`, so the

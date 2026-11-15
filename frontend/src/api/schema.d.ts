@@ -114,30 +114,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/submissions/{id}/hint": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get an AI hint for a failed submission
-         * @description Returns a short hint that points at the likely mistake without giving the
-         *     solution (Amazon Bedrock with a guardrail). One hint per submission: asking
-         *     again returns the stored hint and does not count against the rate limit.
-         *     Available for judged submissions with the verdict WA, RE, TLE, MLE or OLE.
-         *     Hidden test data is never sent to the model.
-         */
-        post: operations["createHint"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/ws/ticket": {
         parameters: {
             query?: never;
@@ -342,16 +318,6 @@ export interface components {
             verdict: components["schemas"]["Verdict"] | "SKIPPED";
             runtime_ms?: number;
             memory_kb?: number;
-        };
-        Hint: {
-            /** Format: uuid */
-            submission_id: string;
-            /** @description Plain text, a few sentences. */
-            hint: string;
-            /** @description `blocked`: the guardrail replaced the model's answer with a generic hint. */
-            status: string;
-            /** Format: date-time */
-            created_at: string;
         };
         WebSocketTicket: {
             ticket: string;
@@ -658,60 +624,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-        };
-    };
-    createHint: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Submission ID. */
-                id: components["parameters"]["SubmissionId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description The hint. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Hint"];
-                };
-            };
-            401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
-            /** @description The submission is not judged yet or its verdict needs no hint (AC, CE). */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Too many hints. */
-            429: {
-                headers: {
-                    /** @description Seconds to wait before the next hint. */
-                    "Retry-After"?: number;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
-            /** @description Hints are disabled in this environment or the model is not available. */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ProblemDetails"];
-                };
-            };
         };
     };
     createWebSocketTicket: {

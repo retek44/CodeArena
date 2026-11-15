@@ -92,11 +92,13 @@ services:
     restart: unless-stopped
 
   # C++ runner. The compiled program runs from /tmp, which Lambda allows; Docker mounts
-  # tmpfs with noexec unless told otherwise.
+  # tmpfs with noexec unless told otherwise. RLIMIT_NPROC counts the tasks of a uid across
+  # all containers, so this runner does not share uid 993 with the Python runner.
   runner-cpp:
     build:
       context: runners
       dockerfile: cpp/Dockerfile
+    user: "994:990"
     read_only: true
     tmpfs:
       - /tmp:rw,exec,size=256m
@@ -113,8 +115,6 @@ services:
       PORT: "8080"
       # Local only: trusts the X-Dev-User header instead of a Cognito token.
       AUTH_MODE: dev
-      # Hints come from a fixed fake text locally (no Bedrock).
-      HINT_MODE: fake
     ports:
       - "8080:8080"
     depends_on:

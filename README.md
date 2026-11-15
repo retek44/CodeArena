@@ -1,8 +1,8 @@
 # CodeArena
 
 A cloud-native online judge on AWS. Solve programming problems in the browser, submit
-Python or C++ code, watch the verdict of every test case arrive live, ask an AI for a hint
-after a wrong answer, and compete in contests with an ICPC-style leaderboard.
+Python or C++ code, watch the verdict of every test case arrive live, and compete in
+contests with an ICPC-style leaderboard.
 
 The project has two goals: a non-trivial distributed system (sandboxed code execution,
 queue-driven workers, real-time updates, scheduled contests), and a delivery pipeline with
@@ -13,10 +13,9 @@ many test layers, quality gates and progressive delivery with automatic rollback
 
 ## Demo
 
-![Demo: sign in, a wrong answer with per-test-case results and a hint, the fix accepted, a contest leaderboard](docs/media/demo.gif)
+![Demo: sign in, a wrong answer with per-test-case results, the fix accepted, a contest leaderboard](docs/media/demo.gif)
 
-Recorded with Playwright against the local stack (`make demo-video`). Locally the hint
-service is a fake (`HINT_MODE=fake`); on AWS it is Claude on Amazon Bedrock behind a guardrail.
+Recorded with Playwright against the local stack (`make demo-video`).
 
 ## Highlights
 
@@ -31,8 +30,8 @@ service is a fake (`HINT_MODE=fake`); on AWS it is Claude on Amazon Bedrock behi
 - **Contests:** phases from the clock, EventBridge Scheduler and Step Functions for the
   lifecycle, Valkey leaderboard with freeze and a Postgres fallback, result e-mails through SES
   ([ADR-0016](docs/adr/0016-contests-clock-phases-valkey-step-functions.md)).
-- **AI hints:** Bedrock Converse with a guardrail (no full solutions, prompt-attack filter),
-  rate limited, evaluated nightly with an LLM judge ([ADR-0014](docs/adr/0014-ai-hints-with-bedrock-guardrails.md)).
+- **No paid AI calls:** the first plan had Bedrock hints; they were removed, and IAM denies
+  Bedrock, so public traffic cannot turn into model cost ([ADR-0021](docs/adr/0021-remove-ai-hints.md)).
 - **Delivery:** GitHub Actions with OIDC (no AWS keys), images built once and promoted
   dev → staging → prod, preview environment per pull request, ECS blue/green with a
   smoke-test hook and a CodeDeploy canary for the runners, alarm-based rollback
@@ -70,8 +69,6 @@ flowchart LR
   bus{{EventBridge}}
   push[WebSocket push Lambda]
   apigw[API Gateway<br/>WebSocket]
-  hint[Hint Lambda]
-  bedrock[Bedrock<br/>+ Guardrail]
   xray[X-Ray]
 
   user -->|HTTPS| cf
@@ -85,7 +82,6 @@ flowchart LR
   worker --> rds
   worker --> valkey
   worker -->|Submission updated| bus --> push --> apigw -->|live verdicts| user
-  api --> hint --> bedrock
   api -. ADOT sidecar .-> xray
   worker -. ADOT sidecar .-> xray
 ```
@@ -159,7 +155,7 @@ flowchart TB
   end
 
   pr -->|squash merge| release
-  nightly[nightly.yml: mutation testing,<br/>drift detection, LLM eval]
+  nightly[nightly.yml: mutation testing,<br/>drift detection]
   teardown[destroy.yml every night:<br/>dev, staging, stale previews]
 ```
 
@@ -187,6 +183,7 @@ flowchart LR
 | Layer | What | Where |
 |---|---|---|
 | Unit | Go (race detector), Vitest + Testing Library, pytest for runners and Lambdas | `make test`, `make fe-check`, `make py-test` |
+| Sandbox | probe programs through the runner images without network: limits, file system, environment, leftover processes | `make sandbox-suite` |
 | Golden | every problem has one solution per expected verdict (AC, WA, TLE, MLE, RE, CE, ...) in Python and C++ | `tests/golden`, `make golden` |
 | Integration | Testcontainers PostgreSQL, ElasticMQ and Valkey: claims, outbox, sweeper, API with an N+1 query guard | `make test-integration` |
 | Contract | OpenAPI response validation in every API test, Pact SPA ↔ API, AsyncAPI for WebSocket messages | `make pact` |
@@ -195,7 +192,6 @@ flowchart LR
 | Non-functional | k6 judge latency and lost submissions, worker scaling, FIS worker kill, OWASP ZAP | `nonfunctional.yml` |
 | Mutation | Gremlins (Go judge logic), Stryker (SPA) with thresholds | `nightly.yml` |
 | Infrastructure | `terraform test` with mocked providers, tflint, Checkov, nightly drift detection | `infra/modules/app/tests` |
-| AI | wrong solutions and prompt-injection cases, deterministic checks + LLM-as-judge | `tests/llm-eval` |
 
 ## Repository layout
 
@@ -203,9 +199,9 @@ flowchart LR
 backend/            Go: cmd/api, cmd/worker, cmd/judge, cmd/seed, cmd/contest, cmd/migratediff
 frontend/           React + Vite + TypeScript SPA (Monaco, typed API client, Playwright, Pact)
 runners/            runner protocol (JSON Schema), sandbox core, Python and C++ Lambda images
-lambdas/            Python Lambdas: hint (Bedrock), ws (WebSocket), deploy-hook (rollout smoke tests)
+lambdas/            Python Lambdas: ws (WebSocket), deploy-hook (rollout smoke tests)
 contracts/          OpenAPI 3.1 and AsyncAPI contracts
-tests/              golden problems, sandbox security, performance (k6), security (ZAP), LLM eval
+tests/              golden problems, sandbox security, performance (k6), security (ZAP)
 infra/bootstrap/    one-time account foundation: state bucket, GitHub OIDC roles, budget
 infra/shared/       account-wide resources (ECR repositories)
 infra/modules/      Terraform modules (app, backend, network, runner-lambda, contests, ...)
@@ -229,6 +225,7 @@ make local-traces # the same stack with traces in Jaeger (http://localhost:16686
 make demo-video   # record docs/media/demo.gif (needs make local-up)
 make test         # Go unit tests
 make golden       # every golden solution must get its expected verdict (make runner-up first)
+make sandbox-suite # runner hardening: limits, no network, read-only root, no leftovers
 make judge SRC=tests/golden/a-plus-b/solutions/ac.py
 make tf-validate  # validate all Terraform stacks
 make check        # every local check

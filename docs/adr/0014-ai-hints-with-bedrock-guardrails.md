@@ -1,6 +1,6 @@
 # ADR-0014: AI hints with Bedrock, a guardrail and limits in Postgres
 
-- Status: accepted
+- Status: superseded by [ADR-0021](0021-remove-ai-hints.md) (the feature was removed)
 - Date: 2026-11-13
 
 ## Context

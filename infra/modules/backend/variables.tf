@@ -66,12 +66,6 @@ variable "runner_function_arns" {
   }
 }
 
-variable "hint_function_arn" {
-  description = "Hint Lambda the API invokes; null disables hints (the endpoint answers 503)."
-  type        = string
-  default     = null
-}
-
 variable "realtime" {
   description = "WebSocket API and event bus (infra/modules/realtime); null disables live updates."
   type = object({

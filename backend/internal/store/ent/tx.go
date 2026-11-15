@@ -18,8 +18,6 @@ type Tx struct {
 	ContestParticipant *ContestParticipantClient
 	// ContestProblem is the client for interacting with the ContestProblem builders.
 	ContestProblem *ContestProblemClient
-	// Hint is the client for interacting with the Hint builders.
-	Hint *HintClient
 	// OutboxMessage is the client for interacting with the OutboxMessage builders.
 	OutboxMessage *OutboxMessageClient
 	// Problem is the client for interacting with the Problem builders.
@@ -168,7 +166,6 @@ func (tx *Tx) init() {
 	tx.Contest = NewContestClient(tx.config)
 	tx.ContestParticipant = NewContestParticipantClient(tx.config)
 	tx.ContestProblem = NewContestProblemClient(tx.config)
-	tx.Hint = NewHintClient(tx.config)
 	tx.OutboxMessage = NewOutboxMessageClient(tx.config)
 	tx.Problem = NewProblemClient(tx.config)
 	tx.Submission = NewSubmissionClient(tx.config)

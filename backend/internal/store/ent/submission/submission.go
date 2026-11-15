@@ -58,8 +58,6 @@ const (
 	EdgeContest = "contest"
 	// EdgeResults holds the string denoting the results edge name in mutations.
 	EdgeResults = "results"
-	// EdgeHint holds the string denoting the hint edge name in mutations.
-	EdgeHint = "hint"
 	// Table holds the table name of the submission in the database.
 	Table = "submissions"
 	// UserTable is the table that holds the user relation/edge.
@@ -90,13 +88,6 @@ const (
 	ResultsInverseTable = "submission_results"
 	// ResultsColumn is the table column denoting the results relation/edge.
 	ResultsColumn = "submission_id"
-	// HintTable is the table that holds the hint relation/edge.
-	HintTable = "hints"
-	// HintInverseTable is the table name for the Hint entity.
-	// It exists in this package in order to avoid circular dependency with the "hint" package.
-	HintInverseTable = "hints"
-	// HintColumn is the table column denoting the hint relation/edge.
-	HintColumn = "submission_id"
 )
 
 // Columns holds all SQL columns for submission fields.
@@ -365,13 +356,6 @@ func ByResults(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newResultsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
-
-// ByHintField orders the results by hint field.
-func ByHintField(field string, opts ...sql.OrderTermOption) OrderOption {
-	return func(s *sql.Selector) {
-		sqlgraph.OrderByNeighborTerms(s, newHintStep(), sql.OrderByField(field, opts...))
-	}
-}
 func newUserStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -398,12 +382,5 @@ func newResultsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ResultsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, ResultsTable, ResultsColumn),
-	)
-}
-func newHintStep() *sqlgraph.Step {
-	return sqlgraph.NewStep(
-		sqlgraph.From(Table, FieldID),
-		sqlgraph.To(HintInverseTable, FieldID),
-		sqlgraph.Edge(sqlgraph.O2O, false, HintTable, HintColumn),
 	)
 }

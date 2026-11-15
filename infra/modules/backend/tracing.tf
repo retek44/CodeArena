@@ -1,6 +1,6 @@
 # OpenTelemetry tracing (ADR-0018). The API and the worker send spans over OTLP/HTTP
 # to an ADOT collector sidecar on localhost; the collector exports them to X-Ray. The
-# runner and hint Lambdas use Lambda active tracing and join the same trace through
+# runner Lambdas use Lambda active tracing and join the same trace through
 # the X-Amzn-Trace-Id header the SDK middleware sends.
 
 locals {

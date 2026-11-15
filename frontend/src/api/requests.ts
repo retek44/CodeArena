@@ -54,14 +54,6 @@ export async function submit(api: Api, { problem, language, source, contest, ide
   return data;
 }
 
-export async function requestHint(api: Api, submissionId: string) {
-  const { data, error, response } = await api.POST("/api/submissions/{id}/hint", {
-    params: { path: { id: submissionId } },
-  });
-  if (!data) throw toApiError(error, response);
-  return data;
-}
-
 export async function listContests(api: Api) {
   const { data, error, response } = await api.GET("/api/contests");
   if (!data) throw toApiError(error, response);

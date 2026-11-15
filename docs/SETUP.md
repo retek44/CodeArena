@@ -37,18 +37,7 @@ long-lived AWS keys.
    export AWS_PROFILE=CodeArena
    ```
 
-5. Enable Bedrock model access for the AI hint (once per account, free until used):
-   AWS console → Amazon Bedrock (eu-central-1) → Model access → Anthropic **Claude Haiku 5.5**
-   and **Claude Sonnet 5.5** (the nightly hint evaluation uses it as judge). Anthropic models
-   ask for a short use-case form the first time. Check:
-
-   ```bash
-   aws bedrock get-inference-profile --inference-profile-identifier eu.anthropic.claude-haiku-5-5 --query status
-   ```
-
-   Without access everything works except hints: the endpoint answers 503.
-
-6. Optional: a sender for contest result e-mails. AWS console → Amazon SES (eu-central-1) →
+5. Optional: a sender for contest result e-mails. AWS console → Amazon SES (eu-central-1) →
    Identities → Create identity → e-mail address (or a domain you own), then confirm the
    mail. While the account is in the SES sandbox, recipients must be verified identities too
    (request production access in SES to mail every participant). Set the address as the

@@ -15,7 +15,6 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contest"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
-	"github.com/retek44/CodeArena/backend/internal/store/ent/hint"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/outboxmessage"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/predicate"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
@@ -38,7 +37,6 @@ const (
 	TypeContest            = "Contest"
 	TypeContestParticipant = "ContestParticipant"
 	TypeContestProblem     = "ContestProblem"
-	TypeHint               = "Hint"
 	TypeOutboxMessage      = "OutboxMessage"
 	TypeProblem            = "Problem"
 	TypeSubmission         = "Submission"
@@ -2083,678 +2081,6 @@ func (m *ContestProblemMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown ContestProblem edge %s", name)
-}
-
-// HintMutation represents an operation that mutates the Hint nodes in the graph.
-type HintMutation struct {
-	config
-	op                Op
-	typ               string
-	id                *int
-	user_id           *string
-	text              *string
-	status            *hint.Status
-	model             *string
-	created_at        *time.Time
-	clearedFields     map[string]struct{}
-	submission        *uuid.UUID
-	clearedsubmission bool
-	done              bool
-	oldValue          func(context.Context) (*Hint, error)
-	predicates        []predicate.Hint
-}
-
-var _ ent.Mutation = (*HintMutation)(nil)
-
-// hintOption allows management of the mutation configuration using functional options.
-type hintOption func(*HintMutation)
-
-// newHintMutation creates new mutation for the Hint entity.
-func newHintMutation(c config, op Op, opts ...hintOption) *HintMutation {
-	m := &HintMutation{
-		config:        c,
-		op:            op,
-		typ:           TypeHint,
-		clearedFields: make(map[string]struct{}),
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	return m
-}
-
-// withHintID sets the ID field of the mutation.
-func withHintID(id int) hintOption {
-	return func(m *HintMutation) {
-		var (
-			err   error
-			once  sync.Once
-			value *Hint
-		)
-		m.oldValue = func(ctx context.Context) (*Hint, error) {
-			once.Do(func() {
-				if m.done {
-					err = errors.New("querying old values post mutation is not allowed")
-				} else {
-					value, err = m.Client().Hint.Get(ctx, id)
-				}
-			})
-			return value, err
-		}
-		m.id = &id
-	}
-}
-
-// withHint sets the old Hint of the mutation.
-func withHint(node *Hint) hintOption {
-	return func(m *HintMutation) {
-		m.oldValue = func(context.Context) (*Hint, error) {
-			return node, nil
-		}
-		m.id = &node.ID
-	}
-}
-
-// Client returns a new `ent.Client` from the mutation. If the mutation was
-// executed in a transaction (ent.Tx), a transactional client is returned.
-func (m HintMutation) Client() *Client {
-	client := &Client{config: m.config}
-	client.init()
-	return client
-}
-
-// Tx returns an `ent.Tx` for mutations that were executed in transactions;
-// it returns an error otherwise.
-func (m HintMutation) Tx() (*Tx, error) {
-	if _, ok := m.driver.(*txDriver); !ok {
-		return nil, errors.New("ent: mutation is not running in a transaction")
-	}
-	tx := &Tx{config: m.config}
-	tx.init()
-	return tx, nil
-}
-
-// ID returns the ID value in the mutation. Note that the ID is only available
-// if it was provided to the builder or after it was returned from the database.
-func (m *HintMutation) ID() (id int, exists bool) {
-	if m.id == nil {
-		return
-	}
-	return *m.id, true
-}
-
-// IDs queries the database and returns the entity ids that match the mutation's predicate.
-// That means, if the mutation is applied within a transaction with an isolation level such
-// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
-// or updated by the mutation.
-func (m *HintMutation) IDs(ctx context.Context) ([]int, error) {
-	switch {
-	case m.op.Is(OpUpdateOne | OpDeleteOne):
-		id, exists := m.ID()
-		if exists {
-			return []int{id}, nil
-		}
-		fallthrough
-	case m.op.Is(OpUpdate | OpDelete):
-		return m.Client().Hint.Query().Where(m.predicates...).IDs(ctx)
-	default:
-		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
-	}
-}
-
-// SetSubmissionID sets the "submission_id" field.
-func (m *HintMutation) SetSubmissionID(u uuid.UUID) {
-	m.submission = &u
-}
-
-// SubmissionID returns the value of the "submission_id" field in the mutation.
-func (m *HintMutation) SubmissionID() (r uuid.UUID, exists bool) {
-	v := m.submission
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldSubmissionID returns the old "submission_id" field's value of the Hint entity.
-// If the Hint object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *HintMutation) OldSubmissionID(ctx context.Context) (v uuid.UUID, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldSubmissionID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldSubmissionID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldSubmissionID: %w", err)
-	}
-	return oldValue.SubmissionID, nil
-}
-
-// ResetSubmissionID resets all changes to the "submission_id" field.
-func (m *HintMutation) ResetSubmissionID() {
-	m.submission = nil
-}
-
-// SetUserID sets the "user_id" field.
-func (m *HintMutation) SetUserID(s string) {
-	m.user_id = &s
-}
-
-// UserID returns the value of the "user_id" field in the mutation.
-func (m *HintMutation) UserID() (r string, exists bool) {
-	v := m.user_id
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldUserID returns the old "user_id" field's value of the Hint entity.
-// If the Hint object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *HintMutation) OldUserID(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldUserID requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
-	}
-	return oldValue.UserID, nil
-}
-
-// ResetUserID resets all changes to the "user_id" field.
-func (m *HintMutation) ResetUserID() {
-	m.user_id = nil
-}
-
-// SetText sets the "text" field.
-func (m *HintMutation) SetText(s string) {
-	m.text = &s
-}
-
-// Text returns the value of the "text" field in the mutation.
-func (m *HintMutation) Text() (r string, exists bool) {
-	v := m.text
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldText returns the old "text" field's value of the Hint entity.
-// If the Hint object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *HintMutation) OldText(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldText is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldText requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldText: %w", err)
-	}
-	return oldValue.Text, nil
-}
-
-// ResetText resets all changes to the "text" field.
-func (m *HintMutation) ResetText() {
-	m.text = nil
-}
-
-// SetStatus sets the "status" field.
-func (m *HintMutation) SetStatus(h hint.Status) {
-	m.status = &h
-}
-
-// Status returns the value of the "status" field in the mutation.
-func (m *HintMutation) Status() (r hint.Status, exists bool) {
-	v := m.status
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldStatus returns the old "status" field's value of the Hint entity.
-// If the Hint object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *HintMutation) OldStatus(ctx context.Context) (v hint.Status, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldStatus is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldStatus requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldStatus: %w", err)
-	}
-	return oldValue.Status, nil
-}
-
-// ResetStatus resets all changes to the "status" field.
-func (m *HintMutation) ResetStatus() {
-	m.status = nil
-}
-
-// SetModel sets the "model" field.
-func (m *HintMutation) SetModel(s string) {
-	m.model = &s
-}
-
-// Model returns the value of the "model" field in the mutation.
-func (m *HintMutation) Model() (r string, exists bool) {
-	v := m.model
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldModel returns the old "model" field's value of the Hint entity.
-// If the Hint object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *HintMutation) OldModel(ctx context.Context) (v string, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldModel is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldModel requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldModel: %w", err)
-	}
-	return oldValue.Model, nil
-}
-
-// ClearModel clears the value of the "model" field.
-func (m *HintMutation) ClearModel() {
-	m.model = nil
-	m.clearedFields[hint.FieldModel] = struct{}{}
-}
-
-// ModelCleared returns if the "model" field was cleared in this mutation.
-func (m *HintMutation) ModelCleared() bool {
-	_, ok := m.clearedFields[hint.FieldModel]
-	return ok
-}
-
-// ResetModel resets all changes to the "model" field.
-func (m *HintMutation) ResetModel() {
-	m.model = nil
-	delete(m.clearedFields, hint.FieldModel)
-}
-
-// SetCreatedAt sets the "created_at" field.
-func (m *HintMutation) SetCreatedAt(t time.Time) {
-	m.created_at = &t
-}
-
-// CreatedAt returns the value of the "created_at" field in the mutation.
-func (m *HintMutation) CreatedAt() (r time.Time, exists bool) {
-	v := m.created_at
-	if v == nil {
-		return
-	}
-	return *v, true
-}
-
-// OldCreatedAt returns the old "created_at" field's value of the Hint entity.
-// If the Hint object wasn't provided to the builder, the object is fetched from the database.
-// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *HintMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
-	if !m.op.Is(OpUpdateOne) {
-		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
-	}
-	if m.id == nil || m.oldValue == nil {
-		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
-	}
-	oldValue, err := m.oldValue(ctx)
-	if err != nil {
-		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
-	}
-	return oldValue.CreatedAt, nil
-}
-
-// ResetCreatedAt resets all changes to the "created_at" field.
-func (m *HintMutation) ResetCreatedAt() {
-	m.created_at = nil
-}
-
-// ClearSubmission clears the "submission" edge to the Submission entity.
-func (m *HintMutation) ClearSubmission() {
-	m.clearedsubmission = true
-	m.clearedFields[hint.FieldSubmissionID] = struct{}{}
-}
-
-// SubmissionCleared reports if the "submission" edge to the Submission entity was cleared.
-func (m *HintMutation) SubmissionCleared() bool {
-	return m.clearedsubmission
-}
-
-// SubmissionIDs returns the "submission" edge IDs in the mutation.
-// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// SubmissionID instead. It exists only for internal usage by the builders.
-func (m *HintMutation) SubmissionIDs() (ids []uuid.UUID) {
-	if id := m.submission; id != nil {
-		ids = append(ids, *id)
-	}
-	return
-}
-
-// ResetSubmission resets all changes to the "submission" edge.
-func (m *HintMutation) ResetSubmission() {
-	m.submission = nil
-	m.clearedsubmission = false
-}
-
-// Where appends a list predicates to the HintMutation builder.
-func (m *HintMutation) Where(ps ...predicate.Hint) {
-	m.predicates = append(m.predicates, ps...)
-}
-
-// WhereP appends storage-level predicates to the HintMutation builder. Using this method,
-// users can use type-assertion to append predicates that do not depend on any generated package.
-func (m *HintMutation) WhereP(ps ...func(*sql.Selector)) {
-	p := make([]predicate.Hint, len(ps))
-	for i := range ps {
-		p[i] = ps[i]
-	}
-	m.Where(p...)
-}
-
-// Op returns the operation name.
-func (m *HintMutation) Op() Op {
-	return m.op
-}
-
-// SetOp allows setting the mutation operation.
-func (m *HintMutation) SetOp(op Op) {
-	m.op = op
-}
-
-// Type returns the node type of this mutation (Hint).
-func (m *HintMutation) Type() string {
-	return m.typ
-}
-
-// Fields returns all fields that were changed during this mutation. Note that in
-// order to get all numeric fields that were incremented/decremented, call
-// AddedFields().
-func (m *HintMutation) Fields() []string {
-	fields := make([]string, 0, 6)
-	if m.submission != nil {
-		fields = append(fields, hint.FieldSubmissionID)
-	}
-	if m.user_id != nil {
-		fields = append(fields, hint.FieldUserID)
-	}
-	if m.text != nil {
-		fields = append(fields, hint.FieldText)
-	}
-	if m.status != nil {
-		fields = append(fields, hint.FieldStatus)
-	}
-	if m.model != nil {
-		fields = append(fields, hint.FieldModel)
-	}
-	if m.created_at != nil {
-		fields = append(fields, hint.FieldCreatedAt)
-	}
-	return fields
-}
-
-// Field returns the value of a field with the given name. The second boolean
-// return value indicates that this field was not set, or was not defined in the
-// schema.
-func (m *HintMutation) Field(name string) (ent.Value, bool) {
-	switch name {
-	case hint.FieldSubmissionID:
-		return m.SubmissionID()
-	case hint.FieldUserID:
-		return m.UserID()
-	case hint.FieldText:
-		return m.Text()
-	case hint.FieldStatus:
-		return m.Status()
-	case hint.FieldModel:
-		return m.Model()
-	case hint.FieldCreatedAt:
-		return m.CreatedAt()
-	}
-	return nil, false
-}
-
-// OldField returns the old value of the field from the database. An error is
-// returned if the mutation operation is not UpdateOne, or the query to the
-// database failed.
-func (m *HintMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
-	switch name {
-	case hint.FieldSubmissionID:
-		return m.OldSubmissionID(ctx)
-	case hint.FieldUserID:
-		return m.OldUserID(ctx)
-	case hint.FieldText:
-		return m.OldText(ctx)
-	case hint.FieldStatus:
-		return m.OldStatus(ctx)
-	case hint.FieldModel:
-		return m.OldModel(ctx)
-	case hint.FieldCreatedAt:
-		return m.OldCreatedAt(ctx)
-	}
-	return nil, fmt.Errorf("unknown Hint field %s", name)
-}
-
-// SetField sets the value of a field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *HintMutation) SetField(name string, value ent.Value) error {
-	switch name {
-	case hint.FieldSubmissionID:
-		v, ok := value.(uuid.UUID)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetSubmissionID(v)
-		return nil
-	case hint.FieldUserID:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetUserID(v)
-		return nil
-	case hint.FieldText:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetText(v)
-		return nil
-	case hint.FieldStatus:
-		v, ok := value.(hint.Status)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetStatus(v)
-		return nil
-	case hint.FieldModel:
-		v, ok := value.(string)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetModel(v)
-		return nil
-	case hint.FieldCreatedAt:
-		v, ok := value.(time.Time)
-		if !ok {
-			return fmt.Errorf("unexpected type %T for field %s", value, name)
-		}
-		m.SetCreatedAt(v)
-		return nil
-	}
-	return fmt.Errorf("unknown Hint field %s", name)
-}
-
-// AddedFields returns all numeric fields that were incremented/decremented during
-// this mutation.
-func (m *HintMutation) AddedFields() []string {
-	return nil
-}
-
-// AddedField returns the numeric value that was incremented/decremented on a field
-// with the given name. The second boolean return value indicates that this field
-// was not set, or was not defined in the schema.
-func (m *HintMutation) AddedField(name string) (ent.Value, bool) {
-	return nil, false
-}
-
-// AddField adds the value to the field with the given name. It returns an error if
-// the field is not defined in the schema, or if the type mismatched the field
-// type.
-func (m *HintMutation) AddField(name string, value ent.Value) error {
-	switch name {
-	}
-	return fmt.Errorf("unknown Hint numeric field %s", name)
-}
-
-// ClearedFields returns all nullable fields that were cleared during this
-// mutation.
-func (m *HintMutation) ClearedFields() []string {
-	var fields []string
-	if m.FieldCleared(hint.FieldModel) {
-		fields = append(fields, hint.FieldModel)
-	}
-	return fields
-}
-
-// FieldCleared returns a boolean indicating if a field with the given name was
-// cleared in this mutation.
-func (m *HintMutation) FieldCleared(name string) bool {
-	_, ok := m.clearedFields[name]
-	return ok
-}
-
-// ClearField clears the value of the field with the given name. It returns an
-// error if the field is not defined in the schema.
-func (m *HintMutation) ClearField(name string) error {
-	switch name {
-	case hint.FieldModel:
-		m.ClearModel()
-		return nil
-	}
-	return fmt.Errorf("unknown Hint nullable field %s", name)
-}
-
-// ResetField resets all changes in the mutation for the field with the given name.
-// It returns an error if the field is not defined in the schema.
-func (m *HintMutation) ResetField(name string) error {
-	switch name {
-	case hint.FieldSubmissionID:
-		m.ResetSubmissionID()
-		return nil
-	case hint.FieldUserID:
-		m.ResetUserID()
-		return nil
-	case hint.FieldText:
-		m.ResetText()
-		return nil
-	case hint.FieldStatus:
-		m.ResetStatus()
-		return nil
-	case hint.FieldModel:
-		m.ResetModel()
-		return nil
-	case hint.FieldCreatedAt:
-		m.ResetCreatedAt()
-		return nil
-	}
-	return fmt.Errorf("unknown Hint field %s", name)
-}
-
-// AddedEdges returns all edge names that were set/added in this mutation.
-func (m *HintMutation) AddedEdges() []string {
-	edges := make([]string, 0, 1)
-	if m.submission != nil {
-		edges = append(edges, hint.EdgeSubmission)
-	}
-	return edges
-}
-
-// AddedIDs returns all IDs (to other nodes) that were added for the given edge
-// name in this mutation.
-func (m *HintMutation) AddedIDs(name string) []ent.Value {
-	switch name {
-	case hint.EdgeSubmission:
-		if id := m.submission; id != nil {
-			return []ent.Value{*id}
-		}
-	}
-	return nil
-}
-
-// RemovedEdges returns all edge names that were removed in this mutation.
-func (m *HintMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 1)
-	return edges
-}
-
-// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
-// the given name in this mutation.
-func (m *HintMutation) RemovedIDs(name string) []ent.Value {
-	return nil
-}
-
-// ClearedEdges returns all edge names that were cleared in this mutation.
-func (m *HintMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 1)
-	if m.clearedsubmission {
-		edges = append(edges, hint.EdgeSubmission)
-	}
-	return edges
-}
-
-// EdgeCleared returns a boolean which indicates if the edge with the given name
-// was cleared in this mutation.
-func (m *HintMutation) EdgeCleared(name string) bool {
-	switch name {
-	case hint.EdgeSubmission:
-		return m.clearedsubmission
-	}
-	return false
-}
-
-// ClearEdge clears the value of the edge with the given name. It returns an error
-// if that edge is not defined in the schema.
-func (m *HintMutation) ClearEdge(name string) error {
-	switch name {
-	case hint.EdgeSubmission:
-		m.ClearSubmission()
-		return nil
-	}
-	return fmt.Errorf("unknown Hint unique edge %s", name)
-}
-
-// ResetEdge resets all changes to the edge with the given name in this mutation.
-// It returns an error if the edge is not defined in the schema.
-func (m *HintMutation) ResetEdge(name string) error {
-	switch name {
-	case hint.EdgeSubmission:
-		m.ResetSubmission()
-		return nil
-	}
-	return fmt.Errorf("unknown Hint edge %s", name)
 }
 
 // OutboxMessageMutation represents an operation that mutates the OutboxMessage nodes in the graph.
@@ -5084,8 +4410,6 @@ type SubmissionMutation struct {
 	results            map[int]struct{}
 	removedresults     map[int]struct{}
 	clearedresults     bool
-	hint               *int
-	clearedhint        bool
 	done               bool
 	oldValue           func(context.Context) (*Submission, error)
 	predicates         []predicate.Submission
@@ -6102,45 +5426,6 @@ func (m *SubmissionMutation) ResetResults() {
 	m.removedresults = nil
 }
 
-// SetHintID sets the "hint" edge to the Hint entity by id.
-func (m *SubmissionMutation) SetHintID(id int) {
-	m.hint = &id
-}
-
-// ClearHint clears the "hint" edge to the Hint entity.
-func (m *SubmissionMutation) ClearHint() {
-	m.clearedhint = true
-}
-
-// HintCleared reports if the "hint" edge to the Hint entity was cleared.
-func (m *SubmissionMutation) HintCleared() bool {
-	return m.clearedhint
-}
-
-// HintID returns the "hint" edge ID in the mutation.
-func (m *SubmissionMutation) HintID() (id int, exists bool) {
-	if m.hint != nil {
-		return *m.hint, true
-	}
-	return
-}
-
-// HintIDs returns the "hint" edge IDs in the mutation.
-// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
-// HintID instead. It exists only for internal usage by the builders.
-func (m *SubmissionMutation) HintIDs() (ids []int) {
-	if id := m.hint; id != nil {
-		ids = append(ids, *id)
-	}
-	return
-}
-
-// ResetHint resets all changes to the "hint" edge.
-func (m *SubmissionMutation) ResetHint() {
-	m.hint = nil
-	m.clearedhint = false
-}
-
 // Where appends a list predicates to the SubmissionMutation builder.
 func (m *SubmissionMutation) Where(ps ...predicate.Submission) {
 	m.predicates = append(m.predicates, ps...)
@@ -6636,7 +5921,7 @@ func (m *SubmissionMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *SubmissionMutation) AddedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 4)
 	if m.user != nil {
 		edges = append(edges, submission.EdgeUser)
 	}
@@ -6648,9 +5933,6 @@ func (m *SubmissionMutation) AddedEdges() []string {
 	}
 	if m.results != nil {
 		edges = append(edges, submission.EdgeResults)
-	}
-	if m.hint != nil {
-		edges = append(edges, submission.EdgeHint)
 	}
 	return edges
 }
@@ -6677,17 +5959,13 @@ func (m *SubmissionMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
-	case submission.EdgeHint:
-		if id := m.hint; id != nil {
-			return []ent.Value{*id}
-		}
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *SubmissionMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 4)
 	if m.removedresults != nil {
 		edges = append(edges, submission.EdgeResults)
 	}
@@ -6710,7 +5988,7 @@ func (m *SubmissionMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *SubmissionMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 5)
+	edges := make([]string, 0, 4)
 	if m.cleareduser {
 		edges = append(edges, submission.EdgeUser)
 	}
@@ -6722,9 +6000,6 @@ func (m *SubmissionMutation) ClearedEdges() []string {
 	}
 	if m.clearedresults {
 		edges = append(edges, submission.EdgeResults)
-	}
-	if m.clearedhint {
-		edges = append(edges, submission.EdgeHint)
 	}
 	return edges
 }
@@ -6741,8 +6016,6 @@ func (m *SubmissionMutation) EdgeCleared(name string) bool {
 		return m.clearedcontest
 	case submission.EdgeResults:
 		return m.clearedresults
-	case submission.EdgeHint:
-		return m.clearedhint
 	}
 	return false
 }
@@ -6759,9 +6032,6 @@ func (m *SubmissionMutation) ClearEdge(name string) error {
 		return nil
 	case submission.EdgeContest:
 		m.ClearContest()
-		return nil
-	case submission.EdgeHint:
-		m.ClearHint()
 		return nil
 	}
 	return fmt.Errorf("unknown Submission unique edge %s", name)
@@ -6782,9 +6052,6 @@ func (m *SubmissionMutation) ResetEdge(name string) error {
 		return nil
 	case submission.EdgeResults:
 		m.ResetResults()
-		return nil
-	case submission.EdgeHint:
-		m.ResetHint()
 		return nil
 	}
 	return fmt.Errorf("unknown Submission edge %s", name)

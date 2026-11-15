@@ -168,8 +168,6 @@ resource "aws_ecs_task_definition" "api" {
       # Stuck-submission sweeper: well above the worker lease (= visibility timeout),
       # so SQS redelivery gets the first chance after a worker crash.
       { name = "SWEEP_RUNNING_AFTER", value = "${var.queue.visibility_timeout_seconds * 5}s" },
-      ], var.hint_function_arn == null ? [] : [
-      { name = "HINT_FUNCTION", value = var.hint_function_arn },
       ], var.realtime == null ? [] : [
       { name = "WS_URL", value = var.realtime.ws_url },
       { name = "WS_TABLE", value = var.realtime.table },

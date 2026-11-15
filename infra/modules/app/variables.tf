@@ -110,15 +110,3 @@ variable "contest_email_from" {
   default     = ""
   nullable    = false
 }
-
-variable "hints_enabled" {
-  description = "Deploy the AI hint (Bedrock). Needs model access in the account (docs/SETUP.md); without it the API answers 503 for hints."
-  type        = bool
-  default     = true
-}
-
-variable "hint_model_id" {
-  description = "Bedrock model or cross-region inference profile for hints."
-  type        = string
-  default     = "eu.anthropic.claude-haiku-5-5"
-}

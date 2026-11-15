@@ -15,9 +15,6 @@ type ContestParticipant func(*sql.Selector)
 // ContestProblem is the predicate function for contestproblem builders.
 type ContestProblem func(*sql.Selector)
 
-// Hint is the predicate function for hint builders.
-type Hint func(*sql.Selector)
-
 // OutboxMessage is the predicate function for outboxmessage builders.
 type OutboxMessage func(*sql.Selector)
 

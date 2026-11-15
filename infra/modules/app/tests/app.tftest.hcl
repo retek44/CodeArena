@@ -132,38 +132,6 @@ run "no_canary_by_default" {
   }
 }
 
-run "hint_by_default" {
-  command = plan
-
-  variables {
-    image_tag = "0123456789abcdef0123456789abcdef01234567"
-  }
-
-  assert {
-    condition     = output.deploy.hint_function_name == "codearena-dev-hint"
-    error_message = "The hint Lambda is part of every deployed environment unless disabled."
-  }
-
-  assert {
-    condition     = module.hint[0].model_id == "eu.anthropic.claude-haiku-5-5"
-    error_message = "Hints use the EU cross-region inference profile (data stays in the EU)."
-  }
-}
-
-run "no_hint_when_disabled" {
-  command = plan
-
-  variables {
-    image_tag     = "0123456789abcdef0123456789abcdef01234567"
-    hints_enabled = false
-  }
-
-  assert {
-    condition     = length(module.hint) == 0 && output.deploy.hint_function_name == null
-    error_message = "hints_enabled = false must remove the hint Lambda and the guardrail."
-  }
-}
-
 run "live_updates_wired" {
   command = plan
 
@@ -244,7 +212,6 @@ run "preview_in_existing_network" {
       public_subnet_ids   = ["subnet-0pub-a", "subnet-0pub-b"]
       isolated_subnet_ids = ["subnet-0iso-a", "subnet-0iso-b"]
     }
-    hints_enabled = false
   }
 
   assert {

@@ -10,7 +10,6 @@ import {
   listMySubmissions,
   listProblems,
   registerForContest,
-  requestHint,
   submit,
 } from "../requests";
 import { SUBMISSION_ID, apiFor, authorized, newPact, problemDetails, timestamp } from "./provider";
@@ -161,28 +160,6 @@ describe("submissions", () => {
       .executeTest(async (server) => {
         const page = await listMySubmissions(apiFor(server.url));
         expect(page.items[0]?.problem).toBe("a-plus-b");
-      });
-  });
-
-  it("asks for a hint", async () => {
-    await newPact()
-      .addInteraction()
-      .given(WRONG_ANSWER)
-      .uponReceiving("a hint request for alice's wrong answer")
-      .withRequest("POST", M.fromProviderState("/api/submissions/${submissionId}/hint", `/api/submissions/${SUBMISSION_ID}/hint`), (b) =>
-        b.headers(authorized),
-      )
-      .willRespondWith(200, (b) =>
-        b.jsonBody({
-          submission_id: submissionId,
-          hint: M.string("Check the largest input."),
-          status: M.string("ok"),
-          created_at: timestamp(),
-        }),
-      )
-      .executeTest(async (server) => {
-        const hint = await requestHint(apiFor(server.url), SUBMISSION_ID);
-        expect(hint.hint).not.toBe("");
       });
   });
 });

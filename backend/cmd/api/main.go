@@ -17,13 +17,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/valkey-io/valkey-go"
 
 	"github.com/retek44/CodeArena/backend/internal/auth"
 	"github.com/retek44/CodeArena/backend/internal/contest"
-	"github.com/retek44/CodeArena/backend/internal/hint"
 	"github.com/retek44/CodeArena/backend/internal/httpapi"
 	"github.com/retek44/CodeArena/backend/internal/outbox"
 	"github.com/retek44/CodeArena/backend/internal/queue"
@@ -81,12 +79,6 @@ func run(logger *slog.Logger) error {
 			return err
 		}
 		deps.Auth = auth
-
-		hinter, err := newHinter(ctx)
-		if err != nil {
-			return err
-		}
-		deps.Hinter = hinter
 
 		tickets, err := newTicketer(ctx)
 		if err != nil {
@@ -154,23 +146,6 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	return nil
-}
-
-// newHinter selects the hint service: HINT_MODE=fake (local), HINT_FUNCTION (the
-// hint Lambda in AWS), or neither (hints are off and the endpoint answers 503).
-func newHinter(ctx context.Context) (hint.Hinter, error) {
-	if os.Getenv("HINT_MODE") == "fake" {
-		return hint.Fake{}, nil
-	}
-	fn := os.Getenv("HINT_FUNCTION")
-	if fn == "" {
-		return nil, nil
-	}
-	cfg, err := awsConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &hint.Lambda{Client: lambda.NewFromConfig(cfg), Function: fn}, nil
 }
 
 // newTicketer enables WebSocket tickets when the WebSocket API exists (WS_URL and

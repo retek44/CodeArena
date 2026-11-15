@@ -81,10 +81,6 @@ test("CodeArena demo", async ({ page }) => {
   await submission.expectVerdict("WA", "Wrong answer");
   await caption(page, "Verdict for every test case");
 
-  await caption(page, "Stuck? Ask for a hint (Bedrock on AWS, a fake model locally)");
-  await submission.askForHint();
-  await pause(page, 2500);
-
   await problem.open("a-plus-b");
   await caption(page, "Fix it and submit again");
   await typeSolution(page, problem, golden("ac.py"));

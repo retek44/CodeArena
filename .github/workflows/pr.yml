@@ -65,10 +65,10 @@ jobs:
             runner:
               - 'runners/**'
               - 'lambdas/**'
-              - 'tests/llm-eval/**'
               - 'contracts/asyncapi.yaml'
               - 'backend/**'
               - 'tests/golden/**'
+              - 'tests/sandbox-security/**'
               - 'pyproject.toml'
               - 'requirements-dev.txt'
               - '.github/workflows/pr.yml'
@@ -419,12 +419,12 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: ruff
         run: |
-          ruff check --output-format=github runners lambdas tests/llm-eval
-          ruff format --check runners lambdas tests/llm-eval
+          ruff check --output-format=github runners lambdas tests/sandbox-security
+          ruff format --check runners lambdas tests/sandbox-security
       - name: mypy
         run: mypy
       - name: Unit and contract tests
-        run: pytest -q runners/core/tests lambdas/hint/tests lambdas/ws/tests lambdas/deploy-hook/tests tests/llm-eval --cov=runners/core/codearena_runner --cov=lambdas/hint/codearena_hint --cov=lambdas/ws/codearena_ws --cov=lambdas/deploy-hook/codearena_deploy_hook --cov-report=xml:coverage.xml --cov-report=term
+        run: pytest -q runners/core/tests lambdas/ws/tests lambdas/deploy-hook/tests --cov=runners/core/codearena_runner --cov=lambdas/ws/codearena_ws --cov=lambdas/deploy-hook/codearena_deploy_hook --cov-report=xml:coverage.xml --cov-report=term
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-coverage
@@ -475,12 +475,13 @@ jobs:
           output-format: table
       # Like Lambda: read-only root file system, writable /tmp only, non-root user (set in the image).
       # The compiled C++ program runs from /tmp, which Lambda allows; Docker tmpfs is noexec by default.
+      # RLIMIT_NPROC counts the tasks of a uid across all containers, so the runners use different uids.
       - name: Start runner containers
         run: |
           docker run -d --name runner --read-only --tmpfs /tmp:rw,size=256m --memory 1g \
             -p 9000:8080 codearena-runner-python:ci
           docker run -d --name runner-cpp --read-only --tmpfs /tmp:rw,exec,size=256m --memory 1g \
-            -p 9001:8080 codearena-runner-cpp:ci
+            --user 994:990 -p 9001:8080 codearena-runner-cpp:ci
           probe='{"protocol_version":1,"submission_id":"probe","language":"python","source":"print(1)","limits":{"time_ms":1000,"memory_mb":64},"test_cases":[{"id":"1","input":""}]}'
           for _ in $(seq 1 30); do
             if curl -fsS -X POST "${CODEARENA_RUNNER_URL}" -d "${probe}" | grep -q '"status": "ok"'; then
@@ -497,6 +498,10 @@ jobs:
       - name: Golden tests
         working-directory: backend
         run: go test -count=1 -run TestGolden -v ./internal/judge/
+      # Fork bombs, memory and output floods, network, file system, environment and
+      # leftover processes against the same images, on a network without a route out.
+      - name: Sandbox security suite
+        run: bash tests/sandbox-security/run.sh codearena-runner-python:ci codearena-runner-cpp:ci
       - name: Runner logs
         if: failure()
         run: |
