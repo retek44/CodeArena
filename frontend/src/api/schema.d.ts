@@ -45,7 +45,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List published problems */
+        /**
+         * List published problems
+         * @description Easiest first (easy, medium, hard), then in the order the problems were added.
+         */
         get: operations["listProblems"];
         put?: never;
         post?: never;
