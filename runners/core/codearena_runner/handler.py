@@ -41,6 +41,9 @@ _MB = 1024 * 1024
 _SAFETY_MARGIN_MS = 2000
 _COMPILE_EXTRA_TASKS = 64
 _COMPILE_MEMORY_MB = 512
+# Memory of the function the runner itself needs (Python, request, results). The program's
+# processes together get the rest (ExecLimits.session_memory_kb).
+_RUNNER_RESERVE_MB = 160
 # RLIMIT_FSIZE of the compile step: it covers the binary the compiler writes, not only
 # the diagnostics (a statically linked C++ program is a few MB).
 _COMPILE_FILE_BYTES = 64 * _MB
@@ -165,6 +168,7 @@ def _run_limits(limits: Limits, language: Language) -> ExecLimits:
         address_space_bytes=(memory_mb + language.address_space_overhead_mb) * _MB,
         output_bytes=limits.output_kb * 1024,
         extra_tasks=language.run_tasks,
+        session_memory_kb=session_memory_kb(),
     )
 
 
@@ -176,7 +180,15 @@ def _compile_limits(limits: Limits, language: Language) -> ExecLimits:
         address_space_bytes=language.compile_address_space_mb * _MB,
         output_bytes=_COMPILE_FILE_BYTES,
         extra_tasks=_COMPILE_EXTRA_TASKS,
+        session_memory_kb=session_memory_kb(),
     )
+
+
+def session_memory_kb() -> int | None:
+    """Memory the program's processes may use together: the Lambda's memory minus what the
+    runner needs. None outside Lambda (no memory size known)."""
+    size = os.environ.get("AWS_LAMBDA_FUNCTION_MEMORY_SIZE", "")
+    return (int(size) - _RUNNER_RESERVE_MB) * 1024 if size.isdigit() else None
 
 
 def _case_result(case_id: str, result: ExecResult) -> CaseResult:

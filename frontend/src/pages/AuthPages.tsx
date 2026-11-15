@@ -13,7 +13,7 @@ export function LoginPage() {
 
   if (auth.mode === "cognito") {
     return (
-      <section>
+      <section className="auth-panel">
         <h1>Sign in</h1>
         <button type="button" className="primary" onClick={() => void auth.signIn()}>
           Continue to sign-in
@@ -33,7 +33,7 @@ export function LoginPage() {
   };
 
   return (
-    <section>
+    <section className="auth-panel">
       <h1>Sign in (local development)</h1>
       <form onSubmit={(e) => void onSubmit(e)}>
         <label htmlFor="dev-name">User name</label>

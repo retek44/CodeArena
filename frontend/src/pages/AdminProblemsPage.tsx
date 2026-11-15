@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { useAdminProblems } from "../api/hooks";
 import { ErrorMessage } from "../components/ErrorMessage";
+import { Flap } from "../components/Flap";
 import { RequireAdmin } from "../components/RequireAdmin";
 
 export function AdminProblemsPage() {
@@ -26,7 +27,7 @@ function ProblemList() {
       {problems.isError && <ErrorMessage error={problems.error} />}
       {problems.isSuccess && problems.data.length === 0 && <p>No problems yet.</p>}
       {problems.isSuccess && problems.data.length > 0 && (
-        <table>
+        <table className="board-list">
           <caption className="visually-hidden">All problems</caption>
           <thead>
             <tr>
@@ -41,15 +42,19 @@ function ProblemList() {
           <tbody>
             {problems.data.map((p) => (
               <tr key={p.slug}>
-                <td>
+                <td className="title">
                   <Link to={`/admin/problems/${p.slug}`}>{p.title}</Link>
                 </td>
                 <td>
                   <code>{p.slug}</code>
                 </td>
-                <td>{p.difficulty}</td>
-                <td>{p.published ? "Yes" : "No"}</td>
-                <td>{p.version}</td>
+                <td>
+                  <Flap>{p.difficulty}</Flap>
+                </td>
+                <td>
+                  <Flap tone={p.published ? "ok" : "wait"}>{p.published ? "Yes" : "No"}</Flap>
+                </td>
+                <td className="num">{p.version}</td>
                 <td>
                   <time dateTime={p.updated_at}>{new Date(p.updated_at).toLocaleString()}</time>
                 </td>

@@ -1,3 +1,5 @@
+import dataclasses
+import os
 import signal
 import sys
 from pathlib import Path
@@ -8,7 +10,14 @@ if not sys.platform.startswith("linux"):
     pytest.skip("sandbox needs Linux", allow_module_level=True)
 
 from codearena_runner.protocol import Status
-from codearena_runner.sandbox import ExecLimits, ExecResult, classify, cpu_limit_seconds, execute
+from codearena_runner.sandbox import (
+    ExecLimits,
+    ExecResult,
+    classify,
+    cpu_limit_seconds,
+    execute,
+    session_rss_kb,
+)
 
 MB = 1024 * 1024
 LIMITS = ExecLimits(
@@ -148,3 +157,65 @@ def test_execute_abort_is_runtime_error_without_delay(tmp_path: Path) -> None:
 
     assert result.status == Status.RUNTIME_ERROR
     assert result.wall_time_ms < 1000
+
+
+# RLIMIT_AS far above the memory limit, as for runtimes that reserve much more than they use.
+LARGE_ADDRESS_SPACE = ExecLimits(
+    cpu_time_ms=2000,
+    wall_time_ms=5000,
+    memory_kb=64 * 1024,
+    address_space_bytes=1024 * MB,
+    output_bytes=64 * 1024,
+    extra_tasks=16,
+)
+
+
+def test_execute_stops_a_program_whose_resident_memory_passes_the_limit(tmp_path: Path) -> None:
+    code = "kept = []\nwhile True:\n    kept.append(b'x' * (8 << 20))\n"
+    result = run_python(tmp_path, code, limits=LARGE_ADDRESS_SPACE)
+
+    assert result.status == Status.MEMORY_LIMIT
+    assert result.memory_kb > LARGE_ADDRESS_SPACE.memory_kb
+    # Stopped near the limit, not when the address space ran out.
+    assert result.memory_kb < 256 * 1024
+    assert result.wall_time_ms < 1000
+
+
+def run_two_processes(tmp_path: Path, child_mb: int, limits: ExecLimits) -> ExecResult:
+    code = (
+        # Fork first: pages from before the fork would count for both processes.
+        "import os, time\n"
+        "if os.fork() == 0:\n"
+        f"    other = b'y' * ({child_mb} << 20)\n"
+        "    time.sleep(0.5)\n"
+        "    os._exit(0)\n"
+        "data = b'x' * (40 << 20)\n"
+        "os.wait()\n"
+    )
+    return run_python(tmp_path, code, limits=limits)
+
+
+def test_execute_stops_a_child_process_over_the_limit(tmp_path: Path) -> None:
+    result = run_two_processes(tmp_path, 80, LARGE_ADDRESS_SPACE)
+
+    assert result.status == Status.MEMORY_LIMIT
+
+
+def test_execute_limits_each_process_but_not_their_sum(tmp_path: Path) -> None:
+    # Like ru_maxrss: the largest process counts. 40 + 40 MB is fine with 64 MB.
+    result = run_two_processes(tmp_path, 40, LARGE_ADDRESS_SPACE)
+
+    assert result.status == Status.OK
+
+
+def test_execute_stops_processes_that_together_pass_the_session_memory(tmp_path: Path) -> None:
+    limits = dataclasses.replace(LARGE_ADDRESS_SPACE, session_memory_kb=64 * 1024)
+    result = run_two_processes(tmp_path, 40, limits)
+
+    assert result.status == Status.MEMORY_LIMIT
+
+
+def test_session_rss_kb_sums_the_processes_of_a_session() -> None:
+    total_kb, largest_kb = session_rss_kb(os.getsid(0))
+    assert total_kb >= largest_kb > 0
+    assert session_rss_kb(2**22 + 1) == (0, 0)  # no such session

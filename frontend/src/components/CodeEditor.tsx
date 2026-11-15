@@ -26,6 +26,41 @@ monaco.typescript.javascriptDefaults.setModeConfiguration({
 });
 loader.config({ monaco });
 
+// The editor sits on the board: same black, flap-white text, amber caret and selection.
+const THEME = "codearena-board";
+monaco.editor.defineTheme(THEME, {
+  base: "vs-dark",
+  inherit: true,
+  rules: [
+    { token: "comment", foreground: "8b919a", fontStyle: "italic" },
+    { token: "keyword", foreground: "f2c46d" },
+    { token: "string", foreground: "a9d6a0" },
+    { token: "number", foreground: "eba982" },
+    { token: "type", foreground: "9fc4e8" },
+  ],
+  colors: {
+    "editor.background": "#0e1013",
+    "editor.foreground": "#ecebe6",
+    "editorLineNumber.foreground": "#868c95",
+    "editorLineNumber.activeForeground": "#ecebe6",
+    "editorCursor.foreground": "#f2b134",
+    "editor.selectionBackground": "#f2b13447",
+    "editor.inactiveSelectionBackground": "#f2b13426",
+    "editor.lineHighlightBackground": "#15171a",
+    "editor.lineHighlightBorder": "#15171a",
+    "editorIndentGuide.background1": "#262a2f",
+    "editorWhitespace.foreground": "#3a3f46",
+    "scrollbarSlider.background": "#3a3f4699",
+    "scrollbarSlider.hoverBackground": "#4a5058",
+    "scrollbarSlider.activeBackground": "#9ba1aa66",
+    "scrollbar.shadow": "#00000000",
+    "editorOverviewRuler.border": "#00000000",
+    "editorOverviewRuler.background": "#0e1013",
+    "editorWidget.background": "#1c1f23",
+    "editorWidget.border": "#3a3f46",
+  },
+});
+
 interface Props {
   value: string;
   onChange: (value: string) => void;
@@ -56,16 +91,35 @@ export function CodeEditor({ value, onChange, label, language }: Props) {
   return (
     <div className="editor" data-testid="code-editor">
       <Editor
-        height="320px"
+        height="100%"
         language={language}
-        theme="vs-dark"
+        theme={THEME}
         value={value}
         onChange={(v) => onChange(v ?? "")}
         onMount={(editor) => {
           mounted.current = editor;
+          // The code face is self-hosted and may arrive after Monaco measured its glyphs.
+          void document.fonts.ready.then(() => monaco.editor.remeasureFonts());
           if (config.authMode === "dev") (window as TestWindow).__codeArenaEditor = editor;
         }}
-        options={{ minimap: { enabled: false }, fontSize: 14, tabSize: 4, ariaLabel: label }}
+        options={{
+          minimap: { enabled: false },
+          fontSize: 14,
+          lineHeight: 22,
+          fontFamily: "'JetBrains Mono', ui-monospace, Consolas, monospace",
+          tabSize: 4,
+          ariaLabel: label,
+          automaticLayout: true,
+          scrollBeyondLastLine: false,
+          padding: { top: 16, bottom: 16 },
+          renderLineHighlight: "line",
+          cursorBlinking: "solid",
+          // The board has no ruler: no overview marks, a thin scrollbar from the ramp.
+          overviewRulerLanes: 0,
+          overviewRulerBorder: false,
+          hideCursorInOverviewRuler: true,
+          scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10, useShadows: false },
+        }}
       />
     </div>
   );

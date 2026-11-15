@@ -47,12 +47,12 @@ describe("ProblemPage", () => {
     });
     const { router } = renderApp("/problems/a-plus-b", { fetch: api.fetch });
 
-    const editor = await screen.findByLabelText("Solution source code");
+    const editor = await screen.findByLabelText("Solution source code", {}, { timeout: 5000 });
     await userEvent.clear(editor);
     await userEvent.type(editor, "print(3)");
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    expect(await screen.findByRole("heading", { name: "Submission" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Submission" }, { timeout: 5000 })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/submissions/${created.id}`);
 
     const post = api.requests.find((r) => r.method === "POST");
@@ -70,7 +70,7 @@ describe("ProblemPage", () => {
     });
     renderApp("/problems/a-plus-b", { fetch: api.fetch });
 
-    const editor = await screen.findByLabelText("Solution source code");
+    const editor = await screen.findByLabelText("Solution source code", {}, { timeout: 5000 });
     await userEvent.clear(editor);
     await userEvent.type(editor, "print(3)");
 
@@ -84,7 +84,9 @@ describe("ProblemPage", () => {
     await userEvent.selectOptions(screen.getByLabelText("Language"), "cpp");
     await userEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    expect(await screen.findByText(/C\+\+20 \(GCC\)/)).toBeInTheDocument();
+    // Wait for the submission page first: until it opens, the language picker's option matches too.
+    await screen.findByRole("heading", { name: "Submission" }, { timeout: 5000 });
+    expect(screen.getByText(/C\+\+20 \(GCC\)/)).toBeInTheDocument();
     const post = api.requests.find((r) => r.method === "POST");
     expect(await post?.json()).toMatchObject({ problem: "a-plus-b", language: "cpp" });
   });

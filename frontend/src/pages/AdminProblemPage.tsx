@@ -321,7 +321,7 @@ function ProblemForm({ slug, initial }: { slug?: string; initial?: AdminProblem 
         Add test case
       </button>
 
-      <div>
+      <div className="admin-actions">
         <button type="submit" className="primary" disabled={save.isPending}>
           {save.isPending ? "Saving…" : slug ? "Save" : "Create problem"}
         </button>

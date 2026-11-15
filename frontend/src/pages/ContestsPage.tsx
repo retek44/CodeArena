@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { useContests } from "../api/hooks";
 import { ErrorMessage } from "../components/ErrorMessage";
+import { Flap, type FlapTone } from "../components/Flap";
 
 export const PHASE_LABELS: Record<string, string> = {
   scheduled: "Upcoming",
@@ -13,6 +14,11 @@ export function phaseLabel(phase: string): string {
   return PHASE_LABELS[phase] ?? phase;
 }
 
+/** A running contest is live (amber); upcoming and ended ones wait on the board. */
+export function phaseTone(phase: string): FlapTone {
+  return phase === "running" || phase === "frozen" ? "run" : "wait";
+}
+
 export function ContestsPage() {
   const contests = useContests();
 
@@ -23,7 +29,7 @@ export function ContestsPage() {
       {contests.isError && <ErrorMessage error={contests.error} />}
       {contests.isSuccess && contests.data.length === 0 && <p>No contests yet.</p>}
       {contests.isSuccess && contests.data.length > 0 && (
-        <table>
+        <table className="board-list">
           <caption className="visually-hidden">Contests, newest first</caption>
           <thead>
             <tr>
@@ -36,12 +42,18 @@ export function ContestsPage() {
           <tbody>
             {contests.data.map((c) => (
               <tr key={c.slug}>
-                <td>
+                <td className="title">
                   <Link to={`/contests/${c.slug}`}>{c.title}</Link>
                 </td>
-                <td>{new Date(c.starts_at).toLocaleString()}</td>
-                <td>{Math.round((Date.parse(c.ends_at) - Date.parse(c.starts_at)) / 60_000)} min</td>
-                <td>{phaseLabel(c.phase)}</td>
+                <td>
+                  <Flap>{new Date(c.starts_at).toLocaleString()}</Flap>
+                </td>
+                <td>
+                  <Flap>{Math.round((Date.parse(c.ends_at) - Date.parse(c.starts_at)) / 60_000)} min</Flap>
+                </td>
+                <td>
+                  <Flap tone={phaseTone(c.phase)}>{phaseLabel(c.phase)}</Flap>
+                </td>
               </tr>
             ))}
           </tbody>

@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-15T00:00:00Z",
+  "title": "Design System: CodeArena",
+  "extensions": {
+    "colorMeta": {
+      "board-black":    { "role": "neutral", "displayName": "Board Black",    "canonical": "var(--r0)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "board-ground":   { "role": "neutral", "displayName": "Board Ground",   "canonical": "var(--r1)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "row-slate":      { "role": "neutral", "displayName": "Row Slate",      "canonical": "var(--r2)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "flap-slate":     { "role": "neutral", "displayName": "Flap Slate",     "canonical": "var(--r3)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "rule-grey":      { "role": "neutral", "displayName": "Rule Grey",      "canonical": "var(--r4)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "label-grey":     { "role": "neutral", "displayName": "Label Grey",     "canonical": "var(--r5)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "flap-white":     { "role": "neutral", "displayName": "Flap White",     "canonical": "var(--r6)", "tonalRamp": ["#0e1013", "#15171a", "#1c1f23", "#262a2f", "#3a3f46", "#9ba1aa", "#ecebe6"] },
+      "signal-amber":   { "role": "primary", "displayName": "Signal Amber",   "canonical": "var(--amber)", "tonalRamp": ["#1a1405", "#2e2410", "#5a4115", "#8a631c", "#bf8a24", "#f2b134", "#f6c25a", "#fae2a8"] },
+      "amber-ink":      { "role": "primary", "displayName": "Amber Ink",      "canonical": "var(--amber-ink)" },
+      "amber-cell":     { "role": "primary", "displayName": "Amber Cell",     "canonical": "var(--amber-cell)" },
+      "platform-green": { "role": "secondary", "displayName": "Platform Green", "canonical": "var(--green)", "tonalRamp": ["#0b1610", "#15291d", "#1f4a31", "#2c6e47", "#3d9862", "#52c27f", "#86d6a5", "#c4ebd2"] },
+      "green-cell":     { "role": "secondary", "displayName": "Green Cell",   "canonical": "var(--green-cell)" },
+      "signal-red":     { "role": "tertiary", "displayName": "Signal Red",    "canonical": "var(--red)", "tonalRamp": ["#1a0e0d", "#301a19", "#5a2a28", "#8a3d39", "#bf544e", "#f0716a", "#f59c97", "#facfcc"] },
+      "red-cell":       { "role": "tertiary", "displayName": "Red Cell",      "canonical": "var(--red-cell)" }
+    },
+    "typographyMeta": {
+      "display":     { "displayName": "Display",     "purpose": "Page titles; 28px below 960px." },
+      "headline":    { "displayName": "Headline",    "purpose": "Section headings, uppercase, 0.1em tracking, Label Grey." },
+      "title":       { "displayName": "Title",       "purpose": "The name or figure in a board row." },
+      "body":        { "displayName": "Body",        "purpose": "Statements and prose; statements at 1.65 line height and 68ch." },
+      "label":       { "displayName": "Label",       "purpose": "Flap cells, sub-headings, captions, legends, nav links; uppercase, 0.08em to 0.12em tracking." },
+      "column-head": { "displayName": "Column head", "purpose": "Table headers, uppercase, 0.14em tracking, Label Grey." },
+      "control":     { "displayName": "Control",     "purpose": "Button text." },
+      "code":        { "displayName": "Code",        "purpose": "Code blocks, inline code, samples, checker textarea. Code only." }
+    },
+    "shadows": [
+      { "name": "nav-active-bar", "value": "inset 0 -3px 0 var(--amber)", "purpose": "Indicator under the current nav section. Not elevation." },
+      { "name": "sticky-column-edge", "value": "2px 0 0 var(--r1)", "purpose": "Separates the sticky user column from scrolled leaderboard cells on a phone." }
+    ],
+    "motion": [
+      { "name": "flap-flip", "value": "320ms cubic-bezier(0.16, 1, 0.3, 1); rotateX(-80deg) to 0 on a top hinge, perspective 240px, brightness 1.6 to 1", "purpose": "The board's one motion. Plays only on a state change while the page is open or on a cell that arrives after load. Off under reduced motion." },
+      { "name": "state-colour", "value": "160ms ease-out", "purpose": "Colour, background and border changes on links and buttons. Off under reduced motion." }
+    ],
+    "breakpoints": [
+      { "name": "narrow", "value": "960px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single committing action per view: Submit, Save, Sign in.",
+      "html": "<button class=\"ds-btn-primary\">Submit</button>",
+      "css": ".ds-btn-primary { font: 600 15px/1 \"Barlow\", system-ui, sans-serif; letter-spacing: 0.02em; height: 40px; padding: 0 24px; border: 1px solid var(--amber, #f2b134); border-radius: 2px; background: var(--amber, #f2b134); color: var(--amber-ink, #1a1405); cursor: pointer; transition: background-color 160ms ease-out, border-color 160ms ease-out; } .ds-btn-primary:hover { background: #f6c25a; border-color: #f6c25a; } .ds-btn-primary:focus-visible { outline: 2px solid var(--amber, #f2b134); outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Every non-committing action: load more, add test case, sign in link.",
+      "html": "<button class=\"ds-btn\">Load more</button>",
+      "css": ".ds-btn { font: 600 15px/1 \"Barlow\", system-ui, sans-serif; height: 40px; padding: 0 16px; border: 1px solid var(--r4, #3a3f46); border-radius: 2px; background: var(--r2, #1c1f23); color: var(--r6, #ecebe6); cursor: pointer; transition: background-color 160ms ease-out, border-color 160ms ease-out; } .ds-btn:hover { background: var(--r3, #262a2f); border-color: var(--r5, #9ba1aa); } .ds-btn:focus-visible { outline: 2px solid var(--amber, #f2b134); outline-offset: 2px; }"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Low-weight actions such as Sign out.",
+      "html": "<button class=\"ds-btn-quiet\">Sign out</button>",
+      "css": ".ds-btn-quiet { font: 600 15px/1 \"Barlow\", system-ui, sans-serif; height: 40px; padding: 0 16px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: var(--r5, #9ba1aa); cursor: pointer; transition: background-color 160ms ease-out, border-color 160ms ease-out; } .ds-btn-quiet:hover { background: var(--r2, #1c1f23); border-color: var(--r3, #262a2f); } .ds-btn-quiet:focus-visible { outline: 2px solid var(--amber, #f2b134); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Board-black field with a ramp border and amber focus.",
+      "html": "<label class=\"ds-label\">Problem ID<input class=\"ds-input\" value=\"a-plus-b\"></label>",
+      "css": ".ds-label { display: block; font: 15px/1.6 \"Barlow\", system-ui, sans-serif; color: var(--r5, #9ba1aa); } .ds-input { display: block; margin-top: 6px; font: 16px/1.4 \"Barlow\", system-ui, sans-serif; height: 40px; padding: 0 12px; color: var(--r6, #ecebe6); background: var(--r0, #0e1013); border: 1px solid var(--r4, #3a3f46); border-radius: 2px; } .ds-input:hover { border-color: var(--r5, #9ba1aa); } .ds-input:focus-visible { outline: 2px solid var(--amber, #f2b134); outline-offset: 2px; }"
+    },
+    {
+      "name": "Header Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Sticky board-black bar with the flap wordmark and board-face nav; amber bar marks the current section.",
+      "html": "<header class=\"ds-header\"><a class=\"ds-brand\" href=\"#\" aria-label=\"CodeArena\"><span>C</span><span>o</span><span>d</span><span>e</span><span>A</span><span>r</span><span>e</span><span>n</span><span>a</span></a><nav class=\"ds-nav\"><a class=\"active\" href=\"#\">Problems</a><a href=\"#\">Contests</a><a href=\"#\">My submissions</a></nav></header>",
+      "css": ".ds-header { display: flex; align-items: center; gap: 40px; height: 56px; padding: 0 32px; background: var(--r0, #0e1013); border-bottom: 1px solid var(--r3, #262a2f); } .ds-brand { display: flex; gap: 2px; text-decoration: none; } .ds-brand span { display: grid; place-items: center; width: 20px; height: 28px; font: 700 18px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; text-transform: uppercase; color: var(--r6, #ecebe6); border-radius: 2px; background: linear-gradient(to bottom, #2b2f35 0 calc(50% - 0.5px), var(--r0, #0e1013) calc(50% - 0.5px) calc(50% + 0.5px), var(--r3, #262a2f) calc(50% + 0.5px)); } .ds-brand:hover span { color: var(--amber, #f2b134); } .ds-nav { display: flex; gap: 28px; align-self: stretch; } .ds-nav a { display: flex; align-items: center; font: 600 15px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.1em; text-transform: uppercase; text-decoration: none; color: var(--r5, #9ba1aa); box-shadow: inset 0 -3px 0 transparent; } .ds-nav a:hover { color: var(--r6, #ecebe6); } .ds-nav a.active { color: var(--r6, #ecebe6); box-shadow: inset 0 -3px 0 var(--amber, #f2b134); } .ds-nav a:focus-visible { outline: 2px solid var(--amber, #f2b134); outline-offset: 2px; }"
+    },
+    {
+      "name": "Split-Flap Cell",
+      "kind": "chip",
+      "refersTo": "flap-plain",
+      "description": "The signature state cell in all five tones; flips only when its state changes.",
+      "html": "<div class=\"ds-flaps\"><span class=\"ds-flap\">Time limit 1000 ms</span><span class=\"ds-flap ds-flap-ok\"><b>AC</b> Accepted</span><span class=\"ds-flap ds-flap-bad\"><b>WA</b> Wrong answer</span><span class=\"ds-flap ds-flap-run\">Judging…</span><span class=\"ds-flap ds-flap-wait\">In queue…</span></div>",
+      "css": ".ds-flaps { display: flex; flex-wrap: wrap; gap: 8px; } .ds-flap { --ink: var(--r6, #ecebe6); --bg: var(--r3, #262a2f); display: inline-flex; align-items: center; gap: 0.4em; min-height: 32px; padding: 0 10px; font: 600 15px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; white-space: nowrap; color: var(--ink); border-radius: 2px; background: linear-gradient(to bottom, color-mix(in srgb, var(--bg), #ecebe6 5%) 0 calc(50% - 0.5px), var(--r0, #0e1013) calc(50% - 0.5px) calc(50% + 0.5px), var(--bg) calc(50% + 0.5px)); } .ds-flap b { font-weight: 700; } .ds-flap-ok { --ink: var(--green, #52c27f); --bg: var(--green-cell, #15291d); } .ds-flap-bad { --ink: var(--red, #f0716a); --bg: var(--red-cell, #301a19); } .ds-flap-run { --ink: var(--amber, #f2b134); --bg: var(--amber-cell, #2e2410); } .ds-flap-wait { --ink: var(--r5, #9ba1aa); --bg: var(--r2, #1c1f23); } .ds-flap:hover { animation: ds-flap-in 320ms cubic-bezier(0.16, 1, 0.3, 1); transform-origin: 50% 0; } @keyframes ds-flap-in { from { transform: perspective(240px) rotateX(-80deg); filter: brightness(1.6); } to { transform: perspective(240px) rotateX(0); filter: brightness(1); } } @media (prefers-reduced-motion: reduce) { .ds-flap:hover { animation: none; } }"
+    },
+    {
+      "name": "Board Rows",
+      "kind": "card",
+      "refersTo": "board-row",
+      "description": "Every list is a board: 48px rows, 2px gaps, one line per row, the name in the board face.",
+      "html": "<table class=\"ds-board\"><thead><tr><th>Problem</th><th>Difficulty</th></tr></thead><tbody><tr><td class=\"t\"><a href=\"#\">A + B</a></td><td><span class=\"ds-cell\">Easy</span></td></tr><tr><td class=\"t\"><a href=\"#\">Circle area</a></td><td><span class=\"ds-cell\">Easy</span></td></tr><tr><td class=\"t\"><a href=\"#\">Pair sum</a></td><td><span class=\"ds-cell\">Medium</span></td></tr></tbody></table>",
+      "css": ".ds-board { width: 100%; border-collapse: separate; border-spacing: 0 2px; font-variant-numeric: tabular-nums; } .ds-board th { text-align: left; font: 600 13px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--r5, #9ba1aa); padding: 8px 16px; } .ds-board td { height: 48px; padding: 0 16px; background: var(--r2, #1c1f23); color: var(--r6, #ecebe6); white-space: nowrap; transition: background-color 160ms ease-out; } .ds-board td:first-child { border-radius: 2px 0 0 2px; } .ds-board td:last-child { border-radius: 0 2px 2px 0; } .ds-board tbody tr:hover td { background: var(--r3, #262a2f); } .ds-board td.t { font: 600 20px/1.2 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.02em; } .ds-board a { color: inherit; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 0.2em; } .ds-board a:hover { text-decoration-color: var(--amber, #f2b134); } .ds-board a:focus-visible { outline: 2px solid var(--amber, #f2b134); outline-offset: 2px; } .ds-cell { display: inline-flex; align-items: center; min-height: 32px; padding: 0 10px; font: 600 16px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; border-radius: 2px; background: linear-gradient(to bottom, #2f3338 0 calc(50% - 0.5px), var(--r0, #0e1013) calc(50% - 0.5px) calc(50% + 0.5px), var(--r3, #262a2f) calc(50% + 0.5px)); }"
+    },
+    {
+      "name": "Leaderboard Cells",
+      "kind": "custom",
+      "refersTo": "board-row",
+      "description": "Rank, user, then 72px problem cells filled solved, rejected or pending, then totals.",
+      "html": "<table class=\"ds-lb\"><thead><tr><th>#</th><th>User</th><th>A</th><th>B</th><th>C</th><th>Solved</th><th>Penalty</th></tr></thead><tbody><tr><td class=\"rank\">1</td><td class=\"user\">ada</td><td class=\"c ok\">+</td><td class=\"c bad\">-2</td><td class=\"c run\">?</td><td class=\"n\">1</td><td class=\"n\">14</td></tr></tbody></table>",
+      "css": ".ds-lb { width: 100%; border-collapse: separate; border-spacing: 0 2px; font-variant-numeric: tabular-nums; } .ds-lb th { text-align: left; font: 600 13px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.14em; text-transform: uppercase; color: var(--r5, #9ba1aa); padding: 8px 16px; } .ds-lb td { height: 48px; padding: 0 16px; background: var(--r2, #1c1f23); color: var(--r6, #ecebe6); white-space: nowrap; } .ds-lb td:first-child { border-radius: 2px 0 0 2px; } .ds-lb td:last-child { border-radius: 0 2px 2px 0; } .ds-lb td.rank { width: 56px; font: 600 20px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; color: var(--r5, #9ba1aa); } .ds-lb td.user { font: 600 20px/1.2 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.02em; } .ds-lb td.c { width: 72px; text-align: center; font: 600 16px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; letter-spacing: 0.04em; } .ds-lb td.ok { color: var(--green, #52c27f); background: var(--green-cell, #15291d); } .ds-lb td.bad { color: var(--red, #f0716a); background: var(--red-cell, #301a19); } .ds-lb td.run { color: var(--amber, #f2b134); background: var(--amber-cell, #2e2410); } .ds-lb td.n { font: 600 20px/1 \"Barlow Condensed\", \"Arial Narrow\", sans-serif; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Departures Board",
+    "overview": "CodeArena is a station board at night. A submission departs, and its test cases arrive like trains: each verdict flips into a split-flap cell with its time and memory beside it. The ground is board black, the text is flap white, and every list is a board of fixed-height rows separated by thin dark gaps. The system is dense, calm and legible for long evening sessions in a dim room.\n\nColour is rationed. Neutrals come from one seven-step ramp and nothing else. Green and red appear only inside state cells: a verdict, a solved or rejected leaderboard cell, an error strip. Amber does double duty as the \"in progress\" signal and as the single action and focus colour. Everything is sized from one 8px module, and every numeral is tabular so columns of milliseconds and kilobytes line up.\n\nThe world refuses two defaults: the dark IDE with green and red pills, and the white SaaS dashboard. It also refuses a hacker or terminal costume; monospace type appears only where code is shown.",
+    "keyCharacteristics": [
+      "Board-black ground from a fixed seven-step neutral ramp.",
+      "Split-flap cells (two-tone face with a 1px hinge line) carry every state.",
+      "Green and red live only inside state cells; amber marks progress, the primary action and focus.",
+      "One 8px module sizes cells, rows, gaps and padding.",
+      "Barlow Condensed for the board, Barlow for prose, JetBrains Mono for code.",
+      "Flat: no shadows, no blur; depth comes from ramp steps and 2px row gaps.",
+      "One motion: the flap flip, only when state changes while the page is open."
+    ],
+    "rules": [
+      { "name": "The Seven-Step Ramp Rule", "body": "Every neutral comes from `--r0` to `--r6`. A new grey is not added; pick the nearest step.", "section": "colors" },
+      { "name": "The Signal-In-Cells Rule", "body": "Green and red appear only inside state cells and error messages, always on their own cell ground. Amber is the one exception that leaves the cells, and only for the primary action and interaction feedback.", "section": "colors" },
+      { "name": "The Code-And-Label Rule", "body": "Colour is never the only signal. A verdict cell always carries its code (WA) and its label (Wrong answer); where space forces the label out of sight, it stays for screen readers.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Numerals are tabular everywhere (set on the root), so times, memory, ranks and penalties align in columns.", "section": "typography" },
+      { "name": "The Board Face Rule", "body": "Anything that names a state, a column or a section is Barlow Condensed in uppercase with positive tracking; anything a person reads as a sentence is Barlow in sentence case.", "section": "typography" },
+      { "name": "The One Module Rule", "body": "Sizes are expressed as multiples of `--u`. A row is 6u, a control 5u, a cell 4u.", "section": "layout" },
+      { "name": "The No-Wrap Row Rule", "body": "A board row is one line. Truncate with an ellipsis; never wrap or hyphenate a row.", "section": "layout" },
+      { "name": "The Flat Board Rule", "body": "Surfaces never float. If something needs separation, use a ramp step or a 2px gap.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do take every neutral from the seven-step ramp `--r0` to `--r6`.",
+      "Do put every state (verdict, phase, limit, solved) in a split-flap cell with its code and label.",
+      "Do size cells, controls and rows as 4u, 5u and 6u of the 8px module.",
+      "Do set every list as a board of 48px rows with 2px gaps, one line per row, ellipsis on overflow.",
+      "Do keep amber for progress, the single primary action and focus; one amber button per view.",
+      "Do flip a flap only when its state changes or it arrives after load, and never under reduced motion.",
+      "Do use Barlow Condensed uppercase for names of states, columns and sections; Barlow for sentences; JetBrains Mono only for code."
+    ],
+    "donts": [
+      "Don't add greys outside the ramp, or use green or red outside a state cell, an error or a status confirmation.",
+      "Don't use rounded pills or radii above 2px.",
+      "Don't add drop shadows, blur, glows or decorative gradients; the hinged flap face is the only surface gradient.",
+      "Don't animate cells on page load or add motion other than the flap flip and 160ms colour transitions.",
+      "Don't let colour be the only signal of a verdict.",
+      "Don't drift toward a dark IDE with green and red pills, a white SaaS dashboard, or a hacker terminal look."
+    ]
+  }
+}

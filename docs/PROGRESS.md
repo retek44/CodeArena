@@ -258,6 +258,9 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
       per-language memory overhead, thread budget and artifacts; Go compiles against a standard
       library built into the image (no writable build cache); golden solutions and sandbox scenarios
       for each; worker, Terraform, CI, deploy hook and SPA take any language from one list
+- [x] Memory watchdog in the sandbox: resident memory polled every 10 ms; a process above the memory
+      limit, or the program's processes together above the Lambda memory minus 160 MB, get MLE
+      (a Go memory bomb grew past 1 GB under `RLIMIT_AS` alone)
 - [ ] Verify the Java, JavaScript and Go runner functions on AWS (cold start, canary hook)
 - [x] Problem statements render as Markdown (react-markdown + GFM, lazy chunk): raw HTML, images and
       unsafe URLs are dropped, links open with `noopener noreferrer`, the leading title is not repeated

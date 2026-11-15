@@ -55,6 +55,8 @@ compares outputs and stores the verdict.
 - Limits per run: `RLIMIT_CPU` (safety net above the verdict limit), `RLIMIT_AS`,
   `RLIMIT_FSIZE` (output limit), `RLIMIT_NPROC`, `RLIMIT_NOFILE`, no core dumps; a wall-clock
   deadline through `pidfd`. CPU time and peak memory come from `wait4` resource usage.
+  While the program runs, the runner also polls the resident memory of its processes
+  (ADR-0022): `RLIMIT_AS` caps virtual memory only.
 - Before and after every test case the runner resets the sandbox. If the reset fails,
   it exits and Lambda starts a new execution environment.
 - Locally and in CI the container runs like Lambda: non-root user, read-only root file

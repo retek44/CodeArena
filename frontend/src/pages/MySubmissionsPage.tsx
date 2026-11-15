@@ -18,7 +18,7 @@ export function MySubmissionsPage() {
         </p>
       )}
       {items.length > 0 && (
-        <table>
+        <table className="board-list">
           <caption className="visually-hidden">My submissions, newest first</caption>
           <thead>
             <tr>
@@ -33,7 +33,7 @@ export function MySubmissionsPage() {
                 <td>
                   <Link to={`/submissions/${s.id}`}>{new Date(s.created_at).toLocaleString()}</Link>
                 </td>
-                <td>{s.problem}</td>
+                <td className="title">{s.problem}</td>
                 <td>
                   <SubmissionStatus submission={s} />
                 </td>
@@ -43,7 +43,7 @@ export function MySubmissionsPage() {
         </table>
       )}
       {query.hasNextPage && (
-        <button type="button" onClick={() => void query.fetchNextPage()} disabled={query.isFetchingNextPage}>
+        <button type="button" className="load-more" onClick={() => void query.fetchNextPage()} disabled={query.isFetchingNextPage}>
           {query.isFetchingNextPage ? "Loading…" : "Load more"}
         </button>
       )}

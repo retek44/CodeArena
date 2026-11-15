@@ -2,7 +2,8 @@ import { Link, useParams } from "react-router";
 import { useContest, useLeaderboard, useRegister } from "../api/hooks";
 import { useAuth } from "../auth/AuthProvider";
 import { ErrorMessage } from "../components/ErrorMessage";
-import { phaseLabel } from "./ContestsPage";
+import { Flap } from "../components/Flap";
+import { phaseLabel, phaseTone } from "./ContestsPage";
 
 export function ContestPage() {
   const { slug = "" } = useParams();
@@ -19,7 +20,7 @@ export function ContestPage() {
     <article>
       <h1>{c.title}</h1>
       <p className="meta">
-        {phaseLabel(c.phase)} · {new Date(c.starts_at).toLocaleString()} – {new Date(c.ends_at).toLocaleTimeString()} ·
+        <Flap tone={phaseTone(c.phase)}>{phaseLabel(c.phase)}</Flap>{" "} {new Date(c.starts_at).toLocaleString()} – {new Date(c.ends_at).toLocaleTimeString()} ·
         leaderboard freezes at {new Date(c.freeze_at).toLocaleTimeString()} · {c.participants} registered
       </p>
       <div className="statement">{c.description_md}</div>
@@ -100,12 +101,12 @@ function Leaderboard({ slug }: { slug: string }) {
           <tbody>
             {b.rows.map((r) => (
               <tr key={r.username}>
-                <td>{r.rank}</td>
-                <td>{r.username}</td>
-                <td>{r.solved}</td>
-                <td>{r.penalty}</td>
+                <td className="rank">{r.rank}</td>
+                <td className="title">{r.username}</td>
+                <td className="num">{r.solved}</td>
+                <td className="num">{r.penalty}</td>
                 {r.problems.map((p) => (
-                  <td key={p.label} className={p.solved_minute != null ? "solved" : p.rejected > 0 ? "rejected" : ""}>
+                  <td key={p.label} className={`cell ${cellState(p)}`}>
                     {cellText(p)}
                   </td>
                 ))}
@@ -116,6 +117,12 @@ function Leaderboard({ slug }: { slug: string }) {
       )}
     </section>
   );
+}
+
+function cellState(p: { solved_minute: number | null; rejected: number; pending: number }): string {
+  if (p.solved_minute != null) return "solved";
+  if (p.pending > 0) return "pending";
+  return p.rejected > 0 ? "rejected" : "";
 }
 
 function cellText(p: { solved_minute: number | null; rejected: number; pending: number }): string {

@@ -61,10 +61,13 @@ What we measured in the runner images:
 - Java and JavaScript programs get their runtime's memory on top of the problem's limit,
   as most judges do; time limits are the same for every language, so a JVM or Node.js
   start (100–250 ms CPU) counts against them.
-- A Go program can use more resident memory than its limit until the run ends (the
-  address space limit sits above the runtime's reservation); the memory verdict comes from
-  the measured peak. With large limits (512 MB) this can approach the Lambda's 1 GB, which
-  would end the invocation instead of returning MLE.
+- The address space limit sits far above a Go program's memory limit (64 MB limit: 1600 MB
+  address space), so `RLIMIT_AS` alone would let a Go program grow past the Lambda's 1 GB
+  and end the whole invocation instead of returning MLE. The sandbox suite found this. The
+  runner therefore watches resident memory while a program runs (every 10 ms, all
+  processes of its session): a process above the memory limit, or all of them together
+  above the Lambda's memory minus 160 MB for the runner, are stopped with a memory
+  verdict.
 - The Go address space window was measured on x86-64; the runners run on arm64 in AWS.
   CI builds and tests the arm64 images, so the golden and sandbox tests cover it.
 - Not yet verified on AWS: the three new functions, their cold starts and the canary hook

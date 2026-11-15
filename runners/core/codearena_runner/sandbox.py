@@ -18,6 +18,12 @@ STDERR_TAIL_BYTES = 4096
 _MAX_FD_TO_CLOSE = 65536
 _MAX_STACK_BYTES = 64 * 1024 * 1024
 _MAX_OPEN_FILES = 64
+# How often the resident memory of a running program is checked. RLIMIT_AS caps virtual
+# memory only, and some runtimes need far more of it than they use (Go reserves about
+# 750 MB), so without this a program could grow past the Lambda's memory and end the
+# whole invocation instead of getting a memory verdict.
+_MEMORY_POLL_S = 0.01
+_PAGE_KB = os.sysconf("SC_PAGE_SIZE") // 1024
 # Out-of-memory messages: Python, C++, libc, Java, and Node.js and Go ("... out of memory").
 _OOM_MARKERS = (b"MemoryError", b"std::bad_alloc", b"Cannot allocate memory", b"OutOfMemoryError", b"out of memory")
 
@@ -34,6 +40,9 @@ class ExecLimits:
     """RLIMIT_FSIZE: stdout and stderr cannot grow past this."""
     extra_tasks: int
     """Processes and threads the program may create (RLIMIT_NPROC above current usage)."""
+    session_memory_kb: int | None = None
+    """Resident memory of all the program's processes together. Above it the program is
+    stopped with a memory verdict, before it can exhaust the runner's own memory."""
 
 
 @dataclass(frozen=True)
@@ -82,7 +91,7 @@ def execute(
                 env=env,
             )
 
-    timed_out = _wait_until(pid, limits.wall_time_ms / 1000)
+    timed_out, peak_kb = _wait_until(pid, limits)
     _, wait_status, usage = os.wait4(pid, 0)
     wall_time_ms = int((time.monotonic() - start) * 1000)
     # The program's session may still contain processes it started; stop them now.
@@ -101,7 +110,9 @@ def execute(
         exit_code = os.waitstatus_to_exitcode(wait_status)
 
     cpu_time_ms = int((usage.ru_utime + usage.ru_stime) * 1000)
-    memory_kb = int(usage.ru_maxrss)  # kilobytes on Linux
+    # ru_maxrss is in kilobytes on Linux; the polled peak also covers a program the
+    # watchdog stopped and processes it started.
+    memory_kb = max(int(usage.ru_maxrss), peak_kb)
 
     status = classify(
         limits=limits,
@@ -156,17 +167,57 @@ def cpu_limit_seconds(cpu_time_ms: int) -> int:
     return -(-cpu_time_ms // 1000) + 1
 
 
-def _wait_until(pid: int, timeout_s: float) -> bool:
-    """Wait for the child to exit. Kill its process group on timeout. Returns True on timeout."""
+def _wait_until(pid: int, limits: ExecLimits) -> tuple[bool, int]:
+    """Wait for the child to exit while watching the resident memory of its session.
+
+    Kills the process group on timeout, when one process uses more than `memory_kb` (the
+    verdict counts the largest process, like ru_maxrss), or when all of them together use
+    more than `session_memory_kb`. Returns (timed out, peak resident memory in KB).
+    """
+    deadline = time.monotonic() + limits.wall_time_ms / 1000
+    peak_kb = 0
     pidfd = os.pidfd_open(pid)
     try:
-        ready, _, _ = select.select([pidfd], [], [], timeout_s)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _kill_group(pid)
+                return True, peak_kb
+            ready, _, _ = select.select([pidfd], [], [], min(remaining, _MEMORY_POLL_S))
+            if ready:
+                return False, peak_kb
+            total_kb, largest_kb = session_rss_kb(pid)
+            peak_kb = max(peak_kb, largest_kb)
+            if limits.session_memory_kb is not None and total_kb > limits.session_memory_kb:
+                _kill_group(pid)
+                return False, max(peak_kb, total_kb)
+            if peak_kb > limits.memory_kb:
+                _kill_group(pid)
+                return False, peak_kb
     finally:
         os.close(pidfd)
-    if ready:
-        return False
-    _kill_group(pid)
-    return True
+
+
+def session_rss_kb(sid: int) -> tuple[int, int]:
+    """Resident memory in KB of the processes in session `sid` (the program and its
+    children): (all together, the largest one)."""
+    total_pages = largest_pages = 0
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry.name}/stat", "rb") as f:
+                stat = f.read()
+        except OSError:
+            continue  # exited meanwhile
+        # The command name (field 2) may contain spaces and parentheses; fields after it
+        # are fixed: state, ppid, pgrp, session, ..., rss (24th field overall).
+        fields = stat[stat.rfind(b")") + 2 :].split()
+        if len(fields) > 21 and int(fields[3]) == sid:
+            pages = int(fields[21])
+            total_pages += pages
+            largest_pages = max(largest_pages, pages)
+    return total_pages * _PAGE_KB, largest_pages * _PAGE_KB
 
 
 def _kill_group(pgid: int) -> None:
