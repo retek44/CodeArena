@@ -68,6 +68,7 @@ SCENARIOS = [
         "/ denied\n/etc denied\n/var/task denied\n/opt denied\ncwd written\ntmp written\n",
     ),
     Scenario("environment.py", "ok", "HOME LANG PATH TMPDIR\n"),
+    Scenario("credentials.py", "ok", "credentials: none\n"),
     # Leftovers
     Scenario("leftover_process.py", "ok", "started\n"),
     # Compiled programs run from /tmp in the C++ image.

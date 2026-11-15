@@ -51,7 +51,7 @@ _COMPILE_DIAGNOSTICS_CHARS = 8192
 
 Artifacts = dict[str, tuple[bytes, int]]
 
-linux.harden_current_process()
+_HARDENING_REFUSED = linux.harden_current_process()  # logged at the end of the module
 _UID = os.getuid()
 LANGUAGES = enabled_languages()
 
@@ -248,3 +248,8 @@ def _remaining_time(context: Any) -> Callable[[], int]:
 
 def _log(event: str, **fields: Any) -> None:
     print(json.dumps({"event": event, **fields}), flush=True)
+
+
+if _HARDENING_REFUSED:
+    # Expected in Lambda (seccomp). The entrypoint already removed the AWS credentials.
+    _log("hardening_refused", protections=_HARDENING_REFUSED)

@@ -48,6 +48,14 @@ compares outputs and stores the verdict.
 
 - The runner process is not dumpable (`PR_SET_DUMPABLE`) and is a child subreaper
   (`PR_SET_CHILD_SUBREAPER`), so it can always find and reap everything a run started.
+  Both are best effort: Lambda's seccomp filter refuses `PR_SET_DUMPABLE` (EPERM), and the
+  runner then logs `hardening_refused` and continues. Cleanup finds leftover processes by
+  user ID, so it does not depend on the subreaper.
+- The runner holds no AWS credentials. It needs none (no network), and in Lambda a program
+  of the same user could otherwise read them from `/proc/<pid>/environ`. The image
+  entrypoint (`runners/core/entrypoint.sh`) removes them and then starts the Lambda
+  entrypoint with `exec`, so no process keeps them. The hardening suite gives the runner
+  containers fake credentials and checks that no visible process has them.
 - The program gets a fixed, minimal environment (`PATH`, `HOME`, `TMPDIR`, `LANG`); nothing
   from the runner's environment is passed on.
 - Compile artifacts stay in runner memory. Every test case gets a fresh working directory

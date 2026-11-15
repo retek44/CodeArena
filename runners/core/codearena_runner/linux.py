@@ -4,29 +4,45 @@ from __future__ import annotations
 
 import ctypes
 import os
+from errno import EPERM
 
 _PR_SET_DUMPABLE = 4
 _PR_SET_CHILD_SUBREAPER = 36
 
 
-def _prctl(option: int, value: int) -> None:
+def _prctl(option: int, value: int) -> bool:
+    """True if set. False if the environment refuses the option (EPERM from a seccomp
+    filter, as in Lambda). Any other error is a bug and raises."""
     libc = ctypes.CDLL(None, use_errno=True)
-    if libc.prctl(option, value, 0, 0, 0) != 0:
-        errno = ctypes.get_errno()
-        raise OSError(errno, f"prctl({option}, {value}) failed: {os.strerror(errno)}")
+    if libc.prctl(option, value, 0, 0, 0) == 0:
+        return True
+    errno = ctypes.get_errno()
+    if errno == EPERM:
+        return False
+    raise OSError(errno, f"prctl({option}, {value}) failed: {os.strerror(errno)}")
 
 
-def harden_current_process() -> None:
-    """Protect the runner from the programs it starts.
+def harden_current_process() -> list[str]:
+    """Protect the runner from the programs it starts, where the environment allows it.
 
     - Not dumpable: /proc/<runner>/environ and /proc/<runner>/mem become unreadable
-      for other processes of the same user, and ptrace is refused. The Lambda
-      credentials live in the runner's environment.
+      for other processes of the same user, and ptrace is refused.
     - Child subreaper: orphaned descendants (double fork, setsid) are re-parented to
-      the runner instead of PID 1, so the runner can always find, kill and reap them.
+      the runner instead of PID 1, so the runner can reap them. Cleanup finds leftovers
+      by user ID, so it still kills them without this.
+
+    Lambda's seccomp filter refuses PR_SET_DUMPABLE. That is why the image entrypoint
+    (runners/core/entrypoint.sh) removes the AWS credentials before the runtime starts:
+    no runner process holds a secret that /proc could show.
+
+    Returns the protections the environment refused.
     """
-    _prctl(_PR_SET_DUMPABLE, 0)
-    _prctl(_PR_SET_CHILD_SUBREAPER, 1)
+    refused: list[str] = []
+    if not _prctl(_PR_SET_DUMPABLE, 0):
+        refused.append("not_dumpable")
+    if not _prctl(_PR_SET_CHILD_SUBREAPER, 1):
+        refused.append("child_subreaper")
+    return refused
 
 
 def read_status(pid: int) -> dict[str, str]:

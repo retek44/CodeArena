@@ -10,6 +10,9 @@ RUN dnf install -y nodejs22 \
     && ln -sf "$(command -v node-22 || command -v node)" /usr/local/bin/codearena-node
 
 COPY core/codearena_runner ${LAMBDA_TASK_ROOT}/codearena_runner
+# Drops the AWS credentials before the runtime starts (core/entrypoint.sh).
+COPY --chmod=0755 core/entrypoint.sh /codearena-entrypoint.sh
+ENTRYPOINT ["/codearena-entrypoint.sh"]
 
 ENV CODEARENA_LANGUAGES=javascript
 

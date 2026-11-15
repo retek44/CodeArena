@@ -34,11 +34,14 @@ docker network create --internal "${net}" >/dev/null
 # every execution environment is its own microVM.
 # Compiled programs (C++, Go) run from /tmp (Lambda allows it); Docker tmpfs is noexec by
 # default, so every runner here gets exec, as in Lambda.
+# Fake credentials in the environment, as Lambda sets them: the image entrypoint must
+# drop them (programs/credentials.py).
+fake_credentials=(-e AWS_ACCESS_KEY_ID=AKIAFAKESANDBOXSUITE -e AWS_SECRET_ACCESS_KEY=fake-secret -e AWS_SESSION_TOKEN=fake-token)
 env_args=()
 uid=20001
 for lang in "${languages[@]}"; do
   docker run -d --name "codearena-sandbox-${lang}" --network "${net}" --read-only \
-    --tmpfs /tmp:rw,exec,size=256m --memory 1g --user "${uid}:990" \
+    --tmpfs /tmp:rw,exec,size=256m --memory 1g --user "${uid}:990" "${fake_credentials[@]}" \
     "codearena-runner-${lang}:${tag}" >/dev/null
   suffix=""
   if [ "${lang}" != python ]; then suffix="_${lang^^}"; fi

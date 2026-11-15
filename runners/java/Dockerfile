@@ -9,6 +9,9 @@ RUN dnf install -y java-21-amazon-corretto-devel \
     && rm -rf /var/cache/dnf
 
 COPY core/codearena_runner ${LAMBDA_TASK_ROOT}/codearena_runner
+# Drops the AWS credentials before the runtime starts (core/entrypoint.sh).
+COPY --chmod=0755 core/entrypoint.sh /codearena-entrypoint.sh
+ENTRYPOINT ["/codearena-entrypoint.sh"]
 
 ENV CODEARENA_LANGUAGES=java
 
