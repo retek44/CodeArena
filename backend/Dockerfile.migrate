@@ -7,7 +7,7 @@
 # 0.55.0, GO-2026-6612). Building it ourselves pins the Go toolchain and raises x/net to
 # the version the backend uses. Revisit when a published image is clean.
 
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG ATLAS_COMMIT=90dacfc6c25f151fc3d48fdba150c677e9dddf1d
 ARG ATLAS_VERSION=v1.3.10
 ADD https://github.com/ariga/atlas.git#${ATLAS_COMMIT} /src
