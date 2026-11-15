@@ -5,7 +5,6 @@ from __future__ import annotations
 import contextlib
 import os
 import resource
-import select
 import signal
 import time
 from dataclasses import dataclass
@@ -91,8 +90,7 @@ def execute(
                 env=env,
             )
 
-    timed_out, peak_kb = _wait_until(pid, limits)
-    _, wait_status, usage = os.wait4(pid, 0)
+    timed_out, peak_kb, (_, wait_status, usage) = _wait_until(pid, limits)
     wall_time_ms = int((time.monotonic() - start) * 1000)
     # The program's session may still contain processes it started; stop them now.
     _kill_group(pid)
@@ -167,35 +165,39 @@ def cpu_limit_seconds(cpu_time_ms: int) -> int:
     return -(-cpu_time_ms // 1000) + 1
 
 
-def _wait_until(pid: int, limits: ExecLimits) -> tuple[bool, int]:
+_WaitResult = tuple[int, int, resource.struct_rusage]
+
+
+def _wait_until(pid: int, limits: ExecLimits) -> tuple[bool, int, _WaitResult]:
     """Wait for the child to exit while watching the resident memory of its session.
 
     Kills the process group on timeout, when one process uses more than `memory_kb` (the
     verdict counts the largest process, like ru_maxrss), or when all of them together use
-    more than `session_memory_kb`. Returns (timed out, peak resident memory in KB).
+    more than `session_memory_kb`. Returns (timed out, peak resident memory in KB, the
+    child's wait4 result).
+
+    Polls with wait4(WNOHANG) between the memory checks. Lambda's seccomp filter refuses
+    pidfd_open (ENOSYS), so the runner cannot block on a pidfd there.
     """
     deadline = time.monotonic() + limits.wall_time_ms / 1000
     peak_kb = 0
-    pidfd = os.pidfd_open(pid)
-    try:
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                _kill_group(pid)
-                return True, peak_kb
-            ready, _, _ = select.select([pidfd], [], [], min(remaining, _MEMORY_POLL_S))
-            if ready:
-                return False, peak_kb
-            total_kb, largest_kb = session_rss_kb(pid)
-            peak_kb = max(peak_kb, largest_kb)
-            if limits.session_memory_kb is not None and total_kb > limits.session_memory_kb:
-                _kill_group(pid)
-                return False, max(peak_kb, total_kb)
-            if peak_kb > limits.memory_kb:
-                _kill_group(pid)
-                return False, peak_kb
-    finally:
-        os.close(pidfd)
+    while True:
+        reaped = os.wait4(pid, os.WNOHANG)
+        if reaped[0] == pid:
+            return False, peak_kb, reaped
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            _kill_group(pid)
+            return True, peak_kb, os.wait4(pid, 0)
+        total_kb, largest_kb = session_rss_kb(pid)
+        peak_kb = max(peak_kb, largest_kb)
+        if limits.session_memory_kb is not None and total_kb > limits.session_memory_kb:
+            _kill_group(pid)
+            return False, max(peak_kb, total_kb), os.wait4(pid, 0)
+        if peak_kb > limits.memory_kb:
+            _kill_group(pid)
+            return False, peak_kb, os.wait4(pid, 0)
+        time.sleep(min(remaining, _MEMORY_POLL_S))
 
 
 def session_rss_kb(sid: int) -> tuple[int, int]:
