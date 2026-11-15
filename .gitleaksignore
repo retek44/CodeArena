@@ -1,0 +1,4 @@
+# Fake AWS credentials of the sandbox suite (tests/sandbox-security/run.sh): the suite
+# checks that the runner entrypoint drops them. Later commits use a value that does not
+# look like an access key ID.
+6e8951fe9ea1e3f58c9181266da7a6d414c77a0e:tests/sandbox-security/run.sh:aws-access-token:39

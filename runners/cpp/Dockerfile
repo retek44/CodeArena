@@ -10,9 +10,8 @@ RUN dnf install -y gcc-c++ glibc-static libstdc++-static \
     && rm -rf /var/cache/dnf
 
 COPY core/codearena_runner ${LAMBDA_TASK_ROOT}/codearena_runner
-# Drops the AWS credentials before the runtime starts (core/entrypoint.sh).
+# The entrypoint drops the AWS credentials before the runtime starts (core/entrypoint.sh).
 COPY --chmod=0755 core/entrypoint.sh /codearena-entrypoint.sh
-ENTRYPOINT ["/codearena-entrypoint.sh"]
 
 ENV CODEARENA_LANGUAGES=cpp
 
@@ -20,4 +19,5 @@ ENV CODEARENA_LANGUAGES=cpp
 # otherwise RLIMIT_NPROC (fork bomb protection) is not enforced.
 USER 993:990
 
+ENTRYPOINT ["/codearena-entrypoint.sh"]
 CMD ["codearena_runner.handler.handler"]

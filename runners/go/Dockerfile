@@ -22,9 +22,8 @@ RUN export CGO_ENABLED=0 GOCACHE=/opt/codearena-go/cache GOFLAGS=-trimpath \
     && chmod 0755 /opt/codearena-go/build.sh
 
 COPY core/codearena_runner ${LAMBDA_TASK_ROOT}/codearena_runner
-# Drops the AWS credentials before the runtime starts (core/entrypoint.sh).
+# The entrypoint drops the AWS credentials before the runtime starts (core/entrypoint.sh).
 COPY --chmod=0755 core/entrypoint.sh /codearena-entrypoint.sh
-ENTRYPOINT ["/codearena-entrypoint.sh"]
 
 ENV CODEARENA_LANGUAGES=go
 
@@ -32,4 +31,5 @@ ENV CODEARENA_LANGUAGES=go
 # otherwise RLIMIT_NPROC (fork bomb protection) is not enforced.
 USER 993:990
 
+ENTRYPOINT ["/codearena-entrypoint.sh"]
 CMD ["codearena_runner.handler.handler"]

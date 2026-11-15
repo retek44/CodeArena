@@ -9,9 +9,8 @@ RUN dnf install -y java-21-amazon-corretto-devel \
     && rm -rf /var/cache/dnf
 
 COPY core/codearena_runner ${LAMBDA_TASK_ROOT}/codearena_runner
-# Drops the AWS credentials before the runtime starts (core/entrypoint.sh).
+# The entrypoint drops the AWS credentials before the runtime starts (core/entrypoint.sh).
 COPY --chmod=0755 core/entrypoint.sh /codearena-entrypoint.sh
-ENTRYPOINT ["/codearena-entrypoint.sh"]
 
 ENV CODEARENA_LANGUAGES=java
 
@@ -19,4 +18,5 @@ ENV CODEARENA_LANGUAGES=java
 # otherwise RLIMIT_NPROC (fork bomb protection) is not enforced.
 USER 993:990
 
+ENTRYPOINT ["/codearena-entrypoint.sh"]
 CMD ["codearena_runner.handler.handler"]

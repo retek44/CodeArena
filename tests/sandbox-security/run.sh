@@ -36,7 +36,7 @@ docker network create --internal "${net}" >/dev/null
 # default, so every runner here gets exec, as in Lambda.
 # Fake credentials in the environment, as Lambda sets them: the image entrypoint must
 # drop them (programs/credentials.py).
-fake_credentials=(-e AWS_ACCESS_KEY_ID=AKIAFAKESANDBOXSUITE -e AWS_SECRET_ACCESS_KEY=fake-secret -e AWS_SESSION_TOKEN=fake-token)
+fake_credentials=(-e AWS_ACCESS_KEY_ID=fake-access-key-id -e AWS_SECRET_ACCESS_KEY=fake-secret -e AWS_SESSION_TOKEN=fake-token)
 env_args=()
 uid=20001
 for lang in "${languages[@]}"; do
