@@ -53,8 +53,8 @@ image: ## Build the API and worker container images
 
 # --- Database (ADR-0004) -----------------------------------------------------
 
-ATLAS_IMAGE := arigaio/atlas:1.3.0
-ATLAS_COMMUNITY_IMAGE := arigaio/atlas:1.3.0-community
+ATLAS_IMAGE := arigaio/atlas:1.3.10
+ATLAS_COMMUNITY_IMAGE := arigaio/atlas:1.3.10-community
 SQLC_IMAGE := sqlc/sqlc:1.31.1
 # From inside a container, the compose Postgres is reachable on the host.
 DOCKER_DB_HOST := host.docker.internal:5432

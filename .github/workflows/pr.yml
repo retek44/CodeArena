@@ -22,9 +22,9 @@ env:
   SEMGREP_VERSION: 1.180.0
   ACTIONLINT_VERSION: 1.7.12
   SPECTRAL_VERSION: 6.17.1
-  ATLAS_IMAGE: arigaio/atlas:1.3.0
+  ATLAS_IMAGE: arigaio/atlas:1.3.10
   # migrate lint is a Pro feature in the official build; the Community Edition has it.
-  ATLAS_COMMUNITY_IMAGE: arigaio/atlas:1.3.0-community
+  ATLAS_COMMUNITY_IMAGE: arigaio/atlas:1.3.10-community
   SQLC_IMAGE: sqlc/sqlc:1.31.1
 
 jobs:
