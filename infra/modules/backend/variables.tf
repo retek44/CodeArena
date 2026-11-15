@@ -146,6 +146,17 @@ variable "deploy_hook_function_arn" {
   type        = string
 }
 
+variable "submission_global_limit" {
+  description = "Submissions of all users together per sliding window, \"<max>/<window>\" (API env SUBMISSION_GLOBAL_LIMIT). Bounds the judge cost."
+  type        = string
+  default     = "300/1h"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*/[1-9][0-9]*(s|m|h)$", var.submission_global_limit))
+    error_message = "Use <max>/<window>, for example 300/1h."
+  }
+}
+
 variable "bake_time_minutes" {
   description = "Minutes the blue tasks stay after production traffic moved to green; a rollback in this window is instant."
   type        = number

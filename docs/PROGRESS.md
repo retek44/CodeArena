@@ -100,6 +100,9 @@ Legend: `[x]` done · `[ ]` open · **(manual)** must be done by a human in AWS 
 - [ ] Apply dev stack with Cognito in AWS and sign in end to end (with the frontend, phase 4)
 - [x] Rate limit for submissions: sliding window per user counted in Postgres (default 10/min),
       429 + `Retry-After`, idempotent retries not counted
+- [x] Global submission cap for all users together (`SUBMISSION_GLOBAL_LIMIT`, Terraform
+      `submission_global_limit`, default 300/1h, staging 3000/1h for k6), so many accounts cannot
+      turn into unbounded judge cost (ADR-0021)
 - [x] Contract test: every API integration test response is validated against `contracts/openapi.yaml`
       (libopenapi-validator, OpenAPI 3.1); a meta-test proves violations are caught
 - [x] SonarCloud quality gate (job `sonarcloud`: Go, TypeScript and Python coverage, `sonar.qualitygate.wait`;

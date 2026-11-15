@@ -41,5 +41,10 @@ Remove the feature completely instead of capping it:
 - Bedrock model access in the AWS console is no longer needed; if it was granted, it can
   stay or be removed, it costs nothing without calls.
 - The remaining public cost surface is the judge itself (runner Lambda invocations, a few
-  per submission, rate limited to 10 per user and minute). Its unit cost is far lower than
-  a model call; a global cap is a possible next step if the demo stays public.
+  per submission). Its unit cost is far lower than a model call, and two limits bound it:
+  10 submissions per user and minute, and a global cap for all users together
+  (`submission_global_limit`, default 300 per hour, counted in Postgres like the per-user
+  limit). Many accounts cannot get around the global cap. Even if every submission ran
+  into the 60-second Lambda timeout, 300 per hour cost a few USD per day; real submissions
+  take seconds. When the cap is reached, everyone gets 429 with `Retry-After` until the
+  window moves on, and the API logs `global submission limit reached`.

@@ -19,4 +19,7 @@ module "app" {
   contest_email_from = var.contest_email_from
   cidr_block         = "10.30.0.0/16"
 
+  # The k6 load and chaos runs (nonfunctional.yml) submit about 700 times in 10 minutes.
+  submission_global_limit = "3000/1h"
+
 }

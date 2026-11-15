@@ -56,6 +56,17 @@ variable "api_desired_count" {
   default     = 1
 }
 
+variable "submission_global_limit" {
+  description = "Submissions of all users together per sliding window, \"<max>/<window>\". Bounds the judge cost; the per-user limit stays 10 per minute."
+  type        = string
+  default     = "300/1h"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*/[1-9][0-9]*(s|m|h)$", var.submission_global_limit))
+    error_message = "Use <max>/<window>, for example 300/1h."
+  }
+}
+
 variable "api_bake_time_minutes" {
   description = "Blue/green bake time of the API: minutes the old tasks stay after the switch, ready for an instant rollback."
   type        = number

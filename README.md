@@ -30,8 +30,9 @@ Recorded with Playwright against the local stack (`make demo-video`).
 - **Contests:** phases from the clock, EventBridge Scheduler and Step Functions for the
   lifecycle, Valkey leaderboard with freeze and a Postgres fallback, result e-mails through SES
   ([ADR-0016](docs/adr/0016-contests-clock-phases-valkey-step-functions.md)).
-- **No paid AI calls:** the first plan had Bedrock hints; they were removed, and IAM denies
-  Bedrock, so public traffic cannot turn into model cost ([ADR-0021](docs/adr/0021-remove-ai-hints.md)).
+- **Bounded cost:** no paid AI calls (the planned Bedrock hints were removed and IAM denies
+  Bedrock), and submissions are capped per user and for the whole site, so public traffic
+  cannot turn into unbounded cost ([ADR-0021](docs/adr/0021-remove-ai-hints.md)).
 - **Delivery:** GitHub Actions with OIDC (no AWS keys), images built once and promoted
   dev → staging → prod, preview environment per pull request, ECS blue/green with a
   smoke-test hook and a CodeDeploy canary for the runners, alarm-based rollback

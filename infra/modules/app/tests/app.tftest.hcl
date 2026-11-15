@@ -316,3 +316,13 @@ run "rejects_a_too_long_bake_time" {
 
   expect_failures = [var.api_bake_time_minutes]
 }
+
+run "rejects_a_malformed_global_submission_limit" {
+  command = plan
+
+  variables {
+    submission_global_limit = "300 per hour"
+  }
+
+  expect_failures = [var.submission_global_limit]
+}

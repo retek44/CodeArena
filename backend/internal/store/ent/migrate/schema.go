@@ -218,6 +218,11 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{SubmissionsColumns[15], SubmissionsColumns[17], SubmissionsColumns[12]},
 			},
+			{
+				Name:    "submission_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{SubmissionsColumns[12]},
+			},
 		},
 	}
 	// SubmissionResultsColumns holds the columns for the "submission_results" table.

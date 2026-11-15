@@ -257,6 +257,7 @@ module "backend" {
   runner_function_arns     = { for lang, runner in module.runner : lang => runner.alias_arn }
   deploy_hook_function_arn = module.deploy_hook[0].function_arn
   bake_time_minutes        = var.api_bake_time_minutes
+  submission_global_limit  = var.submission_global_limit
 
   valkey_url = module.contests[0].valkey_url
 

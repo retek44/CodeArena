@@ -191,7 +191,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "429":
-          description: Too many submissions.
+          description: >-
+            Too many submissions: the caller reached the per-user limit, or all users
+            together reached the global limit of the site.
           headers:
             Retry-After:
               description: Seconds to wait before the next submission.

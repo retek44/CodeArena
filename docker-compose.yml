@@ -115,6 +115,8 @@ services:
       PORT: "8080"
       # Local only: trusts the X-Dev-User header instead of a Cognito token.
       AUTH_MODE: dev
+      # Repeated test runs (e2e, Playwright, k6) submit a lot; AWS keeps 300/1h.
+      SUBMISSION_GLOBAL_LIMIT: 3000/1h
     ports:
       - "8080:8080"
     depends_on:

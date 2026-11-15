@@ -165,6 +165,7 @@ resource "aws_ecs_task_definition" "api" {
       { name = "COGNITO_ISSUER", value = var.cognito.issuer },
       { name = "COGNITO_CLIENT_ID", value = var.cognito.client_id },
       { name = "SUBMISSIONS_QUEUE_URL", value = var.queue.url },
+      { name = "SUBMISSION_GLOBAL_LIMIT", value = var.submission_global_limit },
       # Stuck-submission sweeper: well above the worker lease (= visibility timeout),
       # so SQS redelivery gets the first chance after a worker crash.
       { name = "SWEEP_RUNNING_AFTER", value = "${var.queue.visibility_timeout_seconds * 5}s" },

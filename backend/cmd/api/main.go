@@ -60,6 +60,12 @@ func run(logger *slog.Logger) error {
 	defer flushTraces(shutdownTracing, logger)
 
 	deps := httpapi.Deps{Logger: logger, Build: httpapi.BuildInfo{Version: version, Commit: commit}}
+	// Optional cap on submissions of all users together, "<max>/<window>" (default 300/1h).
+	if raw := os.Getenv("SUBMISSION_GLOBAL_LIMIT"); raw != "" {
+		if deps.GlobalSubmissionLimit, err = httpapi.ParseRateLimit(raw); err != nil {
+			return fmt.Errorf("SUBMISSION_GLOBAL_LIMIT: %w", err)
+		}
+	}
 
 	// Without DATABASE_URL only the health routes run (container smoke test).
 	if os.Getenv("DATABASE_URL") != "" || os.Getenv("DB_HOST") != "" {

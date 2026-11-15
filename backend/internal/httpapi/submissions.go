@@ -20,6 +20,7 @@ import (
 	"github.com/retek44/CodeArena/backend/internal/store/ent"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestparticipant"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/contestproblem"
+	"github.com/retek44/CodeArena/backend/internal/store/ent/predicate"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/problem"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submission"
 	"github.com/retek44/CodeArena/backend/internal/store/ent/submissionresult"
@@ -101,15 +102,12 @@ func (s *server) createSubmission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wait, err := s.submissionRetryAfter(ctx, principal.UserID)
+	limited, err := s.submissionLimited(w, r, principal.UserID)
 	if err != nil {
 		s.internalError(w, r, err)
 		return
 	}
-	if wait > 0 {
-		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
-		s.writeProblem(w, http.StatusTooManyRequests,
-			fmt.Sprintf("at most %d submissions per %s", s.SubmissionLimit.Max, s.SubmissionLimit.Window))
+	if limited {
 		return
 	}
 
@@ -215,14 +213,37 @@ func (s *server) contestForSubmission(ctx context.Context, slug, userID string, 
 	return c.ID, 0, "", nil
 }
 
-// submissionRetryAfter applies a sliding-window limit per user, counted from the
-// submissions table (shared by all API tasks, no extra infrastructure). Two requests
-// racing at the limit can both pass; the limit protects capacity, not money.
-func (s *server) submissionRetryAfter(ctx context.Context, userID string) (time.Duration, error) {
+// submissionLimited applies the per-user limit, then the global limit, and answers 429
+// with Retry-After when one of them is reached.
+func (s *server) submissionLimited(w http.ResponseWriter, r *http.Request, userID string) (bool, error) {
+	ctx := r.Context()
 	limit := s.SubmissionLimit
+	detail := fmt.Sprintf("at most %d submissions per %s", limit.Max, limit.Window)
+	wait, err := s.retryAfter(ctx, limit, submission.UserID(userID))
+	if err == nil && wait == 0 {
+		limit = s.GlobalSubmissionLimit
+		detail = fmt.Sprintf("the judge is at capacity: at most %d submissions per %s from all users", limit.Max, limit.Window)
+		wait, err = s.retryAfter(ctx, limit)
+		if err == nil && wait > 0 {
+			s.Logger.WarnContext(ctx, "global submission limit reached", "max", limit.Max, "window", limit.Window.String())
+		}
+	}
+	if err != nil || wait == 0 {
+		return false, err
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+	s.writeProblem(w, http.StatusTooManyRequests, detail)
+	return true, nil
+}
+
+// retryAfter applies a sliding-window limit to the submissions that match where (all
+// submissions without a predicate), counted from the submissions table: shared by all
+// API tasks, no extra infrastructure. Requests racing at the limit can all pass, so the
+// limit can be exceeded by the number of concurrent requests, never by more.
+func (s *server) retryAfter(ctx context.Context, limit RateLimit, where ...predicate.Submission) (time.Duration, error) {
 	now := s.Now()
 	recent, err := s.Store.Ent.Submission.Query().
-		Where(submission.UserID(userID), submission.CreatedAtGT(now.Add(-limit.Window))).
+		Where(append(where, submission.CreatedAtGT(now.Add(-limit.Window)))...).
 		Order(ent.Asc(submission.FieldCreatedAt)).
 		Limit(limit.Max).
 		Select(submission.FieldCreatedAt).

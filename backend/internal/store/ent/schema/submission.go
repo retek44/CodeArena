@@ -125,5 +125,7 @@ func (Submission) Indexes() []ent.Index {
 		index.Fields("status", "updated_at"),
 		// Leaderboard: a contest's submissions per user in time order.
 		index.Fields("contest_id", "user_id", "created_at"),
+		// Global submission limit: all submissions in the last window.
+		index.Fields("created_at"),
 	}
 }

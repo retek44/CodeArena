@@ -3,8 +3,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/retek44/CodeArena/backend/internal/contest"
@@ -28,6 +31,9 @@ type Deps struct {
 	Now    func() time.Time
 	// SubmissionLimit caps submissions per user; zero means DefaultSubmissionLimit.
 	SubmissionLimit RateLimit
+	// GlobalSubmissionLimit caps submissions of all users together, so many accounts
+	// cannot turn into unbounded judge cost; zero means DefaultGlobalSubmissionLimit.
+	GlobalSubmissionLimit RateLimit
 	// Tickets issues WebSocket tickets; nil disables live updates (503, the SPA polls).
 	Tickets realtime.Ticketer
 	// Leaderboard of contests; nil means Postgres only (no Valkey cache).
@@ -43,6 +49,27 @@ type RateLimit struct {
 // DefaultSubmissionLimit protects the judge from bursts: 10 submissions per minute per user.
 var DefaultSubmissionLimit = RateLimit{Max: 10, Window: time.Minute}
 
+// DefaultGlobalSubmissionLimit bounds the judge cost of the whole site: 300 submissions
+// per hour from all users together.
+var DefaultGlobalSubmissionLimit = RateLimit{Max: 300, Window: time.Hour}
+
+// ParseRateLimit reads "<max>/<window>", for example "300/1h".
+func ParseRateLimit(raw string) (RateLimit, error) {
+	countText, windowText, ok := strings.Cut(raw, "/")
+	if !ok {
+		return RateLimit{}, fmt.Errorf("rate limit %q: want <max>/<window>, for example 300/1h", raw)
+	}
+	count, err := strconv.Atoi(countText)
+	if err != nil || count <= 0 {
+		return RateLimit{}, fmt.Errorf("rate limit %q: max must be a positive integer", raw)
+	}
+	window, err := time.ParseDuration(windowText)
+	if err != nil || window <= 0 {
+		return RateLimit{}, fmt.Errorf("rate limit %q: window must be a positive duration", raw)
+	}
+	return RateLimit{Max: count, Window: window}, nil
+}
+
 // NewHandler returns the root handler with all routes registered.
 func NewHandler(d Deps) http.Handler {
 	if d.Now == nil {
@@ -50,6 +77,9 @@ func NewHandler(d Deps) http.Handler {
 	}
 	if d.SubmissionLimit.Max <= 0 || d.SubmissionLimit.Window <= 0 {
 		d.SubmissionLimit = DefaultSubmissionLimit
+	}
+	if d.GlobalSubmissionLimit.Max <= 0 || d.GlobalSubmissionLimit.Window <= 0 {
+		d.GlobalSubmissionLimit = DefaultGlobalSubmissionLimit
 	}
 	if d.Leaderboard == nil && d.Store != nil {
 		d.Leaderboard = &contest.Leaderboard{Queries: d.Store.Queries, Logger: d.Logger}

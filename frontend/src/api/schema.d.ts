@@ -588,7 +588,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description Too many submissions. */
+            /** @description Too many submissions: the caller reached the per-user limit, or all users together reached the global limit of the site. */
             429: {
                 headers: {
                     /** @description Seconds to wait before the next submission. */

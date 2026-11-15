@@ -528,6 +528,43 @@ func TestSubmissionRateLimit(t *testing.T) {
 	}
 }
 
+// The global limit counts every user's submissions, so many accounts cannot get more
+// judge time than the site allows.
+func TestGlobalSubmissionLimit(t *testing.T) {
+	now := time.Now()
+	a := newAPIWith(t, func(d *httpapi.Deps) {
+		d.GlobalSubmissionLimit = httpapi.RateLimit{Max: 3, Window: time.Hour}
+		d.Now = func() time.Time { return now }
+	})
+	a.problem("a-plus-b", problem.DifficultyEasy, true)
+	post := func(user, key string) *httptest.ResponseRecorder {
+		return a.do(request{method: http.MethodPost, path: "/api/submissions", user: user, key: key, body: validSubmission()})
+	}
+
+	for _, user := range []string{"alice", "bob", "carol"} {
+		expectStatus(t, post(user, "global-key-1"), http.StatusAccepted)
+	}
+
+	limited := post("dave", "global-key-1")
+	expectStatus(t, limited, http.StatusTooManyRequests)
+	if body := decode[struct{ Detail string }](t, limited); !strings.Contains(body.Detail, "from all users") {
+		t.Errorf("detail = %q, want the global limit", body.Detail)
+	}
+	retry, err := strconv.Atoi(limited.Header().Get("Retry-After"))
+	if err != nil || retry < 1 || retry > 3600 {
+		t.Errorf("Retry-After = %q, want 1..3600 seconds", limited.Header().Get("Retry-After"))
+	}
+	// Retries of accepted requests stay allowed.
+	expectStatus(t, post("alice", "global-key-1"), http.StatusAccepted)
+
+	now = now.Add(time.Hour + time.Second)
+	expectStatus(t, post("dave", "global-key-1"), http.StatusAccepted)
+
+	if n := a.store.Ent.Submission.Query().CountX(t.Context()); n != 4 {
+		t.Errorf("%d submissions stored, want 4", n)
+	}
+}
+
 // A new user's first requests can arrive together (two tabs; the e2e test submits the
 // Python and C++ solution of one user in parallel). Creating the user row must not turn
 // the race into a 500.
